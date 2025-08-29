@@ -1,0 +1,13 @@
+{
+  "name": "butifarra",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev:server": "pnpm --filter @buti/server dev",
+    "dev:web": "pnpm --filter @buti/web dev",
+    "build": "pnpm -r build"
+  }
+}
