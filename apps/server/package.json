@@ -1,0 +1,21 @@
+{
+  "name": "@buti/server",
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsup src/index.ts --format esm --sourcemap --clean",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "fastify": "^4.28.1",
+    "ws": "^8.18.0",
+    "@buti/protocol": "file:../../packages/protocol",
+    "@buti/engine": "file:../../packages/engine"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.1",
+    "tsup": "^8.2.4",
+    "typescript": "^5.6.2"
+  }
+}
