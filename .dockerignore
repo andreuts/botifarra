@@ -1,0 +1,14 @@
+node_modules
+dist
+.git
+.gitignore
+.env*
+*.md
+docker-compose.yml
+.vscode
+.idea
+*.tsbuildinfo
+apps/server/node_modules
+apps/web/node_modules
+packages/botifarra-core/node_modules
+packages/shared/node_modules

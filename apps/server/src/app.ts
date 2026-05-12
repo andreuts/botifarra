@@ -1,6 +1,9 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import jwt from '@fastify/jwt';
+import fastifyStatic from '@fastify/static';
+import { join, resolve } from 'path';
+import { existsSync } from 'fs';
 import { prismaPlugin } from './plugins/prisma.js';
 import { authRoutes } from './routes/auth.js';
 import { userRoutes } from './routes/users.js';
@@ -44,7 +47,7 @@ export async function buildApp(opts: AppOptions = {}) {
   // ---------------------------------------------------------------------------
 
   await app.register(cors, {
-    origin: process.env['CORS_ORIGIN'] ?? 'http://localhost:5173',
+    origin: process.env['CORS_ORIGIN'] ?? (process.env['NODE_ENV'] === 'production' ? true : 'http://localhost:5173'),
     credentials: true,
   });
 
@@ -119,6 +122,34 @@ export async function buildApp(opts: AppOptions = {}) {
 
   // Health check
   app.get('/health', async () => ({ status: 'ok' }));
+
+  // ---------------------------------------------------------------------------
+  // Static files — serve the web app in production
+  // ---------------------------------------------------------------------------
+
+  if (process.env['NODE_ENV'] === 'production') {
+    // In Docker the web build lives at /app/apps/web/dist
+    // In a local production build it's at ../../apps/web/dist relative to server dist
+    const webDistDir = resolve(
+      process.env['WEB_DIST_DIR'] ?? join(__dirname, '..', '..', '..', 'web', 'dist'),
+    );
+
+    if (existsSync(webDistDir)) {
+      await app.register(fastifyStatic, {
+        root: webDistDir,
+        prefix: '/',
+        wildcard: false,
+      });
+
+      // SPA fallback: any non-API, non-asset GET returns index.html
+      app.setNotFoundHandler(async (request, reply) => {
+        if (request.method === 'GET' && !request.url.startsWith('/api') && !request.url.startsWith('/colyseus')) {
+          return reply.sendFile('index.html');
+        }
+        return reply.status(404).send({ error: 'Not found' });
+      });
+    }
+  }
 
   return app;
 }

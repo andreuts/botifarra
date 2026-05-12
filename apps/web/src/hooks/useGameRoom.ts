@@ -5,7 +5,11 @@ import type { PlayerGameStateDTO } from '@botifarra/shared';
 import type { TrumpDeclaration } from '@botifarra/core';
 import type { SeatReservationData } from './useMatchmakingQueue.js';
 
-const COLYSEUS_URL = import.meta.env['VITE_COLYSEUS_URL'] ?? 'ws://localhost:3000';
+const COLYSEUS_URL =
+  import.meta.env['VITE_COLYSEUS_URL'] ??
+  (window.location.hostname === 'localhost'
+    ? 'ws://localhost:3000'
+    : `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}`);
 
 /**
  * Tracks seat reservation sessionIds that have already been attempted.
