@@ -25,17 +25,18 @@ RUN pnpm --filter @botifarra/shared build
 RUN pnpm --filter @botifarra/server build
 RUN pnpm --filter @botifarra/web build
 
+# Generate Prisma client while devDeps (prisma CLI) are still available
+RUN cd /app/apps/server && ./node_modules/.bin/prisma generate
+
 # pnpm deploy: creates a self-contained flat node_modules for the server
-# This is the official pnpm approach for deploying monorepo packages — no
-# virtual-store symlink issues, no Prisma path guessing.
 RUN pnpm --filter @botifarra/server deploy --prod --legacy /deploy
 
 # Copy built server dist + prisma into the deploy dir
 RUN cp -r /app/apps/server/dist /deploy/dist \
  && cp -r /app/apps/server/prisma /deploy/prisma
 
-# Generate Prisma client inside the self-contained deploy directory
-RUN cd /deploy && ./node_modules/.bin/prisma generate --schema=./prisma/schema.prisma
+# Copy the generated Prisma client into the deploy node_modules
+RUN cp -r /app/apps/server/node_modules/.prisma /deploy/node_modules/.prisma
 
 # ── Stage 2: runtime ─────────────────────────────────────────────────────────
 FROM node:20-slim AS runner
