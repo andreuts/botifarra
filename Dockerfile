@@ -28,7 +28,7 @@ RUN pnpm --filter @botifarra/web build
 # pnpm deploy: creates a self-contained flat node_modules for the server
 # This is the official pnpm approach for deploying monorepo packages — no
 # virtual-store symlink issues, no Prisma path guessing.
-RUN pnpm --filter @botifarra/server deploy --prod /deploy
+RUN pnpm --filter @botifarra/server deploy --prod --legacy /deploy
 
 # Copy built server dist + prisma into the deploy dir
 RUN cp -r /app/apps/server/dist /deploy/dist \
