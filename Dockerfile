@@ -1,12 +1,11 @@
-# ── Stage 1: install & build ──────────────────────────────────────────────────
+# ── Stage 1: build ────────────────────────────────────────────────────────────
 FROM node:20-slim AS builder
 
-# pnpm
-RUN corepack enable && corepack prepare pnpm@10 --activate
+RUN corepack enable && corepack prepare pnpm@latest --activate
 
 WORKDIR /app
 
-# Copy manifests first for better layer caching
+# Manifests first — better layer caching
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 COPY packages/botifarra-core/package.json packages/botifarra-core/
 COPY packages/shared/package.json packages/shared/
@@ -15,52 +14,48 @@ COPY apps/web/package.json apps/web/
 
 RUN pnpm install --frozen-lockfile
 
-# Copy source
+# Source
 COPY packages/ packages/
 COPY apps/server/ apps/server/
 COPY apps/web/ apps/web/
 
-# Generate Prisma client
-RUN pnpm --filter @botifarra/server db:generate
+# Build dependency packages, then server, then web
+RUN pnpm --filter @botifarra/core build
+RUN pnpm --filter @botifarra/shared build
+RUN pnpm --filter @botifarra/server build
+RUN pnpm --filter @botifarra/web build
 
-# Build packages → server → web (respects dependency order)
-RUN pnpm -r build
+# pnpm deploy: creates a self-contained flat node_modules for the server
+# This is the official pnpm approach for deploying monorepo packages — no
+# virtual-store symlink issues, no Prisma path guessing.
+RUN pnpm --filter @botifarra/server deploy --prod /deploy
 
-# ── Stage 2: production runtime ──────────────────────────────────────────────
+# Copy built server dist + prisma into the deploy dir
+COPY --from=builder /app/apps/server/dist /deploy/dist
+COPY --from=builder /app/apps/server/prisma /deploy/prisma
+
+# Generate Prisma client inside the self-contained deploy directory
+RUN cd /deploy && ./node_modules/.bin/prisma generate --schema=./prisma/schema.prisma
+
+# ── Stage 2: runtime ─────────────────────────────────────────────────────────
 FROM node:20-slim AS runner
 
-RUN corepack enable && corepack prepare pnpm@10 --activate
-
-# OpenSSL is needed by Prisma
+# Prisma query engine needs libssl
 RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Copy manifests
-COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
-COPY packages/botifarra-core/package.json packages/botifarra-core/
-COPY packages/shared/package.json packages/shared/
-COPY apps/server/package.json apps/server/
-COPY apps/web/package.json apps/web/
+# Copy the self-contained server deployment
+COPY --from=builder /deploy ./
 
-# Production-only install
-RUN pnpm install --frozen-lockfile --prod
-
-# Copy built outputs
-COPY --from=builder /app/packages/botifarra-core/dist packages/botifarra-core/dist
-COPY --from=builder /app/packages/shared/dist packages/shared/dist
-COPY --from=builder /app/apps/server/dist apps/server/dist
-COPY --from=builder /app/apps/web/dist apps/web/dist
-
-# Copy Prisma schema then regenerate the client for this platform
-COPY --from=builder /app/apps/server/prisma apps/server/prisma
-RUN cd apps/server && ./node_modules/.bin/prisma generate
-
+# Copy the web SPA build; server reads WEB_DIST_DIR at startup
+COPY --from=builder /app/apps/web/dist ./web-dist
 
 ENV NODE_ENV=production
 ENV PORT=3000
+ENV WEB_DIST_DIR=/app/web-dist
 
 EXPOSE 3000
 
-# Run migrations then start the server
-CMD ["sh", "-c", "cd apps/server && ./node_modules/.bin/prisma migrate deploy && node dist/index.js"]
+# Migrate then start
+CMD ["sh", "-c", "./node_modules/.bin/prisma migrate deploy --schema=./prisma/schema.prisma && node dist/index.js"]
