@@ -31,8 +31,8 @@ RUN pnpm --filter @botifarra/web build
 RUN pnpm --filter @botifarra/server deploy --prod /deploy
 
 # Copy built server dist + prisma into the deploy dir
-COPY --from=builder /app/apps/server/dist /deploy/dist
-COPY --from=builder /app/apps/server/prisma /deploy/prisma
+RUN cp -r /app/apps/server/dist /deploy/dist \
+ && cp -r /app/apps/server/prisma /deploy/prisma
 
 # Generate Prisma client inside the self-contained deploy directory
 RUN cd /deploy && ./node_modules/.bin/prisma generate --schema=./prisma/schema.prisma
