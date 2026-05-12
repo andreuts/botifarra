@@ -2,12 +2,13 @@
   "name": "@botifarra/shared",
   "version": "0.0.1",
   "description": "Shared DTOs, events and commands for Botifarra frontend & backend",
-  "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
+      "require": "./dist/index.js",
       "import": "./dist/index.js",
+      "default": "./dist/index.js",
       "types": "./dist/index.d.ts"
     }
   },
