@@ -54,7 +54,7 @@ COPY --from=builder /app/apps/web/dist apps/web/dist
 
 # Copy Prisma schema then regenerate the client for this platform
 COPY --from=builder /app/apps/server/prisma apps/server/prisma
-RUN cd apps/server && npx prisma generate
+RUN cd apps/server && ./node_modules/.bin/prisma generate
 
 
 ENV NODE_ENV=production
@@ -63,4 +63,4 @@ ENV PORT=3000
 EXPOSE 3000
 
 # Run migrations then start the server
-CMD ["sh", "-c", "cd apps/server && npx prisma migrate deploy && node dist/index.js"]
+CMD ["sh", "-c", "cd apps/server && ./node_modules/.bin/prisma migrate deploy && node dist/index.js"]
