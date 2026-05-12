@@ -52,10 +52,9 @@ COPY --from=builder /app/packages/shared/dist packages/shared/dist
 COPY --from=builder /app/apps/server/dist apps/server/dist
 COPY --from=builder /app/apps/web/dist apps/web/dist
 
-# Copy Prisma schema + generated client
+# Copy Prisma schema then regenerate the client for this platform
 COPY --from=builder /app/apps/server/prisma apps/server/prisma
-COPY --from=builder /app/apps/server/node_modules/.prisma apps/server/node_modules/.prisma
-COPY --from=builder /app/node_modules/.prisma node_modules/.prisma
+RUN cd apps/server && npx prisma generate
 
 ENV NODE_ENV=production
 ENV PORT=3000
