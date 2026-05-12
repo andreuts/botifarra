@@ -52,10 +52,15 @@ COPY --from=builder /app/packages/shared/dist packages/shared/dist
 COPY --from=builder /app/apps/server/dist apps/server/dist
 COPY --from=builder /app/apps/web/dist apps/web/dist
 
-# Copy Prisma schema + generated client
+# Copy Prisma schema + engine binaries from builder
 COPY --from=builder /app/apps/server/prisma apps/server/prisma
-COPY --from=builder /app/apps/server/node_modules/.prisma apps/server/node_modules/.prisma
-COPY --from=builder /app/node_modules/.prisma node_modules/.prisma
+
+# Copy the prisma CLI from the builder stage (it's a devDep, not in prod install)
+COPY --from=builder /app/node_modules/.pnpm/prisma@6.19.3/node_modules/prisma node_modules/.pnpm/prisma@6.19.3/node_modules/prisma
+COPY --from=builder /app/node_modules/.pnpm/@prisma+engines@6.19.3/node_modules/@prisma/engines node_modules/.pnpm/@prisma+engines@6.19.3/node_modules/@prisma/engines
+
+# Regenerate Prisma client against the production node_modules
+RUN npx prisma generate --schema=apps/server/prisma/schema.prisma
 
 ENV NODE_ENV=production
 ENV PORT=3000
