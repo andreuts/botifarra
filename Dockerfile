@@ -2,7 +2,7 @@
 FROM node:20-slim AS builder
 
 # pnpm
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN corepack enable && corepack prepare pnpm@10 --activate
 
 WORKDIR /app
 
@@ -29,7 +29,7 @@ RUN pnpm -r build
 # ── Stage 2: production runtime ──────────────────────────────────────────────
 FROM node:20-slim AS runner
 
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN corepack enable && corepack prepare pnpm@10 --activate
 
 # OpenSSL is needed by Prisma
 RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
