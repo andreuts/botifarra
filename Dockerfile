@@ -57,4 +57,4 @@ EXPOSE 3000
 
 WORKDIR /app/apps/server
 
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/index.js"]
+CMD ["sh", "-c", "npx prisma@6 migrate deploy && node dist/index.js"]
