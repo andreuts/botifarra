@@ -12,6 +12,7 @@
     "db:generate": "pnpm --filter @botifarra/server db:generate",
     "setup": "docker compose up -d && pnpm --filter @botifarra/server db:migrate",
     "build": "pnpm -r build",
+    "build:all": "pnpm -w -r build",
     "test": "pnpm -r test",
     "lint": "pnpm -r lint"
   },
