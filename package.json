@@ -1,14 +1,36 @@
 {
-  "name": "butifarra",
+  "name": "botifarra",
   "private": true,
-  "workspaces": [
-    "packages/*",
-    "apps/*"
-  ],
+  "version": "0.0.1",
+  "description": "Botifarra Online — Catalan card game multiplayer platform",
   "scripts": {
-    "dev:server": "pnpm --filter @buti/server dev",
-    "dev:web": "pnpm --filter @buti/web dev",
-    "build": "pnpm -r build"
+    "dev": "concurrently --kill-others-on-fail --prefix-colors cyan,magenta --names server,web \"pnpm --filter @botifarra/server dev\" \"pnpm --filter @botifarra/web dev\"",
+    "dev:server": "pnpm --filter @botifarra/server dev",
+    "dev:web": "pnpm --filter @botifarra/web dev",
+    "db:up": "docker compose up -d",
+    "db:migrate": "pnpm --filter @botifarra/server db:migrate",
+    "db:generate": "pnpm --filter @botifarra/server db:generate",
+    "setup": "docker compose up -d && pnpm --filter @botifarra/server db:migrate",
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "lint": "pnpm -r lint"
   },
-  "packageManager": "pnpm@10.15.0+sha512.486ebc259d3e999a4e8691ce03b5cac4a71cbeca39372a9b762cb500cfdf0873e2cb16abe3d951b1ee2cf012503f027b98b6584e4df22524e0c7450d9ec7aa7b"
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "typescript": "^5.8.3"
+  },
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=10"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "@prisma/client",
+      "@prisma/engines",
+      "argon2",
+      "prisma",
+      "msgpackr-extract"
+    ]
+  }
 }

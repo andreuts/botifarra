@@ -1,0 +1,103 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Users
+// ---------------------------------------------------------------------------
+
+model User {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  stats        UserStats?
+  matchPlayers MatchPlayer[]
+
+  @@map("users")
+}
+
+model UserStats {
+  id             String @id @default(cuid())
+  userId         String @unique
+  matchesPlayed  Int    @default(0)
+  matchesWon     Int    @default(0)
+  matchesLost    Int    @default(0)
+  individualRating Float @default(1000)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_stats")
+}
+
+// ---------------------------------------------------------------------------
+// Matches
+// ---------------------------------------------------------------------------
+
+enum MatchStatus {
+  WAITING
+  IN_PROGRESS
+  FINISHED
+}
+
+enum MatchMode {
+  PUBLIC
+  PRIVATE
+  PRACTICE
+}
+
+model Match {
+  id          String      @id @default(cuid())
+  mode        MatchMode   @default(PUBLIC)
+  status      MatchStatus @default(WAITING)
+  targetScore Int         @default(12)
+  score0      Int         @default(0) // team 0 match-points
+  score1      Int         @default(0) // team 1 match-points
+  winner      Int?        // 0 or 1
+  createdAt   DateTime    @default(now())
+  finishedAt  DateTime?
+
+  players     MatchPlayer[]
+  events      MatchEvent[]
+
+  @@map("matches")
+}
+
+model MatchPlayer {
+  id      String @id @default(cuid())
+  matchId String
+  userId  String
+  seat    Int    // 0-3
+
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id])
+
+  @@unique([matchId, seat])
+  @@unique([matchId, userId])
+  @@map("match_players")
+}
+
+// Event log for replay / debugging
+model MatchEvent {
+  id        String   @id @default(cuid())
+  matchId   String
+  seq       Int
+  type      String
+  payload   Json
+  createdAt DateTime @default(now())
+
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@unique([matchId, seq])
+  @@map("match_events")
+}
