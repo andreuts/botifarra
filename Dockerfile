@@ -29,7 +29,7 @@ RUN pnpm --filter @botifarra/web build
 # Create a standalone prod-only deployment for the server.
 # pnpm deploy correctly resolves workspace:* packages into a flat node_modules,
 # unlike `pnpm prune --prod` which removes hoisted workspace deps at the root level.
-RUN pnpm deploy --filter @botifarra/server --prod /app/server-deploy
+RUN pnpm deploy --filter @botifarra/server --prod --legacy /app/server-deploy
 
 # ── Stage 2: runtime ─────────────────────────────────────────────────────────
 FROM node:20-slim AS runner
