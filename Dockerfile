@@ -35,7 +35,7 @@ RUN pnpm deploy --filter @botifarra/server --prod --legacy /app/server-deploy
 # binary (.prisma/client/default) is present in the isolated node_modules.
 RUN cp -r apps/server/prisma /app/server-deploy/prisma \
  && cd /app/server-deploy \
- && node_modules/.bin/prisma generate
+ && /app/node_modules/.bin/prisma generate
 
 # ── Stage 2: runtime ─────────────────────────────────────────────────────────
 FROM node:20-slim AS runner
