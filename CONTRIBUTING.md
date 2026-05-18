@@ -6,12 +6,12 @@ Thank you for your interest in contributing! This document explains how to set u
 
 ## Prerequisites
 
-| Tool          | Version | Notes                              |
-|---------------|--------:|------------------------------------|
-| **Node.js**   | ≥ 20    | v25 recommended                    |
-| **pnpm**      | ≥ 10    | `npm i -g pnpm`                   |
-| **Docker**    | latest  | For PostgreSQL & Redis via Compose |
-| **Git**       | latest  |                                    |
+| Tool        | Version | Notes                              |
+| ----------- | ------: | ---------------------------------- |
+| **Node.js** |    ≥ 20 | v25 recommended                    |
+| **pnpm**    |    ≥ 10 | `npm i -g pnpm`                    |
+| **Docker**  |  latest | For PostgreSQL & Redis via Compose |
+| **Git**     |  latest |                                    |
 
 ---
 
@@ -47,14 +47,20 @@ The web app is served at **http://localhost:5173** with Vite's proxy forwarding 
 
 ### Useful commands
 
-| Command                     | Description                                |
-|-----------------------------|--------------------------------------------|
-| `pnpm test`                | Run all tests (core + server)              |
-| `pnpm build`               | Build every package                        |
-| `pnpm dev`                 | Start dev servers (hot-reload)             |
-| `pnpm --filter server test`| Run only server tests                      |
-| `pnpm --filter core test`  | Run only game engine tests                 |
-| `pnpm --filter server exec prisma studio` | Open Prisma Studio UI     |
+| Command                                   | Description                           |
+| ----------------------------------------- | ------------------------------------- |
+| `pnpm test`                               | Run all tests (core + server + web)   |
+| `pnpm test:e2e`                           | Run Playwright E2E tests              |
+| `pnpm build`                              | Build every package                   |
+| `pnpm dev`                                | Start dev servers (hot-reload)        |
+| `pnpm lint`                               | ESLint across the entire monorepo     |
+| `pnpm lint:fix`                           | ESLint with auto-fix                  |
+| `pnpm format`                             | Prettier format all files             |
+| `pnpm format:check`                       | Prettier check (used in CI)           |
+| `pnpm --filter @botifarra/web test`       | Run only frontend component tests     |
+| `pnpm --filter @botifarra/server test`    | Run only server tests                 |
+| `pnpm --filter @botifarra/core test`      | Run only game engine tests            |
+| `pnpm --filter @botifarra/server exec prisma studio` | Open Prisma Studio UI  |
 
 ---
 
@@ -85,11 +91,11 @@ This project follows TDD strictly. Every feature starts with a failing test.
 
 ### Test locations
 
-| Package          | Test pattern              | Framework |
-|------------------|---------------------------|-----------|
-| `botifarra-core` | `src/*.test.ts`           | Vitest    |
-| `server`         | `src/**/*.test.ts`        | Vitest    |
-| `server`         | `src/integration/*.integration.test.ts` | Vitest |
+| Package          | Test pattern                            | Framework |
+| ---------------- | --------------------------------------- | --------- |
+| `botifarra-core` | `src/*.test.ts`                         | Vitest    |
+| `server`         | `src/**/*.test.ts`                      | Vitest    |
+| `server`         | `src/integration/*.integration.test.ts` | Vitest    |
 
 ### Writing tests
 
@@ -129,13 +135,13 @@ Integration tests (`*.integration.test.ts`) test the full Fastify app with datab
 
 ### Naming conventions
 
-| Element         | Convention              | Example                      |
-|-----------------|-------------------------|------------------------------|
-| Files           | kebab-case              | `game-logic.ts`              |
-| Types/Interfaces| PascalCase              | `PlayerGameStateDTO`         |
-| Functions       | camelCase               | `handlePlayCard`             |
-| Constants       | SCREAMING_SNAKE_CASE    | `BOT_USERNAMES`              |
-| React components| PascalCase              | `TrickArea.tsx`              |
+| Element          | Convention           | Example              |
+| ---------------- | -------------------- | -------------------- |
+| Files            | kebab-case           | `game-logic.ts`      |
+| Types/Interfaces | PascalCase           | `PlayerGameStateDTO` |
+| Functions        | camelCase            | `handlePlayCard`     |
+| Constants        | SCREAMING_SNAKE_CASE | `BOT_USERNAMES`      |
+| React components | PascalCase           | `TrickArea.tsx`      |
 
 ---
 
@@ -165,8 +171,35 @@ docs: update roadmap in README
 - [ ] All existing tests pass (`pnpm test`)
 - [ ] New code has tests
 - [ ] Build succeeds (`pnpm build`)
+- [ ] Linting passes (`pnpm lint`)
 - [ ] No `any` types introduced without justification
-- [ ] PR description explains *what* and *why*
+- [ ] If adding UI text: add keys to `apps/web/src/i18n/locales/ca.json` **and** `es.json`
+- [ ] PR description explains _what_ and _why_
+
+---
+
+## Internationalization (i18n)
+
+The web app uses [i18next](https://www.i18next.com/) with Catalan (`ca`) as the default language.
+
+### Adding a new UI string
+
+1. Add the key + Catalan text to `apps/web/src/i18n/locales/ca.json`
+2. Add the corresponding Spanish translation to `apps/web/src/i18n/locales/es.json`
+3. Use the key in the component: `const { t } = useTranslation(); ... t('my.key')`
+
+### Adding a new language
+
+1. Create `apps/web/src/i18n/locales/<lang>.json` by copying `ca.json`
+2. Translate all values
+3. Import and register the locale in `apps/web/src/i18n/index.ts`
+4. Add the language code to the `supportedLngs` array
+
+### Translation key conventions
+
+- Keys use dot-notation grouping by page/component: `auth.login`, `game.yourTurn`
+- Interpolated variables use double braces: `"welcome": "Benvingut, {{name}}!"`
+- Plural forms use `_plural` suffix or i18next `count` option
 
 ---
 
@@ -174,16 +207,16 @@ docs: update roadmap in README
 
 Key decisions and their rationale:
 
-| Decision | Rationale |
-|----------|-----------|
-| pnpm monorepo | Single repo, shared types, atomic changes |
-| Colyseus for rooms | Handles WebSocket rooms, reconnect, state sync |
-| Fastify for API | Fast, plugin-based, TypeScript-native |
-| Prisma ORM | Type-safe queries, migration management |
-| Vitest | Fast, ESM-native, compatible with TypeScript |
-| Zustand for state | Minimal boilerplate, works well with React 19 |
-| No Redux | Overkill for this app's state complexity |
-| Server authoritative | Prevents cheating, single source of truth |
+| Decision             | Rationale                                      |
+| -------------------- | ---------------------------------------------- |
+| pnpm monorepo        | Single repo, shared types, atomic changes      |
+| Colyseus for rooms   | Handles WebSocket rooms, reconnect, state sync |
+| Fastify for API      | Fast, plugin-based, TypeScript-native          |
+| Prisma ORM           | Type-safe queries, migration management        |
+| Vitest               | Fast, ESM-native, compatible with TypeScript   |
+| Zustand for state    | Minimal boilerplate, works well with React 19  |
+| No Redux             | Overkill for this app's state complexity       |
+| Server authoritative | Prevents cheating, single source of truth      |
 
 ---
 
@@ -192,11 +225,17 @@ Key decisions and their rationale:
 ### Example: adding a chat system
 
 1. **Define types** in `packages/shared/src/events.ts`:
+
    ```typescript
-   export interface ChatMessage { seat: Seat; text: string; timestamp: number; }
+   export interface ChatMessage {
+     seat: Seat;
+     text: string;
+     timestamp: number;
+   }
    ```
 
 2. **Handle on server** in `BotifarraRoom.ts`:
+
    ```typescript
    this.onMessage('chat', (client, { text }) => {
      this.broadcast('chat_message', { seat: ..., text, timestamp: Date.now() });
@@ -204,8 +243,11 @@ Key decisions and their rationale:
    ```
 
 3. **Handle on client** in `useGameRoom.ts`:
+
    ```typescript
-   room.onMessage('chat_message', (msg) => { /* update store */ });
+   room.onMessage('chat_message', (msg) => {
+     /* update store */
+   });
    ```
 
 4. **Build UI** component in `components/Chat.tsx`

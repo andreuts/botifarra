@@ -21,6 +21,7 @@ The main goals are:
 - long-term extensibility
 
 The project should be suitable for:
+
 - a solo developer
 - a small engineering team
 - iterative feature delivery
@@ -32,24 +33,28 @@ The project should be suitable for:
 The application must support:
 
 ## User Accounts
+
 - username/password authentication
 - persistent user profiles
 - game history
 - rankings and statistics
 
 ## Multiplayer Gameplay
+
 - real-time online Botifarra matches
 - authoritative game server
 - validated turns and scoring
 - reconnect handling
 
 ## Matchmaking
+
 - public matchmaking
 - private invitation games
 - pair/team matchmaking
 - reconnect and abandonment handling
 
 ## Custom Games
+
 - invite-only rooms
 - configurable timers
 - pause/resume
@@ -57,12 +62,14 @@ The application must support:
 - optional bots
 
 ## Rankings
+
 - global ranking
 - individual ranking
 - pair/team ranking
 - fair skill-based ranking system
 
 ## Bots
+
 - practice matches
 - AI players
 - future extensibility for smarter bots
@@ -81,6 +88,7 @@ The application must support:
 6. Incremental scalability
 
 The project intentionally avoids:
+
 - premature microservices
 - unnecessary cloud complexity
 - over-engineering
@@ -93,11 +101,13 @@ The project intentionally avoids:
 ## Frontend
 
 ### Core Stack
+
 - React
 - TypeScript
 - Vite
 
 ### Additional Libraries
+
 - React Router
 - TanStack Query
 - Zustand
@@ -107,12 +117,15 @@ The project intentionally avoids:
 ### Packaging Strategy
 
 #### Web (Primary Target)
+
 - Progressive Web App (PWA)
 
 #### Android
+
 - Capacitor
 
 #### macOS Desktop
+
 - Tauri
 
 ---
@@ -120,16 +133,19 @@ The project intentionally avoids:
 # Backend
 
 ## Core Stack
+
 - Node.js
 - TypeScript
 - Fastify
 - Colyseus
 
 ## Database
+
 - PostgreSQL
 - Prisma ORM
 
 ## Optional Future Infrastructure
+
 - Redis / Valkey
 - background workers
 - analytics pipeline
@@ -150,11 +166,13 @@ The project is developed primarily on Windows using:
 The repository MUST live inside the WSL filesystem.
 
 Correct:
+
 ```bash
 ~/projects/botifarra
 ```
 
 Avoid:
+
 ```text
 C:\Users\...
 ```
@@ -232,11 +250,13 @@ This package must contain:
 - bot interfaces
 
 The package MUST:
+
 - have no UI dependencies
 - have no database dependencies
 - have no WebSocket dependencies
 
 The engine should be:
+
 - deterministic
 - pure where possible
 - heavily tested
@@ -272,11 +292,13 @@ Botifarra is fundamentally a:
 - multiplayer synchronization system
 
 Without strong tests, the project will become:
+
 - fragile
 - difficult to evolve
 - hard to debug
 
 TDD is especially important for:
+
 - scoring
 - trick resolution
 - legal move validation
@@ -294,6 +316,7 @@ TDD is especially important for:
 The following MUST have exhaustive unit tests:
 
 ### botifarra-core
+
 - deck creation
 - shuffle logic
 - dealing
@@ -304,11 +327,13 @@ The following MUST have exhaustive unit tests:
 - state transitions
 
 ### Ranking System
+
 - rating updates
 - pair rankings
 - edge cases
 
 ### Matchmaking
+
 - queue handling
 - balancing
 - reconnect handling
@@ -331,9 +356,11 @@ Integration tests should cover:
 # End-to-End Tests
 
 Use:
+
 - Playwright
 
 Test:
+
 - login
 - queueing
 - joining games
@@ -346,12 +373,15 @@ Test:
 # Recommended Testing Stack
 
 ## Unit + Integration
+
 - Vitest
 
 ## E2E
+
 - Playwright
 
 ## API Testing
+
 - Supertest
 
 ---
@@ -363,6 +393,7 @@ Test:
 No game rules should be implemented without tests first.
 
 Especially:
+
 - scoring
 - legal move validation
 - trick resolution
@@ -379,6 +410,7 @@ packages/shared
 ```
 
 Avoid duplicating:
+
 - DTOs
 - events
 - commands
@@ -389,6 +421,7 @@ Avoid duplicating:
 ## Rule 3 — Authoritative Server
 
 Clients must NEVER decide:
+
 - whether a move is valid
 - whether scoring is correct
 - whether a player can act
@@ -400,6 +433,7 @@ The server is always authoritative.
 ## Rule 4 — Event-Driven Gameplay
 
 Gameplay should use:
+
 - commands
 - validated state transitions
 - emitted events
@@ -427,9 +461,11 @@ Broadcast Safe State
 # Multiplayer Design
 
 ## Real-Time Transport
+
 - WebSockets via Colyseus
 
 ## Server Responsibilities
+
 - turn validation
 - state synchronization
 - reconnect handling
@@ -441,15 +477,19 @@ Broadcast Safe State
 # Matchmaking Modes
 
 ## Public Queue
+
 Automatic matchmaking.
 
 ## Pair Queue
+
 Two-player teams queue together.
 
 ## Private Games
+
 Invite-based rooms.
 
 ## Custom Games
+
 Custom rules/timers/settings.
 
 ---
@@ -459,26 +499,31 @@ Custom rules/timers/settings.
 ## Main Entities
 
 ### Users
+
 - profiles
 - auth
 - statistics
 
 ### Matches
+
 - metadata
 - status
 - lifecycle
 
 ### Match Players
+
 - seats
 - teams
 - results
 
 ### Events
+
 - command/event log
 - replay support
 - debugging
 
 ### Rankings
+
 - individual ratings
 - pair ratings
 
@@ -487,14 +532,17 @@ Custom rules/timers/settings.
 # Ranking System
 
 Recommended algorithm:
+
 - TrueSkill-style ranking
 
 Why:
+
 - supports team games
 - supports uncertainty
 - handles evolving skill
 
 Separate rankings:
+
 - ranked
 - casual
 - pair
@@ -509,15 +557,19 @@ Bots should use the same command interface as players.
 Recommended progression:
 
 ## Level 1
+
 Random legal moves.
 
 ## Level 2
+
 Heuristic rules.
 
 ## Level 3
+
 Simulation/search-based.
 
 Bots should:
+
 - never bypass validation
 - interact through standard game commands
 
@@ -528,17 +580,20 @@ Bots should:
 ## MVP
 
 ### Frontend
+
 - Vercel
 - Netlify
 - Cloudflare Pages
 
 ### Backend
+
 - Fly.io
 - Railway
 - Render
 - VPS
 
 ### Database
+
 - PostgreSQL
 
 ---
@@ -546,12 +601,15 @@ Bots should:
 # Packaging Strategy
 
 ## Phase 1
+
 PWA only.
 
 ## Phase 2
+
 Android via Capacitor.
 
 ## Phase 3
+
 macOS desktop via Tauri.
 
 ---
@@ -559,6 +617,7 @@ macOS desktop via Tauri.
 # MVP Development Roadmap
 
 ## Phase 0 — Foundation
+
 - monorepo
 - docker
 - React app
@@ -567,36 +626,43 @@ macOS desktop via Tauri.
 - CI
 
 ## Phase 1 — Game Engine
+
 - rules
 - scoring
 - legal moves
 - tests
 
 ## Phase 2 — Authentication
+
 - register/login
 - sessions
 - profiles
 
 ## Phase 3 — Multiplayer
+
 - Colyseus rooms
 - game synchronization
 - reconnects
 
 ## Phase 4 — Persistence
+
 - match history
 - events
 - rankings
 
 ## Phase 5 — Matchmaking
+
 - queues
 - invites
 - custom games
 
 ## Phase 6 — Bots
+
 - random bot
 - heuristic bot
 
 ## Phase 7 — Packaging
+
 - Android
 - macOS
 
@@ -639,6 +705,7 @@ A fully tested standalone Botifarra rules engine.
 ```
 
 Before:
+
 - UI polish
 - matchmaking
 - mobile packaging
@@ -660,6 +727,7 @@ This project should prioritize:
 - incremental complexity
 
 The architecture should remain:
+
 - understandable
 - modular
 - strongly typed
@@ -668,6 +736,7 @@ The architecture should remain:
 The goal is not only to build a Botifarra game.
 
 The goal is to build:
+
 - a reliable multiplayer platform
 - a reusable game architecture
 - a maintainable long-term codebase

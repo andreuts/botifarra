@@ -1,4 +1,79 @@
+import { Prisma } from '@prisma/client';
 import type { PrismaClient } from '@prisma/client';
+import type { RoomGameState } from '../rooms/game-logic.js';
+import type { Seat } from '@botifarra/core';
+
+// ---------------------------------------------------------------------------
+// Snapshot serialization — Map<Seat, SeatInfo> is not JSON-serialisable
+// ---------------------------------------------------------------------------
+
+export interface SerializableRoomSnapshot {
+  seats: Array<[number, { userId: string; username: string; sessionId: string; connected: boolean }]>;
+  game: unknown;
+  round: unknown;
+  phase: 'lobby' | 'playing' | 'finished';
+}
+
+export function serializeSnapshot(state: RoomGameState): SerializableRoomSnapshot {
+  return {
+    seats: Array.from(state.seats.entries()),
+    game: state.game,
+    round: state.round,
+    phase: state.phase,
+  };
+}
+
+export function deserializeSnapshot(raw: SerializableRoomSnapshot): RoomGameState {
+  return {
+    seats: new Map(raw.seats as Array<[Seat, { userId: string; username: string; sessionId: string; connected: boolean }]>),
+    game: raw.game as RoomGameState['game'],
+    round: raw.round as RoomGameState['round'],
+    phase: raw.phase,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Persist the latest game snapshot on the Match row
+// ---------------------------------------------------------------------------
+
+export async function saveGameSnapshot(
+  prisma: PrismaClient,
+  matchId: string,
+  state: RoomGameState,
+): Promise<void> {
+  const snapshot = serializeSnapshot(state);
+  await prisma.match.update({
+    where: { id: matchId },
+    data: { lastSnapshot: snapshot as any },
+  });
+}
+
+export async function clearGameSnapshot(
+  prisma: PrismaClient,
+  matchId: string,
+): Promise<void> {
+  await prisma.match.update({
+    where: { id: matchId },
+    data: { lastSnapshot: Prisma.JsonNull },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Save ELO history entry for a player after a ranked match
+// ---------------------------------------------------------------------------
+
+export async function saveEloHistory(
+  prisma: PrismaClient,
+  userId: string,
+  matchId: string,
+  eloAfter: number,
+  eloChange: number,
+  isRanked: boolean,
+): Promise<void> {
+  await prisma.eloHistory.create({
+    data: { userId, matchId, eloAfter, eloChange, isRanked },
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Match event persistence
@@ -31,15 +106,19 @@ export async function finalizeMatch(
   score0: number,
   score1: number,
   winner: 0 | 1,
+  endReason?: string | null,
+  abandoned = false,
 ): Promise<void> {
   await prisma.match.update({
     where: { id: matchId },
     data: {
-      status: 'FINISHED',
+      status: abandoned ? 'ABANDONED' : 'FINISHED',
       score0,
       score1,
       winner,
+      endReason: endReason ?? 'normal',
       finishedAt: new Date(),
+      lastSnapshot: Prisma.JsonNull, // clear snapshot on completion
     },
   });
 }
@@ -111,10 +190,12 @@ export async function updateRatings(
     const won = playerTeam === winnerTeam;
 
     // Average opponent rating
-    const opponents = players.filter((opp: typeof mp & { user: { stats: { individualRating: number } | null } }) => {
-      const oppTeam = opp.seat % 2 === 0 ? 0 : 1;
-      return oppTeam !== playerTeam && opp.user.stats;
-    });
+    const opponents = players.filter(
+      (opp: typeof mp & { user: { stats: { individualRating: number } | null } }) => {
+        const oppTeam = opp.seat % 2 === 0 ? 0 : 1;
+        return oppTeam !== playerTeam && opp.user.stats;
+      },
+    );
     const opponentRating =
       opponents.reduce(
         (sum: number, opp: typeof mp & { user: { stats: { individualRating: number } | null } }) =>
@@ -125,10 +206,14 @@ export async function updateRatings(
     const expected = expectedScore(currentRating, opponentRating);
     const actual = won ? 1 : 0;
     const newRating = Math.max(0, currentRating + K * (actual - expected));
+    const eloChange = newRating - currentRating;
 
     await prisma.userStats.update({
       where: { userId: mp.userId },
       data: { individualRating: newRating },
     });
+
+    // Save ELO history entry
+    await saveEloHistory(prisma, mp.userId, matchId, newRating, eloChange, true);
   }
 }

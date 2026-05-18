@@ -14,7 +14,8 @@
   },
   "scripts": {
     "build": "tsc --project tsconfig.build.json",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src/"
   },
   "dependencies": {
     "@botifarra/core": "workspace:*"

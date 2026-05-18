@@ -1,5 +1,10 @@
 import { BotifarraRoom, type BotifarraRoomOptions } from './BotifarraRoom.js';
-import { heuristicBotMove, heuristicBotDeclareTrump, getRoundPhase, currentPlayerSeat } from '@botifarra/core';
+import {
+  heuristicBotMove,
+  heuristicBotDeclareTrump,
+  getRoundPhase,
+  currentPlayerSeat,
+} from '@botifarra/core';
 import { handleDeclareTrump, handlePlayCard } from './game-logic.js';
 
 const BOT_USERNAMES = ['Bot-Alpha', 'Bot-Beta', 'Bot-Gamma'];
@@ -97,7 +102,9 @@ export class PracticeRoom extends BotifarraRoom {
         this.syncSchemaPublic();
         for (const event of events) this.broadcast(event.type, event);
         this.broadcastGameState();
-      } catch { /* ignore invalid move */ }
+      } catch {
+        /* ignore invalid move */
+      }
     } else if (phase === 'playing') {
       const card = heuristicBotMove(round, seat);
       try {
@@ -113,7 +120,9 @@ export class PracticeRoom extends BotifarraRoom {
             setTimeout(() => this.startNewRoundPublic(), 2500);
           }
         }
-      } catch { /* ignore invalid move */ }
+      } catch {
+        /* ignore invalid move */
+      }
     }
   }
 }

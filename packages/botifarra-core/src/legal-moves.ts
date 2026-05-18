@@ -26,17 +26,12 @@ export interface LegalMovesInput {
  *    b. No trump (or botifarra): play any card.
  * 5. Botifarra (no trump): follow suit if possible; else any card.
  */
-export function legalMoves({
-  hand,
-  currentTrick,
-  trump,
-  playerSeat = 0,
-}: LegalMovesInput): Card[] {
+export function legalMoves({ hand, currentTrick, trump, playerSeat = 0 }: LegalMovesInput): Card[] {
   // Leading: no cards have been played yet
   if (currentTrick.length === 0) return [...hand];
 
   const ledSuit = currentTrick[0]!.card.suit;
-  const trumpStr = trump !== 'botifarra' ? trump as string : '';
+  const trumpStr = trump !== 'botifarra' ? (trump as string) : '';
   const isTrumpLed = trumpStr !== '' && ledSuit === trumpStr;
 
   // Cards in hand that match the led suit

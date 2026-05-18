@@ -32,29 +32,25 @@ function cleanupStaleInvites() {
 
 export const privateRoomRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   // POST /api/rooms/create — create a private room, get back invite code
-  app.post(
-    '/create',
-    { onRequest: [(app as any).authenticate] },
-    async (request, reply) => {
-      const { sub: userId } = (request as any).user as { sub: string; username: string };
+  app.post('/create', { onRequest: [(app as any).authenticate] }, async (request, reply) => {
+    const { sub: userId } = (request as any).user as { sub: string; username: string };
 
-      cleanupStaleInvites();
+    cleanupStaleInvites();
 
-      // Generate a unique invite code
-      let code = generateInviteCode();
-      let attempts = 0;
-      while (inviteCodeMap.has(code) && attempts < 10) {
-        code = generateInviteCode();
-        attempts++;
-      }
+    // Generate a unique invite code
+    let code = generateInviteCode();
+    let attempts = 0;
+    while (inviteCodeMap.has(code) && attempts < 10) {
+      code = generateInviteCode();
+      attempts++;
+    }
 
-      // We'll create the Colyseus room lazily when the first player joins via the code.
-      // For now, we just reserve the code and return it.
-      inviteCodeMap.set(code, { roomId: '', createdAt: Date.now(), hostUserId: userId });
+    // We'll create the Colyseus room lazily when the first player joins via the code.
+    // For now, we just reserve the code and return it.
+    inviteCodeMap.set(code, { roomId: '', createdAt: Date.now(), hostUserId: userId });
 
-      return reply.status(201).send({ inviteCode: code });
-    },
-  );
+    return reply.status(201).send({ inviteCode: code });
+  });
 
   // GET /api/rooms/:code — look up a room by invite code
   app.get<{ Params: { code: string } }>(

@@ -1,6 +1,11 @@
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import * as argon2 from 'argon2';
-import type { RegisterRequest, RegisterResponse, LoginRequest, LoginResponse } from '@botifarra/shared';
+import type {
+  RegisterRequest,
+  RegisterResponse,
+  LoginRequest,
+  LoginResponse,
+} from '@botifarra/shared';
 
 export const authRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   // POST /api/auth/register

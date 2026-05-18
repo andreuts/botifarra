@@ -219,9 +219,7 @@ export function handlePlayCard(
   const typedCard = card as Parameters<typeof playCard>[2];
   const newRound = playCard(round, seat, typedCard);
 
-  const events: ServerEvent[] = [
-    { type: 'card_played', seat, card },
-  ];
+  const events: ServerEvent[] = [{ type: 'card_played', seat, card }];
 
   let newState = { ...state, round: newRound };
   let roundEnded = false;

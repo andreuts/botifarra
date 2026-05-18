@@ -22,7 +22,7 @@ export function shuffleDeck(deck: Card[]): Card[] {
   const copy = [...deck];
   for (let i = copy.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+
     [copy[i], copy[j]] = [copy[j]!, copy[i]!];
   }
   return copy;
@@ -61,12 +61,18 @@ export function dealHands(deck: Card[]): Hands {
  */
 export function cardPointValue(card: Card): number {
   switch (card.rank) {
-    case 9:  return 5; // Manilla
-    case 1:  return 4; // As
-    case 12: return 3; // Rei
-    case 11: return 2; // Cavall
-    case 10: return 1; // Sota
-    default: return 0;
+    case 9:
+      return 5; // Manilla
+    case 1:
+      return 4; // As
+    case 12:
+      return 3; // Rei
+    case 11:
+      return 2; // Cavall
+    case 10:
+      return 1; // Sota
+    default:
+      return 0;
   }
 }
 
@@ -77,18 +83,18 @@ export function cardPointValue(card: Card): number {
  *   9 (Manilla) > 1 (As) > 12 (Rei) > 11 (Cavall) > 10 (Sota) > 8 > 7 > 6 > 5 > 4 > 3 > 2
  */
 const RANK_POWER: Record<Rank, number> = {
-  9:  12, // Manilla — highest
-  1:  11, // As
+  9: 12, // Manilla — highest
+  1: 11, // As
   12: 10, // Rei
-  11: 9,  // Cavall
-  10: 8,  // Sota
-  8:  7,
-  7:  6,
-  6:  5,
-  5:  4,
-  4:  3,
-  3:  2,
-  2:  1,
+  11: 9, // Cavall
+  10: 8, // Sota
+  8: 7,
+  7: 6,
+  6: 5,
+  5: 4,
+  4: 3,
+  3: 2,
+  2: 1,
 };
 
 /** Power of a card when it belongs to the trump suit. */

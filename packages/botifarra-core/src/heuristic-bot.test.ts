@@ -30,8 +30,13 @@ describe('heuristicBotMove', () => {
       const r = freshRound();
       const seat = currentPlayerSeat(r) as Seat;
       const card = heuristicBotMove(r, seat);
-      const legal = legalMoves({ hand: r.hands[seat], currentTrick: r.currentTrick, trump: r.trump!, playerSeat: seat });
-      expect(legal.some(c => c.suit === card.suit && c.rank === card.rank)).toBe(true);
+      const legal = legalMoves({
+        hand: r.hands[seat],
+        currentTrick: r.currentTrick,
+        trump: r.trump!,
+        playerSeat: seat,
+      });
+      expect(legal.some((c) => c.suit === card.suit && c.rank === card.rank)).toBe(true);
     }
   });
 
@@ -40,8 +45,13 @@ describe('heuristicBotMove', () => {
     for (let i = 0; i < 48; i++) {
       const seat = currentPlayerSeat(r) as Seat;
       const card = heuristicBotMove(r, seat);
-      const legal = legalMoves({ hand: r.hands[seat], currentTrick: r.currentTrick, trump: r.trump!, playerSeat: seat });
-      expect(legal.some(c => c.suit === card.suit && c.rank === card.rank)).toBe(true);
+      const legal = legalMoves({
+        hand: r.hands[seat],
+        currentTrick: r.currentTrick,
+        trump: r.trump!,
+        playerSeat: seat,
+      });
+      expect(legal.some((c) => c.suit === card.suit && c.rank === card.rank)).toBe(true);
       r = playCard(r, seat, card);
     }
     expect(r.completedTricks).toHaveLength(12);
@@ -69,9 +79,7 @@ describe('heuristicBotMove', () => {
       while (r.completedTricks.length < 12) {
         const seat = currentPlayerSeat(r) as Seat;
         // Heuristic = team 0 (seats 0 & 2), random = team 1 (seats 1 & 3)
-        const card = (seat === 0 || seat === 2)
-          ? heuristicBotMove(r, seat)
-          : randomBotMove(r, seat);
+        const card = seat === 0 || seat === 2 ? heuristicBotMove(r, seat) : randomBotMove(r, seat);
         r = playCard(r, seat, card);
       }
       const score = scoreRound(r.completedTricks, r.trump!);

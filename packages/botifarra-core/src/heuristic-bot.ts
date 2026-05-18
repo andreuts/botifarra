@@ -40,10 +40,16 @@ export function heuristicBotDeclareTrump(round: RoundState, seat: Seat): TrumpDe
 
   // Score each suit: sum of trump-power values for cards held in that suit
   const suitScores: Record<Suit, number> = {
-    oros: 0, copes: 0, espases: 0, bastos: 0,
+    oros: 0,
+    copes: 0,
+    espases: 0,
+    bastos: 0,
   };
   const suitCounts: Record<Suit, number> = {
-    oros: 0, copes: 0, espases: 0, bastos: 0,
+    oros: 0,
+    copes: 0,
+    espases: 0,
+    bastos: 0,
   };
 
   for (const card of hand) {
@@ -105,20 +111,20 @@ function chooseLead(legal: Card[], trump: TrumpDeclaration): Card {
 
   if (trumpSuit) {
     // 1. Lead Manilla of trump to draw trumps
-    const manilla = legal.find(c => c.suit === trumpSuit && c.rank === 9);
+    const manilla = legal.find((c) => c.suit === trumpSuit && c.rank === 9);
     if (manilla) return manilla;
 
     // 2. Lead Ace of a non-trump suit
-    const offAce = legal.find(c => c.rank === 1 && c.suit !== trumpSuit);
+    const offAce = legal.find((c) => c.rank === 1 && c.suit !== trumpSuit);
     if (offAce) return offAce;
   } else {
     // Botifarra: lead highest-power card
-    const ace = legal.find(c => c.rank === 1);
+    const ace = legal.find((c) => c.rank === 1);
     if (ace) return ace;
   }
 
   // 3. Lead highest card of non-trump suit (establish suit)
-  const nonTrump = legal.filter(c => c.suit !== trumpSuit);
+  const nonTrump = legal.filter((c) => c.suit !== trumpSuit);
   if (nonTrump.length > 0) {
     return maxBy(nonTrump, cardSuitPower);
   }
@@ -145,9 +151,9 @@ function chooseFollow(
   const partnerWinning = winner !== null && seatTeam(winner) === seatTeam(seat);
 
   // Partition legal moves
-  const trumpCards = trumpSuit ? legal.filter(c => c.suit === trumpSuit) : [];
-  const ledSuitCards = legal.filter(c => c.suit === ledSuit);
-  const otherCards = legal.filter(c => c.suit !== ledSuit && c.suit !== trumpSuit);
+  const trumpCards = trumpSuit ? legal.filter((c) => c.suit === trumpSuit) : [];
+  const ledSuitCards = legal.filter((c) => c.suit === ledSuit);
+  const otherCards = legal.filter((c) => c.suit !== ledSuit && c.suit !== trumpSuit);
 
   // Partner is winning — contribute as many points as possible without risking the trick
   if (partnerWinning) {
@@ -159,14 +165,14 @@ function chooseFollow(
   // Opponent is winning the trick
   // If we have led-suit cards, we must follow — try to win
   if (ledSuitCards.length > 0) {
-    const winning = ledSuitCards.filter(c => beatsCurrentWinner(c, trick, trump));
-    if (winning.length > 0) return minBy(winning, c => cardSuitPower(c)); // win cheaply
+    const winning = ledSuitCards.filter((c) => beatsCurrentWinner(c, trick, trump));
+    if (winning.length > 0) return minBy(winning, (c) => cardSuitPower(c)); // win cheaply
     return minBy(ledSuitCards, cardPointValue); // can't win, dump lowest point
   }
 
   // We must trump (or can play anything)
   if (trumpCards.length > 0) {
-    const overtrumps = trumpCards.filter(c => beatsCurrentWinner(c, trick, trump));
+    const overtrumps = trumpCards.filter((c) => beatsCurrentWinner(c, trick, trump));
     if (overtrumps.length > 0) return minBy(overtrumps, cardTrumpPower); // minimum winning trump
     return minBy(trumpCards, cardPointValue); // can't overtrump, dump lowest trump
   }

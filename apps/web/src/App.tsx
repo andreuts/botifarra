@@ -8,6 +8,14 @@ import { MatchHistoryPage } from './pages/MatchHistoryPage.js';
 import { RankingsPage } from './pages/RankingsPage.js';
 import { AdminPage } from './pages/AdminPage.js';
 import { MonitoringPage } from './pages/MonitoringPage.js';
+import { FriendsPage } from './pages/FriendsPage.js';
+import { TournamentsListPage } from './pages/TournamentsListPage.js';
+import { TournamentDetailPage } from './pages/TournamentDetailPage.js';
+import { NewsPage } from './pages/NewsPage.js';
+import { NewsDetailPage } from './pages/NewsDetailPage.js';
+import { NewsAdminListPage } from './pages/NewsAdminListPage.js';
+import { NewsEditorPage } from './pages/NewsEditorPage.js';
+import { AppShell } from './components/AppShell.js';
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const user = useAuthStore((s) => s.user);
@@ -17,9 +25,10 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 
 export function App() {
   return (
-    <Routes>
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/register" element={<RegisterPage />} />
+    <AppShell>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
       <Route
         path="/"
         element={
@@ -60,9 +69,40 @@ export function App() {
           </RequireAuth>
         }
       />
+      <Route
+        path="/friends"
+        element={
+          <RequireAuth>
+            <FriendsPage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/tournaments"
+        element={
+          <RequireAuth>
+            <TournamentsListPage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/tournaments/:id"
+        element={
+          <RequireAuth>
+            <TournamentDetailPage />
+          </RequireAuth>
+        }
+      />
       <Route path="/admin" element={<AdminPage />} />
       <Route path="/monitoring" element={<MonitoringPage />} />
+      {/* News — public read, admin write */}
+      <Route path="/news" element={<NewsPage />} />
+      <Route path="/news/:id" element={<NewsDetailPage />} />
+      <Route path="/news/admin" element={<NewsAdminListPage />} />
+      <Route path="/news/admin/new" element={<NewsEditorPage />} />
+      <Route path="/news/admin/:id/edit" element={<NewsEditorPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </AppShell>
   );
 }

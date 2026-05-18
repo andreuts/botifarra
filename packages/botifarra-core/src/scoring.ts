@@ -65,4 +65,3 @@ export function scoreRound(
 
   return { teamPoints, capot, matchPoints, multiplier };
 }
-

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { Card } from '@botifarra/core';
 import { legalMoves } from '@botifarra/core';
 import type { PlayerGameStateDTO } from '@botifarra/shared';
@@ -10,13 +11,13 @@ interface HandProps {
 }
 
 export function HandComponent({ gameState, onPlayCard }: HandProps) {
+  const { t } = useTranslation();
   const [selected, setSelected] = useState<Card | null>(null);
   const [dealKey, setDealKey] = useState(0);
   const prevHandLen = useRef(gameState.hand.length);
   const liveRef = useRef<HTMLDivElement>(null);
 
-  const isMyTurn = gameState.currentPlayerSeat === gameState.mySeat &&
-    gameState.hand.length > 0;
+  const isMyTurn = gameState.currentPlayerSeat === gameState.mySeat && gameState.hand.length > 0;
 
   // Trigger deal animation when a new hand arrives (more cards than before)
   useEffect(() => {
@@ -28,14 +29,15 @@ export function HandComponent({ gameState, onPlayCard }: HandProps) {
   }, [gameState.hand.length]);
 
   // Compute legal moves
-  const legal = gameState.trump !== null && gameState.currentPlayerSeat !== null
-    ? legalMoves({
-        hand: gameState.hand,
-        currentTrick: gameState.currentTrick,
-        trump: gameState.trump,
-        playerSeat: gameState.mySeat,
-      })
-    : [];
+  const legal =
+    gameState.trump !== null && gameState.currentPlayerSeat !== null
+      ? legalMoves({
+          hand: gameState.hand,
+          currentTrick: gameState.currentTrick,
+          trump: gameState.trump,
+          playerSeat: gameState.mySeat,
+        })
+      : [];
   const legalSet = new Set(legal.map((c) => `${c.suit}-${c.rank}`));
 
   function handleCardClick(card: Card) {
@@ -59,9 +61,11 @@ export function HandComponent({ gameState, onPlayCard }: HandProps) {
 
   const statusText = isMyTurn
     ? selected
-      ? 'Click again to confirm, or select another card'
-      : `Your turn — ${legal.length} legal move${legal.length !== 1 ? 's' : ''}`
-    : 'Waiting for your turn…';
+      ? t('hand.clickToConfirm')
+      : t(legal.length !== 1 ? 'hand.yourTurnMoves_plural' : 'hand.yourTurnMoves', {
+          count: legal.length,
+        })
+    : t('hand.waitingTurn');
 
   return (
     <div>
@@ -70,7 +74,13 @@ export function HandComponent({ gameState, onPlayCard }: HandProps) {
         ref={liveRef}
         aria-live="polite"
         aria-atomic="true"
-        style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0,0,0,0)' }}
+        style={{
+          position: 'absolute',
+          width: 1,
+          height: 1,
+          overflow: 'hidden',
+          clip: 'rect(0,0,0,0)',
+        }}
       >
         {statusText}
       </div>
@@ -92,7 +102,7 @@ export function HandComponent({ gameState, onPlayCard }: HandProps) {
 
       <div
         role="group"
-        aria-label="Your hand"
+        aria-label={t('hand.yourHand')}
         style={{
           display: 'flex',
           gap,
@@ -107,9 +117,7 @@ export function HandComponent({ gameState, onPlayCard }: HandProps) {
           const isLegal = legalSet.has(key);
           const isSel = selected?.suit === card.suit && selected?.rank === card.rank;
           // Subtle fan rotation (-2° to +2°)
-          const rotation = count > 3
-            ? ((i / (count - 1)) - 0.5) * 4
-            : 0;
+          const rotation = count > 3 ? (i / (count - 1) - 0.5) * 4 : 0;
           return (
             <CardComponent
               key={key}
@@ -127,4 +135,3 @@ export function HandComponent({ gameState, onPlayCard }: HandProps) {
     </div>
   );
 }
-

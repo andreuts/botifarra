@@ -59,11 +59,12 @@ function makeMockPrisma() {
           winner: null,
           createdAt: new Date(),
           finishedAt: null,
-          players: data.players?.create?.map((p: any, i: number) => ({
-            userId: p.userId,
-            seat: p.seat ?? i,
-            user: { username: `Player-${p.userId}` },
-          })) ?? [],
+          players:
+            data.players?.create?.map((p: any, i: number) => ({
+              userId: p.userId,
+              seat: p.seat ?? i,
+              user: { username: `Player-${p.userId}` },
+            })) ?? [],
         };
         matches.set(m.id, m);
         return m;

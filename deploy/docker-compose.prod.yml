@@ -1,0 +1,21 @@
+# Production Docker Compose — runs on the Oracle Cloud VM
+# Copy this file to ~/botifarra/docker-compose.prod.yml on the VM
+# alongside a .env file populated from .env.example
+
+services:
+  app:
+    image: ghcr.io/<YOUR_GITHUB_USERNAME>/botifarra:latest  # replace with your actual GHCR image path
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"   # bind only to localhost — Nginx proxies from outside
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      HOST: "0.0.0.0"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
