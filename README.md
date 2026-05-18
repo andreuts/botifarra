@@ -537,9 +537,9 @@ The browser language is auto-detected and cached in `localStorage`. To add a new
 
 | Component | Options                                  |
 | --------- | ---------------------------------------- |
-| Frontend  | Vercel · Netlify · Cloudflare Pages      |
-| Backend   | Fly.io · Railway · Render · VPS          |
-| Database  | Managed PostgreSQL (Supabase, Neon, RDS) |
+| Frontend  | Vercel    |
+| Backend   | Render          |
+| Database  | Aiven         |
 
 ### Environment checklist (production)
 
