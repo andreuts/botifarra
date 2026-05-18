@@ -33,7 +33,7 @@ describe('HandComponent', () => {
     const notMyTurn = { ...mockGameState, currentPlayerSeat: 1 as const };
     render(<HandComponent gameState={notMyTurn} onPlayCard={onPlayCard} />);
     const cards = screen.getAllByRole('button');
-    fireEvent.click(cards[0]);
+    fireEvent.click(cards[0]!);
     expect(onPlayCard).not.toHaveBeenCalled();
   });
 });

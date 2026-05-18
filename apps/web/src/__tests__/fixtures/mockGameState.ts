@@ -7,9 +7,9 @@ export const mockGameState: PlayerGameStateDTO = {
   declarantSeat: 1,
   trump: 'oros',
   hand: [
-    { suit: 'O', rank: 'A' },
-    { suit: 'C', rank: '3' },
-    { suit: 'E', rank: 'R' },
+    { suit: 'oros' as const, rank: 1 as const },
+    { suit: 'copes' as const, rank: 3 as const },
+    { suit: 'espases' as const, rank: 12 as const },
   ],
   mySeat: 0,
   playerNames: { 0: 'Alice', 1: 'Bob', 2: 'Carol', 3: 'Dave' },

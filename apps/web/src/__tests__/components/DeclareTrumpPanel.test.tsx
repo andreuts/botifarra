@@ -29,7 +29,7 @@ describe('DeclareTrumpPanel', () => {
       trump: 'oros' as const,
       declarantSeat: 0 as const,
       contraLevel: 0,
-      currentTrick: [{ seat: 0 as const, card: { suit: 'O', rank: 'A' } }],
+      currentTrick: [{ seat: 0 as const, card: { suit: 'oros' as const, rank: 1 as const } }],
     };
     const { container } = render(
       <DeclareTrumpPanel gameState={state} mySeat={0} onDeclare={vi.fn()} />,

@@ -20,7 +20,7 @@ i18n
     },
     detection: {
       order: ['localStorage', 'navigator'],
-      cacheUserLanguage: true,
+      caches: ['localStorage'],
     },
   });
 
