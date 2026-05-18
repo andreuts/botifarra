@@ -31,11 +31,12 @@ RUN pnpm --filter @botifarra/web build
 # unlike `pnpm prune --prod` which removes hoisted workspace deps at the root level.
 RUN pnpm deploy --filter @botifarra/server --prod --legacy /app/server-deploy
 
-# Re-run prisma generate inside the deploy directory so the generated client
-# binary (.prisma/client/default) is present in the isolated node_modules.
-RUN cp -r apps/server/prisma /app/server-deploy/prisma \
- && cd /app/server-deploy \
- && /app/node_modules/.bin/prisma generate
+# Copy the already-generated .prisma/client binary from the builder's pnpm virtual
+# store into the deploy's virtual store. Both use the same lockfile so the
+# @prisma+client@* path hash is identical — shell glob expansion finds it reliably.
+RUN src=$(echo /app/node_modules/.pnpm/@prisma+client@*/node_modules) \
+ && dst=$(echo /app/server-deploy/node_modules/.pnpm/@prisma+client@*/node_modules) \
+ && cp -r "${src}/.prisma" "${dst}/.prisma"
 
 # ── Stage 2: runtime ─────────────────────────────────────────────────────────
 FROM node:20-slim AS runner
