@@ -223,7 +223,9 @@ describe('GET /api/rankings', () => {
       individualRating: 1120.5,
       user: { id: 'u1', username: 'alice' },
     };
-    const app2 = await (await import('../app.js')).buildApp({
+    const app2 = await (
+      await import('../app.js')
+    ).buildApp({
       logger: false,
       jwtSecret: 'test-secret',
       prisma: makeMockPrisma({

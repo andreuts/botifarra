@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Lint · Build · Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: botifarra
+          POSTGRES_PASSWORD: botifarra
+          POSTGRES_DB: botifarra_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U botifarra"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://botifarra:botifarra@localhost:5432/botifarra_test
+      JWT_SECRET: ci-test-secret
+      ADMIN_SECRET: ci-admin-secret
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: npx eslint .
+
+      - name: Format check
+        run: npx prettier --check .
+
+      - name: Build
+        run: pnpm build
+
+      - name: Database setup
+        run: pnpm --filter @botifarra/server exec prisma migrate deploy
+
+      - name: Test
+        run: pnpm test

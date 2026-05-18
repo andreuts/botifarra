@@ -62,7 +62,13 @@ export interface ServerSnapshot {
   };
   rooms: {
     active: number;
-    roomList: { roomId: string; name: string; clients: number; maxClients: number; createdAt: string }[];
+    roomList: {
+      roomId: string;
+      name: string;
+      clients: number;
+      maxClients: number;
+      createdAt: string;
+    }[];
   };
   errors: {
     total: number;
@@ -119,7 +125,13 @@ export class MonitoringService {
 
   getSnapshot(
     queueInfo: { size: number; singles: number; pairs: number },
-    roomList: { roomId: string; name: string; clients: number; maxClients: number; createdAt: string }[],
+    roomList: {
+      roomId: string;
+      name: string;
+      clients: number;
+      maxClients: number;
+      createdAt: string;
+    }[],
   ): ServerSnapshot {
     const now = Date.now();
     const mem = process.memoryUsage();
@@ -150,7 +162,8 @@ export class MonitoringService {
         total: this.requests.length,
         last1min: last1min.length,
         last5min: last5min.length,
-        avgDurationMs: this.requests.length > 0 ? Math.round(totalDuration / this.requests.length) : 0,
+        avgDurationMs:
+          this.requests.length > 0 ? Math.round(totalDuration / this.requests.length) : 0,
         errorRate: this.requests.length > 0 ? totalErrors / this.requests.length : 0,
         perRoute: this.aggregateRoutes(),
       },
@@ -161,11 +174,14 @@ export class MonitoringService {
       },
       errors: {
         total: this.errors.length,
-        recent: this.errors.slice(-20).reverse().map((e) => ({
-          message: e.message,
-          timestamp: new Date(e.timestamp).toISOString(),
-          route: e.route,
-        })),
+        recent: this.errors
+          .slice(-20)
+          .reverse()
+          .map((e) => ({
+            message: e.message,
+            timestamp: new Date(e.timestamp).toISOString(),
+            route: e.route,
+          })),
       },
     };
   }

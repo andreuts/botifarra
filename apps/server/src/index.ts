@@ -2,6 +2,7 @@ import { buildApp } from './app.js';
 import { Server, matchMaker } from 'colyseus';
 import { BotifarraRoom, setPrismaForRooms } from './rooms/BotifarraRoom.js';
 import { PracticeRoom } from './rooms/PracticeRoom.js';
+import { TournamentRoom } from './rooms/TournamentRoom.js';
 import type { MatchPlayer, SeatReservationData } from './services/matchmaking.js';
 
 const PORT = parseInt(process.env['PORT'] ?? '3000', 10);
@@ -18,6 +19,7 @@ async function main() {
 
   gameServer.define('botifarra', BotifarraRoom);
   gameServer.define('practice', PracticeRoom);
+  gameServer.define('tournament', TournamentRoom);
 
   // ---------------------------------------------------------------------------
   // Start
@@ -33,13 +35,14 @@ async function main() {
     // All 4 seats are reserved atomically before any client connects, so the
     // room is already "full" (locked) from Colyseus's perspective.  Clients
     // use consumeSeatReservation() which bypasses the room.locked check.
-    app.matchmakingQueue.setOnMatchCreated(async (players: MatchPlayer[], matchId: string) => {
+    app.matchmakingQueue.setOnMatchCreated(async (players: MatchPlayer[], matchId: string, ranked: boolean) => {
       // Create DB match record
       await app.prisma.match.create({
         data: {
           id: matchId,
           status: 'IN_PROGRESS',
-          mode: 'PUBLIC',
+          mode: ranked ? 'RANKED' : 'PUBLIC',
+          ranked,
           players: {
             create: players.map((p) => ({ userId: p.userId, seat: p.seat })),
           },
@@ -57,6 +60,7 @@ async function main() {
         matchId,
         targetScore: 101,
         seatAssignments,
+        ranked,
       });
 
       // Reserve a seat for every matched player atomically.
@@ -96,4 +100,3 @@ async function main() {
 }
 
 main();
-

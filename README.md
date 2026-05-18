@@ -1,5 +1,7 @@
 # Botifarra Online
 
+[![CI](https://github.com/andreujuanc/botifarra/actions/workflows/ci.yml/badge.svg)](https://github.com/andreujuanc/botifarra/actions/workflows/ci.yml)
+
 A modern, full-stack multiplayer implementation of the Catalan card game **Botifarra**, built as a PWA-first web application with a strongly-typed shared game engine.
 
 ---
@@ -33,13 +35,13 @@ Botifarra is a 4-player trick-taking card game played with the 48-card Catalan d
 
 Core design goals:
 
-| Goal | Approach |
-|------|----------|
-| Authoritative multiplayer | All game logic lives on the server — clients are thin |
-| Shared game logic | Single `botifarra-core` package used on both client and server |
-| Strong typing | Full TypeScript across the entire monorepo |
-| Correctness by default | Test-Driven Development throughout |
-| Incremental complexity | Start simple, scale when needed |
+| Goal                      | Approach                                                       |
+| ------------------------- | -------------------------------------------------------------- |
+| Authoritative multiplayer | All game logic lives on the server — clients are thin          |
+| Shared game logic         | Single `botifarra-core` package used on both client and server |
+| Strong typing             | Full TypeScript across the entire monorepo                     |
+| Correctness by default    | Test-Driven Development throughout                             |
+| Incremental complexity    | Start simple, scale when needed                                |
 
 ---
 
@@ -132,41 +134,41 @@ botifarra/
 
 ### Frontend
 
-| Tool | Purpose |
-|------|---------|
-| React 19 | UI framework |
-| TypeScript | Type safety |
-| Vite | Build tool & dev server |
-| React Router 7 | Client-side routing |
-| TanStack Query | Server state & caching |
-| Zustand | Client state (auth, game UI) |
+| Tool            | Purpose                       |
+| --------------- | ----------------------------- |
+| React 19        | UI framework                  |
+| TypeScript      | Type safety                   |
+| Vite            | Build tool & dev server       |
+| React Router 7  | Client-side routing           |
+| TanStack Query  | Server state & caching        |
+| Zustand         | Client state (auth, game UI)  |
 | vite-plugin-pwa | PWA manifest + service worker |
 
 ### Backend
 
-| Tool | Purpose |
-|------|---------|
-| Fastify 5 | HTTP framework |
-| Colyseus | Real-time game rooms (WebSocket) |
-| Prisma 6 | ORM |
-| PostgreSQL 17 | Primary database |
-| Redis 8 | Pub/sub, presence (optional) |
-| argon2 | Password hashing |
-| `@fastify/jwt` | JWT authentication |
+| Tool           | Purpose                          |
+| -------------- | -------------------------------- |
+| Fastify 5      | HTTP framework                   |
+| Colyseus       | Real-time game rooms (WebSocket) |
+| Prisma 6       | ORM                              |
+| PostgreSQL 17  | Primary database                 |
+| Redis 8        | Pub/sub, presence (optional)     |
+| argon2         | Password hashing                 |
+| `@fastify/jwt` | JWT authentication               |
 
 ### Shared
 
-| Tool | Purpose |
-|------|---------|
-| `@botifarra/core` | Pure game rules engine |
+| Tool                | Purpose                              |
+| ------------------- | ------------------------------------ |
+| `@botifarra/core`   | Pure game rules engine               |
 | `@botifarra/shared` | Shared types, DTOs, events, commands |
-| TypeScript | End-to-end type safety |
+| TypeScript          | End-to-end type safety               |
 
 ### Testing
 
-| Tool | Purpose |
-|------|---------|
-| Vitest | Unit + integration tests |
+| Tool       | Purpose                   |
+| ---------- | ------------------------- |
+| Vitest     | Unit + integration tests  |
 | Playwright | End-to-end tests (future) |
 
 ---
@@ -194,6 +196,7 @@ docker compose up -d
 ```
 
 This starts:
+
 - PostgreSQL on `localhost:5432`
 - Redis on `localhost:6379`
 
@@ -227,15 +230,19 @@ pnpm dev
 
 ### Commands
 
-| Command | Description |
-|---------|-------------|
-| `pnpm dev` | Start all apps in watch mode |
-| `pnpm build` | Build all packages and apps |
-| `pnpm test` | Run all tests across the workspace |
-| `pnpm --filter @botifarra/core test` | Run only game engine tests |
-| `pnpm --filter @botifarra/core test:watch` | Watch mode for game engine |
-| `pnpm --filter @botifarra/server db:migrate` | Run DB migrations |
-| `pnpm --filter @botifarra/server db:studio` | Open Prisma Studio |
+| Command                                      | Description                        |
+| -------------------------------------------- | ---------------------------------- |
+| `pnpm dev`                                   | Start all apps in watch mode       |
+| `pnpm build`                                 | Build all packages and apps        |
+| `pnpm test`                                  | Run all tests across the workspace |
+| `pnpm test:e2e`                              | Run Playwright E2E browser tests   |
+| `pnpm lint`                                  | ESLint across entire monorepo      |
+| `pnpm format:check`                          | Prettier format check (CI)         |
+| `pnpm --filter @botifarra/core test`         | Run only game engine tests         |
+| `pnpm --filter @botifarra/core test:watch`   | Watch mode for game engine         |
+| `pnpm --filter @botifarra/web test`          | Run only frontend component tests  |
+| `pnpm --filter @botifarra/server db:migrate` | Run DB migrations                  |
+| `pnpm --filter @botifarra/server db:studio`  | Open Prisma Studio                 |
 
 ### TDD workflow
 
@@ -299,14 +306,15 @@ The package `@botifarra/core` is the heart of the project. It is:
 
 The Catalan 48-card deck: 4 suits × 12 ranks.
 
-| Suit | Catalan name |
-|------|-------------|
-| `oros` | Coins |
-| `copes` | Cups |
-| `espases` | Swords |
-| `bastos` | Clubs |
+| Suit      | Catalan name |
+| --------- | ------------ |
+| `oros`    | Coins        |
+| `copes`   | Cups         |
+| `espases` | Swords       |
+| `bastos`  | Clubs        |
 
 Ranks 1–12, where:
+
 - `1` = As (Ace) — 11 points
 - `9` = Manilla — 9 points (**highest trump power**)
 - `12` = Rei (King) — 4 points
@@ -324,10 +332,11 @@ Total card points per deck: **116**.
 
 ### Trump declarations
 
-| Declaration | Meaning |
-|-------------|---------|
-| `oros` / `copes` / `espases` / `bastos` | That suit is trump |
-| `botifarra` | No trump — all suits equal |
+| Declaration                             | Meaning                    |
+| --------------------------------------- | -------------------------- |
+| `oros` / `copes` / `espases` / `bastos` | That suit is trump         |
+| `botifarra`                             | No trump — all suits equal |
+
 ### Legal move rules
 
 In order of priority:
@@ -355,11 +364,20 @@ createRound()
 
 ```typescript
 import {
-  createDeck, shuffleDeck, dealHands,
-  createRound, declareTrump, playCard,
-  currentPlayerSeat, legalMoves, scoreRound,
-  createGame, startNextRound, applyRoundScore,
-  randomBotMove, randomBotDeclareTrump,
+  createDeck,
+  shuffleDeck,
+  dealHands,
+  createRound,
+  declareTrump,
+  playCard,
+  currentPlayerSeat,
+  legalMoves,
+  scoreRound,
+  createGame,
+  startNextRound,
+  applyRoundScore,
+  randomBotMove,
+  randomBotDeclareTrump,
 } from '@botifarra/core';
 
 // Set up a round
@@ -372,7 +390,12 @@ round = declareTrump(round, 'oros');
 // Play cards
 while (round.completedTricks.length < 12) {
   const seat = currentPlayerSeat(round)!;
-  const legal = legalMoves({ hand: round.hands[seat], currentTrick: round.currentTrick, trump: round.trump!, playerSeat: seat });
+  const legal = legalMoves({
+    hand: round.hands[seat],
+    currentTrick: round.currentTrick,
+    trump: round.trump!,
+    playerSeat: seat,
+  });
   round = playCard(round, seat, legal[0]!); // or use randomBotMove(round, seat)
 }
 
@@ -387,13 +410,13 @@ console.log(score); // { cardPoints: [X, Y], capot: false, matchPoints: [1, 0] }
 
 `@botifarra/shared` contains types shared by both frontend and backend:
 
-| File | Contents |
-|------|----------|
-| `auth.dto.ts` | `RegisterRequest/Response`, `LoginRequest/Response`, `MeResponse` |
-| `user.dto.ts` | `UserProfileDTO`, `UserStatsDTO` |
-| `match.dto.ts` | `MatchDTO`, `PlayerGameStateDTO`, `MatchHistoryItemDTO` |
-| `commands.ts` | `DeclareTrumpCommand`, `PlayCardCommand`, `JoinQueueCommand`, … |
-| `events.ts` | `GameStateEvent`, `CardPlayedEvent`, `TrickCompletedEvent`, … |
+| File           | Contents                                                          |
+| -------------- | ----------------------------------------------------------------- |
+| `auth.dto.ts`  | `RegisterRequest/Response`, `LoginRequest/Response`, `MeResponse` |
+| `user.dto.ts`  | `UserProfileDTO`, `UserStatsDTO`                                  |
+| `match.dto.ts` | `MatchDTO`, `PlayerGameStateDTO`, `MatchHistoryItemDTO`           |
+| `commands.ts`  | `DeclareTrumpCommand`, `PlayCardCommand`, `JoinQueueCommand`, …   |
+| `events.ts`    | `GameStateEvent`, `CardPlayedEvent`, `TrickCompletedEvent`, …     |
 
 **Rule**: Never duplicate these types in the frontend or backend. Always import from `@botifarra/shared`.
 
@@ -403,17 +426,17 @@ console.log(score); // { cardPoints: [X, Y], capot: false, matchPoints: [1, 0] }
 
 ### REST API
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| `POST` | `/api/auth/register` | — | Create account |
-| `POST` | `/api/auth/login` | — | Sign in, receive JWT |
-| `GET` | `/api/users/me` | ✓ | Own profile |
-| `GET` | `/api/users/:userId` | — | Public profile |
-| `GET` | `/api/matches` | ✓ | Recent matches |
-| `GET` | `/api/matches/:matchId` | ✓ | Match details |
-| `POST` | `/api/matches/queue/join` | ✓ | Join public queue |
-| `POST` | `/api/matches/queue/leave` | ✓ | Leave queue |
-| `GET` | `/health` | — | Health check |
+| Method | Path                       | Auth | Description          |
+| ------ | -------------------------- | ---- | -------------------- |
+| `POST` | `/api/auth/register`       | —    | Create account       |
+| `POST` | `/api/auth/login`          | —    | Sign in, receive JWT |
+| `GET`  | `/api/users/me`            | ✓    | Own profile          |
+| `GET`  | `/api/users/:userId`       | —    | Public profile       |
+| `GET`  | `/api/matches`             | ✓    | Recent matches       |
+| `GET`  | `/api/matches/:matchId`    | ✓    | Match details        |
+| `POST` | `/api/matches/queue/join`  | ✓    | Join public queue    |
+| `POST` | `/api/matches/queue/leave` | ✓    | Leave queue          |
+| `GET`  | `/health`                  | —    | Health check         |
 
 ### Authentication
 
@@ -429,13 +452,13 @@ Game rooms are managed by Colyseus. The client connects via WebSocket to a `Boti
 
 ### Environment variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PORT` | `3000` | HTTP port |
-| `DATABASE_URL` | — | PostgreSQL connection string |
-| `REDIS_URL` | `redis://localhost:6379` | Redis URL |
-| `JWT_SECRET` | — | **Must be changed in production** |
-| `CORS_ORIGIN` | `http://localhost:5173` | Allowed frontend origin |
+| Variable       | Default                  | Description                       |
+| -------------- | ------------------------ | --------------------------------- |
+| `PORT`         | `3000`                   | HTTP port                         |
+| `DATABASE_URL` | —                        | PostgreSQL connection string      |
+| `REDIS_URL`    | `redis://localhost:6379` | Redis URL                         |
+| `JWT_SECRET`   | —                        | **Must be changed in production** |
+| `CORS_ORIGIN`  | `http://localhost:5173`  | Allowed frontend origin           |
 
 ---
 
@@ -443,20 +466,20 @@ Game rooms are managed by Colyseus. The client connects via WebSocket to a `Boti
 
 ### Routes
 
-| Path | Component | Auth |
-|------|-----------|------|
-| `/login` | `LoginPage` | — |
-| `/register` | `RegisterPage` | — |
-| `/` | `HomePage` | ✓ |
-| `/match/:matchId` | `GamePage` | ✓ |
+| Path              | Component      | Auth |
+| ----------------- | -------------- | ---- |
+| `/login`          | `LoginPage`    | —    |
+| `/register`       | `RegisterPage` | —    |
+| `/`               | `HomePage`     | ✓    |
+| `/match/:matchId` | `GamePage`     | ✓    |
 
 ### State management
 
-| Store | Purpose |
-|-------|---------|
-| `useAuthStore` (Zustand, persisted) | JWT token, current user |
-| TanStack Query | Server data (matches, profile) |
-| Colyseus `Room` state | Live game state (future) |
+| Store                               | Purpose                        |
+| ----------------------------------- | ------------------------------ |
+| `useAuthStore` (Zustand, persisted) | JWT token, current user        |
+| TanStack Query                      | Server data (matches, profile) |
+| Colyseus `Room` state               | Live game state (future)       |
 
 ### PWA
 
@@ -495,14 +518,27 @@ pnpm --filter @botifarra/server db:studio
 
 ---
 
+## Internationalisation (i18n)
+
+The web app is fully internationalised using [i18next](https://www.i18next.com/) with **Catalan (`ca`) as the default language**.
+
+| Language | File                                      | Status   |
+| -------- | ----------------------------------------- | -------- |
+| Catalan  | `apps/web/src/i18n/locales/ca.json`       | Complete |
+| Spanish  | `apps/web/src/i18n/locales/es.json`       | Complete |
+
+The browser language is auto-detected and cached in `localStorage`. To add a new language, create a matching JSON file and register it in `apps/web/src/i18n/index.ts`.
+
+---
+
 ## Deployment
 
 ### MVP targets
 
-| Component | Options |
-|-----------|---------|
-| Frontend  | Vercel · Netlify · Cloudflare Pages |
-| Backend   | Fly.io · Railway · Render · VPS |
+| Component | Options                                  |
+| --------- | ---------------------------------------- |
+| Frontend  | Vercel · Netlify · Cloudflare Pages      |
+| Backend   | Fly.io · Railway · Render · VPS          |
 | Database  | Managed PostgreSQL (Supabase, Neon, RDS) |
 
 ### Environment checklist (production)
@@ -518,12 +554,14 @@ pnpm --filter @botifarra/server db:studio
 ## Roadmap
 
 ### ✅ Phase 0 — Foundation
+
 - [x] pnpm monorepo
 - [x] Docker Compose (PostgreSQL + Redis)
 - [x] TypeScript throughout
 - [x] Shared packages
 
 ### ✅ Phase 1 — Game Engine
+
 - [x] 48-card Catalan deck
 - [x] Legal move validation (follow-suit, trump, overtrump, partner exemption)
 - [x] Trick resolution
@@ -535,6 +573,7 @@ pnpm --filter @botifarra/server db:studio
 - [x] 87 tests, full TDD
 
 ### ✅ Phase 2 — Authentication & Backend
+
 - [x] Fastify app skeleton
 - [x] Prisma schema + migrations
 - [x] Register / login (argon2 + JWT)
@@ -544,6 +583,7 @@ pnpm --filter @botifarra/server db:studio
 - [x] 78 server tests
 
 ### ✅ Phase 3 — Real-time Multiplayer
+
 - [x] Colyseus `BotifarraRoom` with full game loop
 - [x] Matchmaking service (public queue)
 - [x] Full game loop in room (declare → play → score)
@@ -552,21 +592,25 @@ pnpm --filter @botifarra/server db:studio
 - [x] Player names visible to all seats
 
 ### ✅ Phase 4 — Persistence
+
 - [x] Persist match results on game end
 - [x] Match history display (REST + frontend page)
 - [x] Stats update on match end (wins/losses/played)
 - [x] Rating updates (Elo-style)
 
 ### ✅ Phase 5 — Matchmaking & Private Rooms
+
 - [x] Public matchmaking queue
 - [x] Private invite rooms with 6-char invite codes
 - [x] Bot-filled practice games (PracticeRoom)
 
 ### ✅ Phase 6 — Rankings
+
 - [x] Individual rating (Elo-style)
 - [x] Global leaderboard page
 
 ### ✅ Phase 7 — UI Polish
+
 - [x] Team-colored scoreboard with player names
 - [x] CSS grid trick area with seat badges
 - [x] Turn indicator with player names
@@ -577,6 +621,7 @@ pnpm --filter @botifarra/server db:studio
 - [x] Dark theme design system
 
 ### ⬜ Phase 8 — Remaining Features
+
 - [ ] Pair/team matchmaking (queue as a pair)
 - [ ] Game timers (per-turn time limit)
 - [ ] In-game chat
@@ -586,6 +631,7 @@ pnpm --filter @botifarra/server db:studio
 - [ ] Match replay (trick-by-trick history)
 
 ### ⬜ Phase 9 — Packaging
+
 - [ ] Android via Capacitor
 - [ ] macOS via Tauri
 

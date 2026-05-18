@@ -54,16 +54,16 @@ The engine is pure functional — no side effects, no I/O, no randomness (except
 
 ### Key modules
 
-| Module | Responsibility |
-|--------|----------------|
-| `deck.ts` | 48-card Catalan deck, shuffle |
-| `trick.ts` | Trick resolution (who wins a trick) |
-| `legal-moves.ts` | Which cards can be legally played |
-| `round.ts` | Round state machine (deal → declare → play → score) |
-| `scoring.ts` | Point counting, capot detection |
-| `game.ts` | Multi-round game (play to target score) |
-| `bot.ts` | Random bot (Level 1) |
-| `heuristic-bot.ts` | Rule-based bot (Level 2) |
+| Module             | Responsibility                                      |
+| ------------------ | --------------------------------------------------- |
+| `deck.ts`          | 48-card Catalan deck, shuffle                       |
+| `trick.ts`         | Trick resolution (who wins a trick)                 |
+| `legal-moves.ts`   | Which cards can be legally played                   |
+| `round.ts`         | Round state machine (deal → declare → play → score) |
+| `scoring.ts`       | Point counting, capot detection                     |
+| `game.ts`          | Multi-round game (play to target score)             |
+| `bot.ts`           | Random bot (Level 1)                                |
+| `heuristic-bot.ts` | Rule-based bot (Level 2)                            |
 
 ### State hierarchy
 
@@ -176,11 +176,11 @@ The matchmaking service maintains an in-memory queue:
 
 ### State management
 
-| Store | Library | Purpose |
-|-------|---------|---------|
-| `authStore` | Zustand (persisted) | User session, JWT |
-| `gameStore` | Zustand | Active game state, toasts, connection status |
-| REST data | TanStack Query | Match history, rankings (cached & refetched) |
+| Store       | Library             | Purpose                                      |
+| ----------- | ------------------- | -------------------------------------------- |
+| `authStore` | Zustand (persisted) | User session, JWT                            |
+| `gameStore` | Zustand             | Active game state, toasts, connection status |
+| REST data   | TanStack Query      | Match history, rankings (cached & refetched) |
 
 ### Real-time connection (`useGameRoom` hook)
 
@@ -200,15 +200,15 @@ useGameRoom(matchId, mode)
 
 ### Page structure
 
-| Route | Page | Description |
-|-------|------|-------------|
-| `/login` | LoginPage | Email/password login |
-| `/register` | RegisterPage | Account creation |
-| `/` | HomePage | Lobby with play options, private rooms, recent matches |
-| `/match/:matchId` | GamePage | Active game (multiplayer or private room) |
-| `/play` | GamePage | Practice mode (vs bots) |
-| `/history` | MatchHistoryPage | Past matches |
-| `/rankings` | RankingsPage | Global leaderboard |
+| Route             | Page             | Description                                            |
+| ----------------- | ---------------- | ------------------------------------------------------ |
+| `/login`          | LoginPage        | Email/password login                                   |
+| `/register`       | RegisterPage     | Account creation                                       |
+| `/`               | HomePage         | Lobby with play options, private rooms, recent matches |
+| `/match/:matchId` | GamePage         | Active game (multiplayer or private room)              |
+| `/play`           | GamePage         | Practice mode (vs bots)                                |
+| `/history`        | MatchHistoryPage | Past matches                                           |
+| `/rankings`       | RankingsPage     | Global leaderboard                                     |
 
 ### Component hierarchy (GamePage)
 
@@ -226,14 +226,11 @@ GamePage
 Global CSS variables in `index.css`:
 
 ```css
---color-bg: #0f1923        /* dark background */
---color-surface: #1a2634   /* card/panel bg */
---color-surface-2: #243447 /* elevated surface */
---color-team0: #4fc3f7     /* blue team (seats 0, 2) */
---color-team1: #ff8a65     /* orange team (seats 1, 3) */
---color-accent: #e91e63    /* CTAs, links */
---color-success: #2ecc71   /* your turn, online */
---color-danger: #e74c3c    /* errors */
+--color-bg: #0f1923 /* dark background */ --color-surface: #1a2634 /* card/panel bg */
+  --color-surface-2: #243447 /* elevated surface */ --color-team0: #4fc3f7
+  /* blue team (seats 0, 2) */ --color-team1: #ff8a65 /* orange team (seats 1, 3) */
+  --color-accent: #e91e63 /* CTAs, links */ --color-success: #2ecc71 /* your turn, online */
+  --color-danger: #e74c3c /* errors */;
 ```
 
 ---
@@ -269,22 +266,26 @@ MatchPlayer
 ## Key Design Decisions
 
 ### Why Colyseus?
+
 - Purpose-built for game rooms with WebSocket transport
 - Handles reconnection, room lifecycle, matchmaking primitives
 - Schema-based state sync (we use it minimally — we send custom messages)
 
 ### Why server-authoritative?
+
 - Prevents cheating (clients never validate their own moves)
 - Single source of truth for game state
 - Clients only see their own hand
 
 ### Why pure functions in botifarra-core?
+
 - Easy to test (no mocking, no setup)
 - Deterministic — same input always produces same output
 - Reusable across server (Node.js) and client (browser)
 - No framework coupling
 
 ### Why in-memory matchmaking/invite codes?
+
 - Simple, fast, zero infrastructure
 - Acceptable for single-server deployment
 - Can be migrated to Redis when scaling horizontally
@@ -294,12 +295,14 @@ MatchPlayer
 ## Missing Features & Technical Debt
 
 ### High priority
+
 - [ ] **Pair/team matchmaking** — queue as a pair, matched with another pair
 - [ ] **Game timers** — per-turn time limit with auto-forfeit
 - [ ] **Spectator mode** — observe games without playing
 - [ ] **Chat** — in-game text chat between players
 
 ### Medium priority
+
 - [ ] **Better reconnect UX** — show reconnecting spinner, replay missed state
 - [ ] **Match replay** — store and replay trick-by-trick history
 - [ ] **Sound effects** — card play, trick win, game over
@@ -307,6 +310,7 @@ MatchPlayer
 - [ ] **Level 3 bot** — Monte Carlo tree search or similar
 
 ### Low priority / future
+
 - [ ] **Android app** via Capacitor
 - [ ] **macOS app** via Tauri
 - [ ] **Pair ratings** — rating for specific player pairs

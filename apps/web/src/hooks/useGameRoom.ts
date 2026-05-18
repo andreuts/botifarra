@@ -1,15 +1,29 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { Client, type Room } from 'colyseus.js';
+import { useTranslation } from 'react-i18next';
 import { useGameStore } from '../store/gameStore.js';
-import type { PlayerGameStateDTO } from '@botifarra/shared';
+import type { PlayerGameStateDTO, ObserverGameStateDTO } from '@botifarra/shared';
 import type { TrumpDeclaration } from '@botifarra/core';
 import type { SeatReservationData } from './useMatchmakingQueue.js';
+import type { ChatMessage } from '../components/ChatPanel.js';
 
 const COLYSEUS_URL =
   import.meta.env['VITE_COLYSEUS_URL'] ??
   (window.location.hostname === 'localhost'
     ? 'ws://localhost:3000'
     : `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}`);
+
+export const EMOJI_DISPLAY: Record<string, string> = {
+  happy: '😊',
+  sad: '😢',
+  cry: '😭',
+  applause: '👏',
+  celebrate: '🎉',
+  money: '💰',
+  cigar: '🚬',
+  wine: '🍷',
+  beer: '🍺',
+};
 
 /**
  * Tracks seat reservation sessionIds that have already been attempted.
@@ -25,9 +39,12 @@ export function useGameRoom(
   roomType: 'botifarra' | 'practice' = 'botifarra',
   /** Seat reservation from matchmaking — uses consumeSeatReservation which bypasses room.locked */
   seatReservation?: SeatReservationData,
+  /** Join as observer (spectator) — no seat assigned */
+  observe?: boolean,
 ) {
   const roomRef = useRef<Room | null>(null);
-  const { setGameState, setConnected, setRoomId, setError, reset, setGameResult, addToast } =
+  const { t } = useTranslation();
+  const { setGameState, setObserverState, addChatMessage, setConnected, setRoomId, setError, reset, setGameResult, addToast } =
     useGameStore();
 
   const connect = useCallback(
@@ -51,9 +68,9 @@ export function useGameRoom(
           // seats are reserved atomically by the server at match creation time.
           room = await client.consumeSeatReservation(seatReservation);
         } else if (roomId) {
-          room = await client.joinById(roomId, { userId, username, token });
+          room = await client.joinById(roomId, { userId, username, token, observe });
         } else {
-          room = await client.joinOrCreate(roomType, { userId, username, token });
+          room = await client.joinOrCreate(roomType, { userId, username, token, observe });
         }
 
         roomRef.current = room;
@@ -64,30 +81,48 @@ export function useGameRoom(
           setGameState(msg.state);
         });
 
+        room.onMessage('observer_game_state', (msg: { state: ObserverGameStateDTO }) => {
+          setObserverState(msg.state);
+        });
+
+        room.onMessage('chat_message', (msg: ChatMessage) => {
+          addChatMessage(msg);
+        });
+
         room.onMessage('trump_declared', (msg: { declaration: string; declarantSeat: number }) => {
           const suitLabel: Record<string, string> = {
-            botifarra: 'Botifarra!',
-            oros: 'Oros', copes: 'Copes', espases: 'Espases', bastos: 'Bastos',
+            botifarra: t('game_terms.botifarra'),
+            oros: t('suits.O'),
+            copes: t('suits.C'),
+            espases: t('suits.E'),
+            bastos: t('suits.B'),
           };
-          addToast(`Trump: ${suitLabel[msg.declaration] ?? msg.declaration}`);
+          addToast(t('toast.trumpDeclared', { suit: suitLabel[msg.declaration] ?? msg.declaration }));
         });
 
         room.onMessage('contra_called', (msg: { level: number; callerSeat: number }) => {
-          const contraLabels: Record<number, string> = { 1: 'Contra!', 2: 'Recontro!', 3: 'Sant Vicenç!' };
+          const contraLabels: Record<number, string> = {
+            1: t('game_terms.contra'),
+            2: t('game_terms.recontro'),
+            3: t('game_terms.santVicenc'),
+          };
           const gs = useGameStore.getState().gameState;
-          const name = gs?.playerNames?.[msg.callerSeat as 0|1|2|3] ?? `Seat ${msg.callerSeat}`;
-          addToast(`${name}: ${contraLabels[msg.level] ?? 'Contra!'}`);
+          const name =
+            gs?.playerNames?.[msg.callerSeat as 0 | 1 | 2 | 3] ??
+            t('trick.seatFallback', { seat: msg.callerSeat });
+          addToast(`${name}: ${contraLabels[msg.level] ?? t('game_terms.contra')}`);
         });
 
         room.onMessage('trick_completed', (msg: { trick: { winner: number } }) => {
-          // Get the name from current game state if available
           const gs = useGameStore.getState().gameState;
-          const name = gs?.playerNames?.[msg.trick.winner as 0|1|2|3] ?? `Seat ${msg.trick.winner}`;
-          addToast(`${name} won the trick`);
+          const name =
+            gs?.playerNames?.[msg.trick.winner as 0 | 1 | 2 | 3] ??
+            t('trick.seatFallback', { seat: msg.trick.winner });
+          addToast(t('toast.trickWon', { name }));
         });
 
         room.onMessage('round_ended', (msg: { totalScores: [number, number] }) => {
-          addToast(`Round over — ${msg.totalScores[0]} : ${msg.totalScores[1]}`);
+          addToast(t('toast.roundOver', { score0: msg.totalScores[0], score1: msg.totalScores[1] }));
         });
 
         room.onMessage('game_ended', (msg: { scores: [number, number]; winner: 0 | 1 }) => {
@@ -95,13 +130,23 @@ export function useGameRoom(
         });
 
         room.onMessage('player_connected', (msg: { seat: number; username: string }) => {
-          addToast(`${msg.username} joined (seat ${msg.seat})`);
+          addToast(t('toast.playerJoined', { username: msg.username, seat: msg.seat }));
         });
 
         room.onMessage('player_disconnected', (msg: { seat: number }) => {
           const gs = useGameStore.getState().gameState;
-          const name = gs?.playerNames?.[msg.seat as 0|1|2|3] ?? `Seat ${msg.seat}`;
-          addToast(`${name} disconnected`);
+          const name =
+            gs?.playerNames?.[msg.seat as 0 | 1 | 2 | 3] ??
+            t('trick.seatFallback', { seat: msg.seat });
+          addToast(t('toast.playerLeft', { name }));
+        });
+
+        room.onMessage('reaction', (msg: { fromUsername: string; fromSeat: number; emoji: string }) => {
+          addToast(`${msg.fromUsername}: ${EMOJI_DISPLAY[msg.emoji] ?? msg.emoji}`);
+        });
+
+        room.onMessage('premade_message', (msg: { fromUsername: string; fromSeat: number; key: string }) => {
+          addToast(`${msg.fromUsername}: ${t(`premade.${msg.key}`)}`);
         });
 
         room.onMessage('error', (msg: { code: string; message: string }) => {
@@ -114,14 +159,28 @@ export function useGameRoom(
         });
 
         room.onError((code, message) => {
-          setError(`Room error ${code}: ${message}`);
+          setError(t('toast.roomError', { code, message }));
         });
       } catch (err) {
-        const msg = err instanceof Error ? err.message : 'Failed to connect to game';
+        const msg = err instanceof Error ? err.message : t('toast.connectionFailed');
         setError(msg);
       }
     },
-    [roomId, roomType, seatReservation, setConnected, setError, setGameState, setRoomId, setGameResult, addToast, reset],
+    [
+      roomId,
+      roomType,
+      seatReservation,
+      observe,
+      setConnected,
+      setError,
+      setGameState,
+      setObserverState,
+      addChatMessage,
+      setRoomId,
+      setGameResult,
+      addToast,
+      reset,
+    ],
   );
 
   const sendDeclareTrump = useCallback((declaration: TrumpDeclaration) => {
@@ -140,6 +199,34 @@ export function useGameRoom(
     roomRef.current?.send('call_contra', {});
   }, []);
 
+  const sendChatMessage = useCallback((text: string) => {
+    roomRef.current?.send('chat_message', { text });
+  }, []);
+
+  const sendSurrenderRequest = useCallback(() => {
+    roomRef.current?.send('surrender_request', {});
+  }, []);
+
+  const sendSurrenderRespond = useCallback((accept: boolean) => {
+    roomRef.current?.send('surrender_respond', { accept });
+  }, []);
+
+  const sendReaction = useCallback((emoji: string) => {
+    roomRef.current?.send('send_reaction', { emoji });
+  }, []);
+
+  const sendPremade = useCallback((key: string) => {
+    roomRef.current?.send('send_premade', { key });
+  }, []);
+
+  const mutePlayer = useCallback((seat: number) => {
+    roomRef.current?.send('mute_player', { seat });
+  }, []);
+
+  const unmutePlayer = useCallback((seat: number) => {
+    roomRef.current?.send('unmute_player', { seat });
+  }, []);
+
   useEffect(() => {
     return () => {
       roomRef.current?.leave();
@@ -147,5 +234,5 @@ export function useGameRoom(
     };
   }, [reset]);
 
-  return { connect, sendDeclareTrump, sendPlayCard, sendPassDeclaration, sendCallContra };
+  return { connect, sendDeclareTrump, sendPlayCard, sendPassDeclaration, sendCallContra, sendChatMessage, sendSurrenderRequest, sendSurrenderRespond, sendReaction, sendPremade, mutePlayer, unmutePlayer };
 }

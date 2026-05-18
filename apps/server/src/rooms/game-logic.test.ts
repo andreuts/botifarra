@@ -98,7 +98,7 @@ describe('isRoomFull', () => {
 
 describe('seatForSession', () => {
   it('returns correct seat for session', () => {
-    let s = createRoomState();
+    const s = createRoomState();
     const { state } = assignSeat(s, 'sessionX', 'u0', 'P0');
     expect(seatForSession(state, 'sessionX')).toBe(0);
   });
@@ -109,7 +109,7 @@ describe('seatForSession', () => {
 
 describe('findSeatForUser', () => {
   it('returns correct seat for userId', () => {
-    let s = createRoomState();
+    const s = createRoomState();
     const { state } = assignSeat(s, 'session1', 'alice-123', 'Alice');
     expect(findSeatForUser(state, 'alice-123')).toBe(0);
   });
@@ -174,7 +174,7 @@ describe('startRound', () => {
 describe('handleDeclareTrump', () => {
   it('emits trump_declared event', () => {
     const { state, sessions } = filledRoom();
-    let s = startRound(state);
+    const s = startRound(state);
     // Declarant is partner of dealer. Dealer = seat 0 (first round), declarant = seat 2
     const declarantSeat = s.round!.declarantSeat;
     const declarantSession = sessions[declarantSeat]!;
@@ -182,9 +182,9 @@ describe('handleDeclareTrump', () => {
     expect(events.some((e) => e.type === 'trump_declared')).toBe(true);
   });
 
-  it('throws when it is not the declarant\'s turn', () => {
+  it("throws when it is not the declarant's turn", () => {
     const { state, sessions } = filledRoom();
-    let s = startRound(state);
+    const s = startRound(state);
     const declarantSeat = s.round!.declarantSeat;
     const wrongSeat = ((declarantSeat + 1) % 4) as Seat;
     expect(() => handleDeclareTrump(s, sessions[wrongSeat]!, 'oros')).toThrow();

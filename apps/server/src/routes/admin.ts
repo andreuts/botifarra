@@ -50,9 +50,7 @@ export const adminRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     const limit = Math.min(100, Math.max(1, parseInt(request.query.limit ?? '50', 10)));
     const search = request.query.search?.trim();
 
-    const where = search
-      ? { username: { contains: search, mode: 'insensitive' as const } }
-      : {};
+    const where = search ? { username: { contains: search, mode: 'insensitive' as const } } : {};
 
     const [users, total] = await Promise.all([
       app.prisma.user.findMany({
@@ -66,7 +64,7 @@ export const adminRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     ]);
 
     return reply.send({
-      users: users.map((u: typeof users[number]) => ({
+      users: users.map((u: (typeof users)[number]) => ({
         id: u.id,
         username: u.username,
         createdAt: u.createdAt.toISOString(),
@@ -92,7 +90,18 @@ export const adminRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
       include: {
         stats: true,
         matchPlayers: {
-          include: { match: { select: { id: true, status: true, mode: true, createdAt: true, score0: true, score1: true } } },
+          include: {
+            match: {
+              select: {
+                id: true,
+                status: true,
+                mode: true,
+                createdAt: true,
+                score0: true,
+                score1: true,
+              },
+            },
+          },
           orderBy: { match: { createdAt: 'desc' } },
           take: 20,
         },
@@ -113,7 +122,7 @@ export const adminRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
             rating: Math.round(user.stats.individualRating),
           }
         : null,
-      recentMatches: user.matchPlayers.map((mp: typeof user.matchPlayers[number]) => ({
+      recentMatches: user.matchPlayers.map((mp: (typeof user.matchPlayers)[number]) => ({
         matchId: mp.match.id,
         status: mp.match.status,
         mode: mp.match.mode,
@@ -167,7 +176,7 @@ export const adminRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     ]);
 
     return reply.send({
-      matches: matches.map((m: typeof matches[number]) => ({
+      matches: matches.map((m: (typeof matches)[number]) => ({
         id: m.id,
         mode: m.mode,
         status: m.status,
@@ -177,7 +186,7 @@ export const adminRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
         targetScore: m.targetScore,
         createdAt: m.createdAt.toISOString(),
         finishedAt: m.finishedAt?.toISOString() ?? null,
-        players: m.players.map((p: typeof m.players[number]) => ({
+        players: m.players.map((p: (typeof m.players)[number]) => ({
           userId: p.userId,
           username: p.user.username,
           seat: p.seat,
@@ -214,12 +223,12 @@ export const adminRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
       targetScore: match.targetScore,
       createdAt: match.createdAt.toISOString(),
       finishedAt: match.finishedAt?.toISOString() ?? null,
-      players: match.players.map((p: typeof match.players[number]) => ({
+      players: match.players.map((p: (typeof match.players)[number]) => ({
         userId: p.user.id,
         username: p.user.username,
         seat: p.seat,
       })),
-      events: match.events.map((e: typeof match.events[number]) => ({
+      events: match.events.map((e: (typeof match.events)[number]) => ({
         seq: e.seq,
         type: e.type,
         payload: e.payload,
@@ -264,21 +273,16 @@ export const adminRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
 
   /** GET /api/admin/stats — dashboard summary */
   app.get('/stats', async (_request, reply) => {
-    const [
-      totalUsers,
-      totalMatches,
-      activeMatches,
-      finishedMatches,
-      recentUsers,
-    ] = await Promise.all([
-      app.prisma.user.count(),
-      app.prisma.match.count(),
-      app.prisma.match.count({ where: { status: 'IN_PROGRESS' } }),
-      app.prisma.match.count({ where: { status: 'FINISHED' } }),
-      app.prisma.user.count({
-        where: { createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } },
-      }),
-    ]);
+    const [totalUsers, totalMatches, activeMatches, finishedMatches, recentUsers] =
+      await Promise.all([
+        app.prisma.user.count(),
+        app.prisma.match.count(),
+        app.prisma.match.count({ where: { status: 'IN_PROGRESS' } }),
+        app.prisma.match.count({ where: { status: 'FINISHED' } }),
+        app.prisma.user.count({
+          where: { createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } },
+        }),
+      ]);
 
     return reply.send({
       totalUsers,

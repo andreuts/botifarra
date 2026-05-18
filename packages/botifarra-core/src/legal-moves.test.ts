@@ -163,7 +163,7 @@ describe('legalMoves — must-kill for non-trump led suit', () => {
     // led suit = copes, opponent sitting at 1 ruffed with oros (trump)
     const trickCards: TrickCard[] = [
       { seat: 3, card: c('copes', 4) }, // led
-      { seat: 1, card: c('oros', 2) },  // opponent trumped
+      { seat: 1, card: c('oros', 2) }, // opponent trumped
     ];
     const hand: Card[] = [c('copes', 2), c('copes', 1)];
     // Cannot beat a trump with a non-trump, so just follow suit freely

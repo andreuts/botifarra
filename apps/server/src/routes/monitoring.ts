@@ -32,7 +32,13 @@ export const monitoringRoutes: FastifyPluginAsync = async (app: FastifyInstance)
   /** GET /api/monitoring/snapshot */
   app.get('/snapshot', async (_request, reply) => {
     // Get Colyseus room info if available
-    let roomList: { roomId: string; name: string; clients: number; maxClients: number; createdAt: string }[] = [];
+    let roomList: {
+      roomId: string;
+      name: string;
+      clients: number;
+      maxClients: number;
+      createdAt: string;
+    }[] = [];
     try {
       const { matchMaker } = await import('colyseus');
       const rooms = await matchMaker.query({});

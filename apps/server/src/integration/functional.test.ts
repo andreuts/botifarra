@@ -63,19 +63,33 @@ function makeMockPrisma() {
       }),
       create: vi.fn(async ({ data }: any) => {
         const id = `user-${++userIdCounter}`;
-        const user = { id, username: data.username, passwordHash: data.passwordHash, createdAt: new Date(), updatedAt: new Date() };
+        const user = {
+          id,
+          username: data.username,
+          passwordHash: data.passwordHash,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
         users.set(data.username, user);
         return user;
       }),
       update: vi.fn(async ({ where, data }: any) => {
-        for (const [k, u] of users) if (u.id === where.id) { users.set(k, { ...u, ...data }); return users.get(k); }
+        for (const [k, u] of users)
+          if (u.id === where.id) {
+            users.set(k, { ...u, ...data });
+            return users.get(k);
+          }
       }),
     },
     userStats: { findMany: vi.fn().mockResolvedValue([]) },
     match: {
       findMany: vi.fn().mockResolvedValue([]),
       findUnique: vi.fn().mockResolvedValue(null),
-      create: vi.fn(async ({ data }: any) => ({ id: data.id ?? `m-${Date.now()}`, ...data, createdAt: new Date() })),
+      create: vi.fn(async ({ data }: any) => ({
+        id: data.id ?? `m-${Date.now()}`,
+        ...data,
+        createdAt: new Date(),
+      })),
       update: vi.fn().mockResolvedValue({}),
     },
     matchPlayer: {
@@ -86,11 +100,13 @@ function makeMockPrisma() {
       findUnique: vi.fn().mockResolvedValue(null),
       upsert: vi.fn().mockResolvedValue({}),
     },
-    $transaction: vi.fn(async (fn: any) => fn({
-      match: { update: vi.fn().mockResolvedValue({}) },
-      matchPlayer: { updateMany: vi.fn().mockResolvedValue({ count: 0 }) },
-      userStats: { upsert: vi.fn().mockResolvedValue({}) },
-    })),
+    $transaction: vi.fn(async (fn: any) =>
+      fn({
+        match: { update: vi.fn().mockResolvedValue({}) },
+        matchPlayer: { updateMany: vi.fn().mockResolvedValue({ count: 0 }) },
+        userStats: { upsert: vi.fn().mockResolvedValue({}) },
+      }),
+    ),
     $disconnect: vi.fn(),
   } as any;
 }
@@ -176,9 +192,12 @@ describe('Functional: Private room creation & join', () => {
 
     // Colyseus room factory should have been called
     expect(createColyseusRoom).toHaveBeenCalledOnce();
-    expect(createColyseusRoom).toHaveBeenCalledWith('botifarra', expect.objectContaining({
-      targetScore: 101,
-    }));
+    expect(createColyseusRoom).toHaveBeenCalledWith(
+      'botifarra',
+      expect.objectContaining({
+        targetScore: 101,
+      }),
+    );
   });
 
   it('second join with same code returns existing roomId without re-creating', async () => {
@@ -333,18 +352,31 @@ describe('Functional: Quick match — 4-player single queue', () => {
     ];
 
     for (const t of tokens) {
-      await app.inject({ method: 'POST', url: '/api/matches/queue/join', headers: { authorization: `Bearer ${t}` }, payload: { mode: 'single' } });
+      await app.inject({
+        method: 'POST',
+        url: '/api/matches/queue/join',
+        headers: { authorization: `Bearer ${t}` },
+        payload: { mode: 'single' },
+      });
     }
     await new Promise((r) => setImmediate(r));
 
     // First poll — placeholder callback returns empty Map, so no reservation yet
-    const poll1 = await app.inject({ method: 'GET', url: '/api/matches/queue/status', headers: { authorization: `Bearer ${tokens[0]}` } });
+    const poll1 = await app.inject({
+      method: 'GET',
+      url: '/api/matches/queue/status',
+      headers: { authorization: `Bearer ${tokens[0]}` },
+    });
     const body1 = poll1.json();
     // body1.reservation may be undefined (placeholder returns empty Map)
     void body1;
 
     // Second poll — nothing to consume either way
-    const poll2 = await app.inject({ method: 'GET', url: '/api/matches/queue/status', headers: { authorization: `Bearer ${tokens[0]}` } });
+    const poll2 = await app.inject({
+      method: 'GET',
+      url: '/api/matches/queue/status',
+      headers: { authorization: `Bearer ${tokens[0]}` },
+    });
     expect(poll2.json().reservation).toBeUndefined();
   });
 });
@@ -489,7 +521,9 @@ describe('Functional: Practice bot — declaring phase', () => {
         try {
           const { state: s } = handleDeclareTrump(state, sessionId, declaration);
           state = s;
-        } catch { break; }
+        } catch {
+          break;
+        }
       } else if (phase === 'playing') {
         const seat = currentPlayerSeat(round);
         if (seat === null) break;
@@ -498,7 +532,9 @@ describe('Functional: Practice bot — declaring phase', () => {
         try {
           const { state: s } = handlePlayCard(state, sessionId, card);
           state = s;
-        } catch { break; }
+        } catch {
+          break;
+        }
       }
     }
 

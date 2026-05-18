@@ -15,8 +15,7 @@ export function resolveTrick(
   cards: [TrickCard, TrickCard, TrickCard, TrickCard],
   trump: TrumpDeclaration,
 ): CompletedTrick {
-  const isTrump = (c: Card): boolean =>
-    trump !== 'botifarra' && c.suit === trump;
+  const isTrump = (c: Card): boolean => trump !== 'botifarra' && c.suit === trump;
 
   const ledSuit = cards[0].card.suit;
   let winner = cards[0];

@@ -1,4 +1,10 @@
-import type { CompletedTrick, ContraLevel, RoundScore, Seat, TrumpDeclaration } from '@botifarra/core';
+import type {
+  CompletedTrick,
+  ContraLevel,
+  RoundScore,
+  Seat,
+  TrumpDeclaration,
+} from '@botifarra/core';
 import type { PlayerGameStateDTO } from './match.dto.js';
 
 /**
@@ -65,6 +71,74 @@ export interface ContraCalledEvent {
   callerSeat: Seat;
 }
 
+export interface ChatMessageEvent {
+  type: 'chat_message';
+  fromUsername: string;
+  fromSeat: Seat | null; // null for observers
+  text: string;
+  timestamp: number;
+}
+
+export interface ReactionEvent {
+  type: 'reaction';
+  fromUsername: string;
+  fromSeat: Seat;
+  emoji: string;
+  timestamp: number;
+}
+
+export interface PremadeMessageEvent {
+  type: 'premade_message';
+  fromUsername: string;
+  fromSeat: Seat;
+  key: string;
+  timestamp: number;
+}
+
+export interface SurrenderRequestedEvent {
+  type: 'surrender_requested';
+  requestingSeat: Seat;
+  partnerSeat: Seat;
+}
+
+export interface SurrenderResolvedEvent {
+  type: 'surrender_resolved';
+  accepted: boolean;
+  losingSeat?: Seat; // which team's seat lost (0 or 1)
+}
+
+export interface TimerUpdateEvent {
+  type: 'timer_update';
+  timers: {
+    seat: Seat;
+    baseTurnMs: number; // remaining base 15s countdown (-1 if not their turn)
+    roundBudgetMs: number; // remaining 1-min round budget
+  }[];
+}
+
+export interface RoundTimeoutEvent {
+  type: 'round_timeout';
+  timedOutSeat: Seat;
+  penaltyPoints: number; // 36
+  scoringTeam: 0 | 1;
+}
+
+export interface GameTimeoutEvent {
+  type: 'game_timeout';
+  winner: 0 | 1 | null; // null if tied
+  finalScores: [number, number];
+}
+
+export interface ObserverJoinedEvent {
+  type: 'observer_joined';
+  username: string;
+}
+
+export interface ObserverLeftEvent {
+  type: 'observer_left';
+  username: string;
+}
+
 export type ServerEvent =
   | GameStateEvent
   | TrumpDeclaredEvent
@@ -75,4 +149,7 @@ export type ServerEvent =
   | ErrorEvent
   | PlayerConnectedEvent
   | PlayerDisconnectedEvent
-  | ContraCalledEvent;
+  | ContraCalledEvent
+  | ChatMessageEvent
+  | ObserverJoinedEvent
+  | ObserverLeftEvent;

@@ -35,7 +35,7 @@ export function getRoundPhase(round: RoundState): RoundPhase {
 export function currentPlayerSeat(round: RoundState): Seat | null {
   if (getRoundPhase(round) !== 'playing') return null;
   // Counter-clockwise: subtract trick length from leader
-  return (((round.currentLeader - round.currentTrick.length) % 4) + 4) % 4 as Seat;
+  return ((((round.currentLeader - round.currentTrick.length) % 4) + 4) % 4) as Seat;
 }
 
 // ---------------------------------------------------------------------------
@@ -89,7 +89,7 @@ export function passDeclaration(round: RoundState): RoundState {
     throw new Error('Cannot pass — dealer already passed');
   }
   if (round.declarantSeat !== round.dealerSeat) {
-    throw new Error('Cannot pass — not the dealer\'s turn to declare');
+    throw new Error("Cannot pass — not the dealer's turn to declare");
   }
   return {
     ...round,
@@ -150,9 +150,7 @@ export function callContra(round: RoundState, callerSeat: Seat): RoundState {
   const declarantTeam = seatTeam(round.declarantSeat);
   const callerTeam = seatTeam(callerSeat);
   const mustBeDeclarantTeam = nextLevel === 2; // recontro is by declarant team
-  const teamOk = mustBeDeclarantTeam
-    ? callerTeam === declarantTeam
-    : callerTeam !== declarantTeam;
+  const teamOk = mustBeDeclarantTeam ? callerTeam === declarantTeam : callerTeam !== declarantTeam;
 
   if (!teamOk) {
     throw new Error(`Wrong team for contra level ${nextLevel}`);
@@ -248,6 +246,3 @@ function cloneHands(hands: Hands): Hands {
     3: [...hands[3]],
   };
 }
-
-
-

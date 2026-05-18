@@ -1,0 +1,9 @@
+dist
+node_modules
+pnpm-lock.yaml
+prisma/migrations
+coverage
+.specify
+*.d.ts
+*.js
+!eslint.config.js

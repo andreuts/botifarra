@@ -60,7 +60,7 @@ export function startNextRound(game: GameState): GameState {
   if (game.winner !== null) {
     throw new Error('Game is already finished');
   }
-  const nextDealer = (((game.dealerSeat + 1) % 4) as Seat);
+  const nextDealer = ((game.dealerSeat + 1) % 4) as Seat;
 
   return {
     ...game,

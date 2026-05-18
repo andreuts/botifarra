@@ -101,9 +101,7 @@ describe('Integration: Seat assignment', () => {
 
   it('throws when a 5th player tries to join', () => {
     const { state } = createFullRoom();
-    expect(() =>
-      assignSeat(state, 'extra', 'u99', 'Extra'),
-    ).toThrow('Room is full');
+    expect(() => assignSeat(state, 'extra', 'u99', 'Extra')).toThrow('Room is full');
   });
 
   it('seatForSession returns correct seat', () => {
@@ -126,29 +124,23 @@ describe('Integration: Single round flow', () => {
 
   it('declares trump successfully', () => {
     const { state, sessions } = createFullRoom();
-    let s = startRound(state);
+    const s = startRound(state);
     const round = s.round!;
     expect(getRoundPhase(round)).toBe('declaring');
 
     const declarant = round.declarantSeat;
     const declaration = heuristicBotDeclareTrump(round, declarant);
-    const { state: afterDeclare } = handleDeclareTrump(
-      s,
-      sessions[declarant]!,
-      declaration,
-    );
+    const { state: afterDeclare } = handleDeclareTrump(s, sessions[declarant]!, declaration);
     expect(afterDeclare.round!.trump).not.toBeNull();
   });
 
   it('rejects declaration from wrong seat', () => {
     const { state, sessions } = createFullRoom();
-    let s = startRound(state);
+    const s = startRound(state);
     const round = s.round!;
     const wrongSeat = ((round.declarantSeat + 1) % 4) as Seat;
 
-    expect(() =>
-      handleDeclareTrump(s, sessions[wrongSeat]!, 'oros'),
-    ).toThrow('Not your turn');
+    expect(() => handleDeclareTrump(s, sessions[wrongSeat]!, 'oros')).toThrow('Not your turn');
   });
 
   it('plays all 12 tricks in a round', () => {
@@ -251,9 +243,7 @@ describe('Integration: Legal moves enforcement', () => {
 
     const seat = currentPlayerSeat(s.round!)!;
     // Try to play a card that doesn't exist (rank 99 is invalid)
-    expect(() =>
-      handlePlayCard(s, sessions[seat]!, { suit: 'oros', rank: 99 }),
-    ).toThrow();
+    expect(() => handlePlayCard(s, sessions[seat]!, { suit: 'oros', rank: 99 })).toThrow();
   });
 
   it('rejects playing out of turn', () => {
@@ -274,9 +264,7 @@ describe('Integration: Legal moves enforcement', () => {
     const wrongHand = s.round!.hands[wrongSeat];
 
     if (wrongHand.length > 0) {
-      expect(() =>
-        handlePlayCard(s, sessions[wrongSeat]!, wrongHand[0]!),
-      ).toThrow();
+      expect(() => handlePlayCard(s, sessions[wrongSeat]!, wrongHand[0]!)).toThrow();
     }
   });
 });
@@ -284,7 +272,7 @@ describe('Integration: Legal moves enforcement', () => {
 describe('Integration: buildPlayerState integrity', () => {
   it('hides other players hands while showing own', () => {
     const { state, sessions } = createFullRoom();
-    let s = startRound(state);
+    const s = startRound(state);
 
     // Declare trump
     const round = s.round!;

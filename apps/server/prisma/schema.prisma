@@ -2,7 +2,8 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
-  provider = "prisma-client-js"
+  provider   = "prisma-client-js"
+  engineType = "binary"
 }
 
 datasource db {
@@ -24,7 +25,44 @@ model User {
   stats        UserStats?
   matchPlayers MatchPlayer[]
 
+  // Friendships where this user is the requester
+  sentFriendRequests     Friendship[] @relation("FriendshipRequester")
+  // Friendships where this user is the addressee
+  receivedFriendRequests Friendship[] @relation("FriendshipAddressee")
+
+  eloHistory EloHistory[]
+
+  // Tournament relations
+  createdTournaments    Tournament[]          @relation("TournamentCreator")
+  tournamentCouples1    TournamentCouple[]    @relation("TournamentCoupleUser1")
+  tournamentCouples2    TournamentCouple[]    @relation("TournamentCoupleUser2")
+  tournamentSoloRegs    TournamentSoloReg[]
+
   @@map("users")
+}
+
+// ---------------------------------------------------------------------------
+// Friendships
+// ---------------------------------------------------------------------------
+
+enum FriendshipStatus {
+  PENDING
+  ACCEPTED
+}
+
+model Friendship {
+  id          String           @id @default(cuid())
+  requesterId String
+  addresseeId String
+  status      FriendshipStatus @default(PENDING)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  requester User @relation("FriendshipRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  addressee User @relation("FriendshipAddressee", fields: [addresseeId], references: [id], onDelete: Cascade)
+
+  @@unique([requesterId, addresseeId])
+  @@map("friendships")
 }
 
 model UserStats {
@@ -48,27 +86,34 @@ enum MatchStatus {
   WAITING
   IN_PROGRESS
   FINISHED
+  ABANDONED
 }
 
 enum MatchMode {
   PUBLIC
   PRIVATE
   PRACTICE
+  RANKED
 }
 
 model Match {
   id          String      @id @default(cuid())
   mode        MatchMode   @default(PUBLIC)
   status      MatchStatus @default(WAITING)
+  ranked      Boolean     @default(false)
   targetScore Int         @default(12)
   score0      Int         @default(0) // team 0 match-points
   score1      Int         @default(0) // team 1 match-points
   winner      Int?        // 0 or 1
+  endReason   String?     // 'normal' | 'surrender' | 'timeout' | null
   createdAt   DateTime    @default(now())
   finishedAt  DateTime?
 
+  lastSnapshot Json?        // serialized RoomGameState snapshot; null when finished
+
   players     MatchPlayer[]
   events      MatchEvent[]
+  eloHistory  EloHistory[]
 
   @@map("matches")
 }
@@ -100,4 +145,169 @@ model MatchEvent {
 
   @@unique([matchId, seq])
   @@map("match_events")
+}
+
+// ---------------------------------------------------------------------------
+// Tournaments
+// ---------------------------------------------------------------------------
+
+enum TournamentFormat {
+  ELIMINATORY
+  SWISS
+}
+
+enum TournamentStatus {
+  REGISTRATION_OPEN
+  READY
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum TournamentCoupleStatus {
+  ACTIVE
+  ELIMINATED
+  FINALIST
+  CHAMPION
+  WITHDRAWN
+}
+
+enum TournamentMatchStatus {
+  PENDING
+  IN_PROGRESS
+  TIEBREAK
+  FINISHED
+  UNRESOLVED
+}
+
+model Tournament {
+  id           String           @id @default(cuid())
+  name         String
+  format       TournamentFormat
+  status       TournamentStatus @default(REGISTRATION_OPEN)
+  createdById  String
+  activeRound  Int              @default(0)
+  championId   String?
+  passwordHash String?
+  createdAt    DateTime         @default(now())
+  startedAt    DateTime?
+  completedAt  DateTime?
+
+  createdBy User                @relation("TournamentCreator", fields: [createdById], references: [id])
+  champion  TournamentCouple?   @relation("TournamentChampion", fields: [championId], references: [id])
+  couples   TournamentCouple[]
+  rounds    TournamentRound[]
+  soloRegs  TournamentSoloReg[]
+
+  @@map("tournaments")
+}
+
+model TournamentCouple {
+  id           String                 @id @default(cuid())
+  tournamentId String
+  user1Id      String
+  user2Id      String
+  status       TournamentCoupleStatus @default(ACTIVE)
+  points       Int                    @default(0)
+  matchesWon   Int                    @default(0)
+  matchesLost  Int                    @default(0)
+  createdAt    DateTime               @default(now())
+
+  tournament        Tournament        @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  user1             User              @relation("TournamentCoupleUser1", fields: [user1Id], references: [id])
+  user2             User              @relation("TournamentCoupleUser2", fields: [user2Id], references: [id])
+  matchesAsCouple0  TournamentMatch[] @relation("TournamentMatchCouple0")
+  matchesAsCouple1  TournamentMatch[] @relation("TournamentMatchCouple1")
+  championed        Tournament[]      @relation("TournamentChampion")
+
+  @@unique([tournamentId, user1Id])
+  @@unique([tournamentId, user2Id])
+  @@map("tournament_couples")
+}
+
+model TournamentSoloReg {
+  id           String   @id @default(cuid())
+  tournamentId String
+  userId       String
+  createdAt    DateTime @default(now())
+
+  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id])
+
+  @@unique([tournamentId, userId])
+  @@map("tournament_solo_regs")
+}
+
+model TournamentRound {
+  id           String @id @default(cuid())
+  tournamentId String
+  roundNumber  Int
+
+  tournament Tournament        @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  matches    TournamentMatch[]
+
+  @@unique([tournamentId, roundNumber])
+  @@map("tournament_rounds")
+}
+
+model TournamentMatch {
+  id           String                @id @default(cuid())
+  roundId      String
+  couple0Id    String
+  couple1Id    String?               // null for bye matches
+  isFinal      Boolean               @default(false)
+  status       TournamentMatchStatus @default(PENDING)
+  score0       Int                   @default(0)
+  score1       Int                   @default(0)
+  roundsPlayed Int                   @default(0)
+  winnerId     String?               // coupleId of winner
+  roomId       String?               // Colyseus room ID
+  startedAt    DateTime?
+  finishedAt   DateTime?
+
+  round   TournamentRound  @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  couple0 TournamentCouple @relation("TournamentMatchCouple0", fields: [couple0Id], references: [id])
+  couple1 TournamentCouple? @relation("TournamentMatchCouple1", fields: [couple1Id], references: [id])
+
+  @@map("tournament_matches")
+}
+
+// ---------------------------------------------------------------------------
+// ELO History
+// ---------------------------------------------------------------------------
+
+model EloHistory {
+  id        String   @id @default(cuid())
+  userId    String
+  matchId   String
+  eloAfter  Float
+  eloChange Float
+  isRanked  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("elo_history")
+}
+
+// ---------------------------------------------------------------------------
+// News
+// ---------------------------------------------------------------------------
+
+model NewsPost {
+  id               String    @id @default(cuid())
+  title            String
+  slug             String    @unique
+  bodyHtml         String
+  excerpt          String?
+  authorUsername   String?
+  isPublished      Boolean   @default(false)
+  publishedAt      DateTime?
+  featuredImageUrl String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@map("news_posts")
 }

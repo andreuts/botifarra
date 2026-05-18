@@ -9,7 +9,7 @@ export async function rankingsRoutes(app: FastifyInstance) {
       include: { user: { select: { id: true, username: true } } },
     });
 
-    const rankings = rows.map((r: any , index: number) => ({
+    const rankings = rows.map((r: any, index: number) => ({
       rank: index + 1,
       userId: r.user.id,
       username: r.user.username,
@@ -17,8 +17,7 @@ export async function rankingsRoutes(app: FastifyInstance) {
       matchesPlayed: r.matchesPlayed,
       matchesWon: r.matchesWon,
       matchesLost: r.matchesLost,
-      winRate:
-        r.matchesPlayed > 0 ? Math.round((r.matchesWon / r.matchesPlayed) * 100) : 0,
+      winRate: r.matchesPlayed > 0 ? Math.round((r.matchesWon / r.matchesPlayed) * 100) : 0,
     }));
 
     return reply.send(rankings);

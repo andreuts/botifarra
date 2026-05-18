@@ -69,7 +69,9 @@ describe('shuffleDeck', () => {
     // Running this once has a 1/48! chance of failing — effectively zero.
     const deck = createDeck();
     const shuffled = shuffleDeck(deck);
-    const sameOrder = deck.every((c, i) => shuffled[i]?.suit === c.suit && shuffled[i]?.rank === c.rank);
+    const sameOrder = deck.every(
+      (c, i) => shuffled[i]?.suit === c.suit && shuffled[i]?.rank === c.rank,
+    );
     expect(sameOrder).toBe(false);
   });
 });
@@ -112,11 +114,11 @@ describe('dealHands', () => {
 
 describe('cardPointValue', () => {
   const cases: [Rank, number][] = [
-    [1, 4],   // As
-    [9, 5],   // Manilla
-    [12, 3],  // Rei (King)
-    [11, 2],  // Cavall (Horse)
-    [10, 1],  // Sota (Jack)
+    [1, 4], // As
+    [9, 5], // Manilla
+    [12, 3], // Rei (King)
+    [11, 2], // Cavall (Horse)
+    [10, 1], // Sota (Jack)
     [2, 0],
     [3, 0],
     [4, 0],

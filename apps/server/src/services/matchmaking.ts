@@ -28,15 +28,16 @@ export interface SingleEntry {
   type: 'single';
   userId: string;
   username: string;
+  ranked: boolean;
+  rating: number; // Elo rating for ranked, 0 for normal
   joinedAt: Date;
 }
 
 export interface PairEntry {
   type: 'pair';
-  players: [
-    { userId: string; username: string },
-    { userId: string; username: string },
-  ];
+  players: [{ userId: string; username: string }, { userId: string; username: string }];
+  ranked: boolean;
+  rating: number; // average Elo for ranked, 0 for normal
   joinedAt: Date;
 }
 
@@ -71,6 +72,7 @@ export interface SeatReservationData {
 export type OnMatchCreated = (
   players: MatchPlayer[],
   matchId: string,
+  ranked: boolean,
 ) => Promise<Map<string, SeatReservationData>>;
 
 // ---------------------------------------------------------------------------
@@ -113,9 +115,9 @@ export class MatchmakingQueue {
    * Add a solo player to the queue.
    * Throws if the player is already queued.
    */
-  enqueueSingle(userId: string, username: string): void {
+  enqueueSingle(userId: string, username: string, ranked = false, rating = 0): void {
     if (this.isQueued(userId)) throw new Error('Already in queue');
-    this.singles.push({ type: 'single', userId, username, joinedAt: new Date() });
+    this.singles.push({ type: 'single', userId, username, ranked, rating, joinedAt: new Date() });
     this.attemptMatch();
   }
 
@@ -126,10 +128,12 @@ export class MatchmakingQueue {
   enqueuePair(
     player1: { userId: string; username: string },
     player2: { userId: string; username: string },
+    ranked = false,
+    rating = 0,
   ): void {
     if (this.isQueued(player1.userId)) throw new Error(`${player1.username} is already in queue`);
     if (this.isQueued(player2.userId)) throw new Error(`${player2.username} is already in queue`);
-    this.pairs.push({ type: 'pair', players: [player1, player2], joinedAt: new Date() });
+    this.pairs.push({ type: 'pair', players: [player1, player2], ranked, rating, joinedAt: new Date() });
     this.attemptMatch();
   }
 
@@ -179,32 +183,107 @@ export class MatchmakingQueue {
   // -------------------------------------------------------------------------
 
   private attemptMatch(): void {
+    // Try ranked matches first, then normal
+    this.attemptMatchForMode(true);
+    this.attemptMatchForMode(false);
+  }
+
+  /** Maximum Elo difference allowed for ranked matchmaking */
+  private static readonly MAX_ELO_DIFF = 300;
+
+  /** Check if two entries are within acceptable Elo range */
+  private isEloCompatible(a: { rating: number; joinedAt: Date }, b: { rating: number; joinedAt: Date }): boolean {
+    // Widen the acceptable range based on wait time (50 pts per 30s waited)
+    const now = Date.now();
+    const waitA = (now - a.joinedAt.getTime()) / 30000; // 30s units
+    const waitB = (now - b.joinedAt.getTime()) / 30000;
+    const maxWait = Math.max(waitA, waitB);
+    const allowedDiff = MatchmakingQueue.MAX_ELO_DIFF + maxWait * 50;
+    return Math.abs(a.rating - b.rating) <= allowedDiff;
+  }
+
+  private attemptMatchForMode(ranked: boolean): void {
+    const singles = this.singles.filter((e) => e.ranked === ranked);
+    const pairs = this.pairs.filter((e) => e.ranked === ranked);
+
     // Priority 1: 2 pairs → match
-    if (this.pairs.length >= 2) {
-      const [pair1, pair2] = this.pairs.splice(0, 2);
-      this.createMatch(
-        this.arrangeTwoPairs(pair1!, pair2!),
-      );
-      return;
+    if (pairs.length >= 2) {
+      if (ranked) {
+        // Find best Elo-compatible pair
+        for (let i = 0; i < pairs.length - 1; i++) {
+          for (let j = i + 1; j < pairs.length; j++) {
+            if (this.isEloCompatible(pairs[i]!, pairs[j]!)) {
+              const pair1 = pairs[i]!;
+              const pair2 = pairs[j]!;
+              this.pairs.splice(this.pairs.indexOf(pair2), 1);
+              this.pairs.splice(this.pairs.indexOf(pair1), 1);
+              this.createMatch(this.arrangeTwoPairs(pair1, pair2), ranked);
+              return;
+            }
+          }
+        }
+      } else {
+        const [pair1, pair2] = [pairs[0]!, pairs[1]!];
+        this.pairs.splice(this.pairs.indexOf(pair2), 1);
+        this.pairs.splice(this.pairs.indexOf(pair1), 1);
+        this.createMatch(this.arrangeTwoPairs(pair1, pair2), ranked);
+        return;
+      }
     }
 
     // Priority 2: 1 pair + 2 singles → match
-    if (this.pairs.length >= 1 && this.singles.length >= 2) {
-      const [pair] = this.pairs.splice(0, 1);
-      const solos = this.singles.splice(0, 2);
-      this.createMatch(
-        this.arrangePairAndSingles(pair!, solos as [SingleEntry, SingleEntry]),
-      );
-      return;
+    if (pairs.length >= 1 && singles.length >= 2) {
+      if (ranked) {
+        const pair = pairs[0]!;
+        // Find 2 Elo-compatible singles
+        const compatible = singles.filter((s) => this.isEloCompatible(pair, s));
+        if (compatible.length >= 2) {
+          const s1 = compatible[0]!;
+          const s2 = compatible[1]!;
+          this.pairs.splice(this.pairs.indexOf(pair), 1);
+          this.singles.splice(this.singles.indexOf(s1), 1);
+          this.singles.splice(this.singles.indexOf(s2), 1);
+          this.createMatch(this.arrangePairAndSingles(pair, [s1, s2] as [SingleEntry, SingleEntry]), ranked);
+          return;
+        }
+      } else {
+        const pair = pairs[0]!;
+        const solos = [singles[0]!, singles[1]!] as [SingleEntry, SingleEntry];
+        this.pairs.splice(this.pairs.indexOf(pair), 1);
+        this.singles.splice(this.singles.indexOf(solos[1]), 1);
+        this.singles.splice(this.singles.indexOf(solos[0]), 1);
+        this.createMatch(this.arrangePairAndSingles(pair, solos), ranked);
+        return;
+      }
     }
 
     // Priority 3: 4 singles → match
-    if (this.singles.length >= 4) {
-      const solos = this.singles.splice(0, 4);
-      this.createMatch(
-        this.arrangeFourSingles(solos as [SingleEntry, SingleEntry, SingleEntry, SingleEntry]),
-      );
-      return;
+    if (singles.length >= 4) {
+      if (ranked) {
+        // Sort by rating and take the 4 closest
+        const sorted = [...singles].sort((a, b) => a.rating - b.rating);
+        // Find a window of 4 where max-min diff is within tolerance
+        for (let i = 0; i <= sorted.length - 4; i++) {
+          if (this.isEloCompatible(sorted[i]!, sorted[i + 3]!)) {
+            const group = sorted.slice(i, i + 4) as [SingleEntry, SingleEntry, SingleEntry, SingleEntry];
+            for (const s of group) {
+              this.singles.splice(this.singles.indexOf(s), 1);
+            }
+            this.createMatch(this.arrangeFourSingles(group), ranked);
+            return;
+          }
+        }
+      } else {
+        const solos = [singles[0]!, singles[1]!, singles[2]!, singles[3]!];
+        for (const s of solos) {
+          this.singles.splice(this.singles.indexOf(s), 1);
+        }
+        this.createMatch(
+          this.arrangeFourSingles(solos as [SingleEntry, SingleEntry, SingleEntry, SingleEntry]),
+          ranked,
+        );
+        return;
+      }
     }
   }
 
@@ -254,10 +333,10 @@ export class MatchmakingQueue {
 
   // ---- Match creation -----------------------------------------------------
 
-  private createMatch(players: MatchPlayer[]): void {
+  private createMatch(players: MatchPlayer[], ranked: boolean): void {
     const matchId = generateMatchId();
 
-    void this.onMatchCreated(players, matchId)
+    void this.onMatchCreated(players, matchId, ranked)
       .then((reservations) => {
         for (const p of players) {
           const r = reservations.get(p.userId);
@@ -274,6 +353,8 @@ export class MatchmakingQueue {
               userId: p.userId,
               username: p.username,
               joinedAt: new Date(),
+              ranked: false,
+              rating: 1500,
             });
           }
         }

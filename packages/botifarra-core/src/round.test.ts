@@ -283,4 +283,3 @@ describe('callContra', () => {
     expect(() => callContra(r, 3)).toThrow(/Wrong team/);
   });
 });
-
