@@ -56,7 +56,7 @@ export function HandComponent({ gameState, onPlayCard }: HandProps) {
   const count = gameState.hand.length;
   const maxFan = 10; // max overlap kicks in
   const overlapRatio = count > maxFan ? 0.42 : 0;
-  const cardW = 74;
+  const cardW = 60;
   const gap = overlapRatio > 0 ? -cardW * overlapRatio : 6;
 
   const statusText = isMyTurn
@@ -125,6 +125,7 @@ export function HandComponent({ gameState, onPlayCard }: HandProps) {
               onClick={() => handleCardClick(card)}
               disabled={isMyTurn && !isLegal}
               selected={isSel}
+              compact={true}
               animate={true}
               dealDelay={i * 55}
               rotation={rotation}

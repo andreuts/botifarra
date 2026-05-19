@@ -61,6 +61,8 @@ export interface BotifarraRoomOptions {
   matchId?: string;
   targetScore?: number;
   ranked?: boolean;
+  /** Original match creation timestamp (ms). Used to preserve the 4-hour timeout across resumes. */
+  matchCreatedAt?: number;
   /** If set, fill remaining seats (up to 4) with bot players */
   fillBots?: boolean;
   /** How many human players are expected (used with fillBots). Default 4. */
@@ -119,6 +121,8 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
 
   // -- 4-hour timeout --
   private static readonly GAME_TIMEOUT_MS = 4 * 60 * 60 * 1000; // 4 hours
+  // -- Lobby fill timeout: if not full after reservation time + buffer, close --
+  private static readonly LOBBY_FILL_TIMEOUT_MS = 150_000; // 2.5 minutes (>120s reservation)
   private gameStartedAt: number = 0;
   private endReason: string | null = null;
 
@@ -141,7 +145,10 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
     this.humanPlayersExpected = options.humanPlayers ?? 4;
     this.seatAssignments = options.seatAssignments ?? {};
     this.ranked = options.ranked ?? false;
-    this.gameStartedAt = Date.now();
+    // Use the original match creation time if provided (resume flow),
+    // so the 4-hour timeout is measured from when the match was FIRST created,
+    // not from when this room instance was spun up.
+    this.gameStartedAt = options.matchCreatedAt ?? Date.now();
 
     // Give clients 2 minutes to consume their seat reservation.
     // The default (15 s) is too short: polling (2 s) + navigation + React mount
@@ -258,22 +265,34 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
       setUserActiveGame(userId, this.roomId);
 
       // If player is rejoining an in-progress game, send them the current state
+      // and refresh all other connected players (their names panel may show '?' until now)
       if (existingSeat !== null && this.gameState.round) {
         this.sendGameStateTo(client, seat);
+        // Push a fresh game_state to every other already-connected player so
+        // their playerNames row updates without waiting for the next card play.
+        for (const [sid, ps] of this.state.players) {
+          if (sid === client.sessionId) continue;
+          const otherClient = this.clients.find((c) => c.sessionId === sid);
+          if (otherClient) this.sendGameStateTo(otherClient, ps.seat as 0 | 1 | 2 | 3);
+        }
       }
 
-      // Auto-start when room is full
-      if (isRoomFull(this.gameState)) {
-        this.startNewRoundPublic();
-      } else if (this.fillBots && this.gameState.seats.size >= this.humanPlayersExpected) {
-        // Fill remaining seats with bots then start
-        const botsNeeded = 4 - this.gameState.seats.size;
-        for (let i = 0; i < botsNeeded; i++) {
-          const fakeSid = `bot-fill-${i}-${this.roomId}`;
-          this.botSeeds.add(fakeSid);
-          this.injectBotSeat(fakeSid, `Bot-${i + 1}`);
+      // Auto-start only when filling seats for the FIRST time (lobby phase).
+      // Reconnecting players (existingSeat !== null) must never trigger a new round —
+      // the game is already in progress.
+      if (this.gameState.phase === 'lobby') {
+        if (isRoomFull(this.gameState)) {
+          this.startNewRoundPublic();
+        } else if (this.fillBots && this.gameState.seats.size >= this.humanPlayersExpected) {
+          // Fill remaining seats with bots then start
+          const botsNeeded = 4 - this.gameState.seats.size;
+          for (let i = 0; i < botsNeeded; i++) {
+            const fakeSid = `bot-fill-${i}-${this.roomId}`;
+            this.botSeeds.add(fakeSid);
+            this.injectBotSeat(fakeSid, `Bot-${i + 1}`);
+          }
+          this.startNewRoundPublic();
         }
-        this.startNewRoundPublic();
       }
     } catch (err) {
       // Room full or other error — kick the client
@@ -466,11 +485,10 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
     this.gameState = startRound(this.gameState);
     this.syncSchemaPublic();
 
-    // Reset ranked turn timers for the new round
-    if (this.ranked) {
-      this.roundBudgets = { 0: BotifarraRoom.ROUND_BUDGET_MS, 1: BotifarraRoom.ROUND_BUDGET_MS, 2: BotifarraRoom.ROUND_BUDGET_MS, 3: BotifarraRoom.ROUND_BUDGET_MS };
-      this.turnStartedAt = Date.now();
-    }
+    // Reset turn timers for the new round (applies to all game types)
+    this.roundBudgets = { 0: BotifarraRoom.ROUND_BUDGET_MS, 1: BotifarraRoom.ROUND_BUDGET_MS, 2: BotifarraRoom.ROUND_BUDGET_MS, 3: BotifarraRoom.ROUND_BUDGET_MS };
+    this.turnStartedAt = Date.now();
+    this.lastTimerBroadcast = 0;
 
     // Send each human player only their own hand
     for (const [sessionId, playerSchema] of this.state.players) {
@@ -483,7 +501,12 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
 
   /** Build map of seat → username from the Colyseus schema or room state */
   private getPlayerNames(): Record<0 | 1 | 2 | 3, string> {
+    // Start from the authoritative game state (always populated, even on resume before all rejoin)
     const names: Record<number, string> = { 0: '?', 1: '?', 2: '?', 3: '?' };
+    for (const [seat, info] of this.gameState.seats) {
+      names[seat] = info.username;
+    }
+    // Override with Colyseus schema in case username changed (shouldn't happen, but safe)
     for (const [, ps] of this.state.players) {
       names[ps.seat] = ps.username;
     }
@@ -529,12 +552,13 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
       };
     }
 
-    if (this.ranked) {
-      const now = Date.now();
+    // Always include timer state for all game types
+    {
+      const nowT = Date.now();
       const activeSeat = currentPlayerSeat(round);
-      const elapsed = now - this.turnStartedAt;
+      const elapsed = nowT - this.turnStartedAt;
       statePayload['timers'] = ([0, 1, 2, 3] as Seat[]).map((s) => {
-        if (s === activeSeat) {
+        if (s === activeSeat && this.turnStartedAt > 0) {
           const baseRemaining = Math.max(0, BotifarraRoom.BASE_TURN_MS - elapsed);
           const budgetConsumed = Math.max(0, elapsed - BotifarraRoom.BASE_TURN_MS);
           return { seat: s, baseTurnMs: baseRemaining, roundBudgetMs: Math.max(0, this.roundBudgets[s] - budgetConsumed) };
@@ -775,13 +799,20 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
   }
 
   private broadcastTimerState() {
-    if (!this.ranked || !this.gameState.round) return;
+    if (!this.gameState.round) return;
     const now = Date.now();
-    const activeSeat = currentPlayerSeat(this.gameState.round);
     const elapsed = now - this.turnStartedAt;
 
+    // During declaring phase, the declarant is the active seat (they must declare trump).
+    // During playing phase, currentPlayerSeat gives the seat whose turn it is.
+    // During contra phase (trump set, no tricks yet), no single seat is "active" — just show budgets.
+    let activeSeat: Seat | null = currentPlayerSeat(this.gameState.round);
+    if (activeSeat === null && this.gameState.round.trump === null) {
+      activeSeat = this.gameState.round.declarantSeat;
+    }
+
     const timers = ([0, 1, 2, 3] as Seat[]).map((seat) => {
-      if (seat === activeSeat) {
+      if (activeSeat !== null && seat === activeSeat) {
         const baseRemaining = Math.max(0, BotifarraRoom.BASE_TURN_MS - elapsed);
         const budgetConsumed = Math.max(0, elapsed - BotifarraRoom.BASE_TURN_MS);
         return {
@@ -798,7 +829,6 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
 
   /** Reset turn start when a play is made (called after each card play) */
   private resetTurnTimer() {
-    if (!this.ranked) return;
     const now = Date.now();
     const elapsed = now - this.turnStartedAt;
     // If the player used some of their budget, deduct it
@@ -961,9 +991,20 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
 
   protected tick() {
     // Base tick — subclasses extend for bot logic
-    if (this.gameState.phase !== 'playing') return;
-
     const now = Date.now();
+
+    // -- Lobby timeout: close room if not all players connect in time --
+    if (this.gameState.phase === 'lobby') {
+      if (now - this.gameStartedAt >= BotifarraRoom.LOBBY_FILL_TIMEOUT_MS) {
+        this.broadcast('lobby_timeout', {
+          message: 'Not all players connected in time. Please re-queue.',
+        });
+        this.disconnect();
+      }
+      return;
+    }
+
+    if (this.gameState.phase !== 'playing') return;
 
     // -- 4-hour timeout (all games) --
     if (now - this.gameStartedAt >= BotifarraRoom.GAME_TIMEOUT_MS) {
@@ -971,24 +1012,27 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
       return;
     }
 
-    // -- Ranked turn timer enforcement --
-    if (this.ranked && this.turnStartedAt > 0) {
+    // -- Turn timer enforcement (all game types) --
+    if (this.turnStartedAt > 0 && this.gameState.round) {
       const elapsed = now - this.turnStartedAt;
-      const currentSeat = currentPlayerSeat(this.gameState.round!);
-      if (currentSeat === null) return;
+      const roundPhase = getRoundPhase(this.gameState.round);
+      const currentSeat = currentPlayerSeat(this.gameState.round); // null during declaring/contra
 
-      const baseExceeded = elapsed > BotifarraRoom.BASE_TURN_MS;
-      if (baseExceeded) {
-        const overTime = elapsed - BotifarraRoom.BASE_TURN_MS;
-        const remaining = this.roundBudgets[currentSeat] - overTime;
-        if (remaining <= 0) {
-          // Player timed out — their team loses the round with 36pt penalty
-          this.handleRankedTimeout(currentSeat);
-          return;
+      // Enforce timeout only during card-play phase
+      if (roundPhase === 'playing' && currentSeat !== null) {
+        const baseExceeded = elapsed > BotifarraRoom.BASE_TURN_MS;
+        if (baseExceeded) {
+          const overTime = elapsed - BotifarraRoom.BASE_TURN_MS;
+          const remaining = this.roundBudgets[currentSeat] - overTime;
+          if (remaining <= 0) {
+            // Player timed out — their team loses the round with 36pt penalty
+            this.handleRankedTimeout(currentSeat);
+            return;
+          }
         }
       }
 
-      // Broadcast timer state every second
+      // Broadcast timer state every second (all phases including declaring/contra)
       if (now - this.lastTimerBroadcast >= 1000) {
         this.broadcastTimerState();
         this.lastTimerBroadcast = now;

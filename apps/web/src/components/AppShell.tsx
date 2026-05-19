@@ -12,7 +12,7 @@ interface AppShellProps {
 
 export function AppShell({ children }: AppShellProps) {
   const { t } = useTranslation();
-  const { user } = useAuthStore();
+  const { user, logout } = useAuthStore();
   const location = useLocation();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
@@ -40,6 +40,12 @@ export function AppShell({ children }: AppShellProps) {
               <Link to="/friends" className={location.pathname === '/friends' ? 'active' : ''}>
                 {t('friends.heading')}
               </Link>
+            </div>
+            <div className="app-nav-user">
+              <span className="app-nav-username">{user.username}</span>
+              <button className="btn-outline app-nav-signout" onClick={logout}>
+                {t('auth.signOut')}
+              </button>
             </div>
             <button
               className="settings-gear"

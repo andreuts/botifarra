@@ -121,6 +121,17 @@ export const matchRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
         return reply.status(409).send({ error: 'Match is not in-progress' });
       }
 
+      // Refuse to resume matches older than 4 hours — they are considered expired
+      const GAME_TIMEOUT_MS = 4 * 60 * 60 * 1000;
+      if (Date.now() - match.createdAt.getTime() >= GAME_TIMEOUT_MS) {
+        // Mark as finished so it no longer shows as in-progress
+        await app.prisma.match.update({
+          where: { id: matchId },
+          data: { status: 'FINISHED', endReason: 'timeout_expired', finishedAt: new Date() },
+        });
+        return reply.status(410).send({ error: 'Match has expired (exceeded 4-hour limit)' });
+      }
+
       // Check if there is an existing live Colyseus room for this match
       // (try matchMaker.query — not available in test mode, so we wrap in try-catch)
       try {
@@ -141,6 +152,7 @@ export const matchRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
       const snapshot = match.lastSnapshot as unknown as SerializableRoomSnapshot;
 
       // Create a new Colyseus room with the restored snapshot
+      const matchCreatedAt = match.createdAt.getTime();
       let roomId: string;
       if (app.createColyseusRoom) {
         // Test-injectable factory
@@ -148,6 +160,7 @@ export const matchRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
           matchId: match.id,
           targetScore: match.targetScore,
           ranked: match.ranked,
+          matchCreatedAt,
           initialSnapshot: snapshot,
         });
         roomId = result.roomId;
@@ -157,6 +170,7 @@ export const matchRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
           matchId: match.id,
           targetScore: match.targetScore,
           ranked: match.ranked,
+          matchCreatedAt,
           initialSnapshot: snapshot,
         });
         roomId = roomListing.roomId;

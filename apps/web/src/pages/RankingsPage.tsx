@@ -18,9 +18,6 @@ export function RankingsPage() {
       <header
         style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}
       >
-        <Link to="/" style={{ textDecoration: 'none', color: 'var(--color-accent)' }}>
-          {t('nav.back')}
-        </Link>
         <h1 style={{ margin: 0 }}>{t('rankings.heading')}</h1>
       </header>
 

@@ -122,10 +122,10 @@ export const api = {
   // ---------------------------------------------------------------------------
 
   pairInvite: {
-    send: (friendUserId: string, token: string) =>
+    send: (friendUserId: string, token: string, ranked = false) =>
       request<PairInviteDTO>('/pair-invite/send', {
         method: 'POST',
-        body: JSON.stringify({ friendUserId }),
+        body: JSON.stringify({ friendUserId, ranked }),
       }, token),
 
     respond: (inviteId: string, action: 'accept' | 'reject', token: string) =>

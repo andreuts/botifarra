@@ -22,3 +22,28 @@ test.describe('Smoke — unauthenticated user', () => {
     await expect(page).toHaveURL(/\/register/);
   });
 });
+
+test.describe('Smoke — nav user section', () => {
+  test.beforeEach(async ({ page }) => {
+    // Inject a fake auth session directly so we don't need a real server
+    await page.goto('/login');
+    await page.evaluate(() => {
+      localStorage.setItem(
+        'botifarra-auth',
+        JSON.stringify({ state: { user: { username: 'smokeuser', accessToken: 'fake' } }, version: 0 }),
+      );
+    });
+    await page.goto('/');
+  });
+
+  test('username is visible in the nav bar', async ({ page }) => {
+    await expect(page.locator('nav .app-nav-username')).toBeVisible();
+    await expect(page.locator('nav .app-nav-username')).toHaveText('smokeuser');
+  });
+
+  test('no h1 containing app title in main content area', async ({ page }) => {
+    const duplicateTitles = page.locator('main h1, [role="main"] h1, .page-content h1').filter({ hasText: /botifarra/i });
+    await expect(duplicateTitles).toHaveCount(0);
+  });
+});
+

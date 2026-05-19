@@ -166,8 +166,24 @@ export class MatchmakingQueue {
     );
   }
 
+  /** Returns the ranked flag of the queued entry for a user, or undefined if not queued. */
+  getRankedForUser(userId: string): boolean | undefined {
+    const single = this.singles.find((e) => e.userId === userId);
+    if (single) return single.ranked;
+    const pair = this.pairs.find((e) => e.players.some((p) => p.userId === userId));
+    if (pair) return pair.ranked;
+    return undefined;
+  }
+
   get size(): number {
     return this.singles.length + this.pairs.length * 2;
+  }
+
+  /** Returns the number of players in the queue for a specific ranked mode. */
+  sizeForMode(ranked: boolean): number {
+    const singles = this.singles.filter((e) => e.ranked === ranked).length;
+    const pairs = this.pairs.filter((e) => e.ranked === ranked).length * 2;
+    return singles + pairs;
   }
 
   get singleCount(): number {
@@ -183,6 +199,11 @@ export class MatchmakingQueue {
   // -------------------------------------------------------------------------
 
   private attemptMatch(): void {
+    // Purge entries that have been waiting longer than 10 minutes (stale sessions)
+    const cutoff = Date.now() - 10 * 60 * 1000;
+    this.singles = this.singles.filter((e) => e.joinedAt.getTime() > cutoff);
+    this.pairs = this.pairs.filter((e) => e.joinedAt.getTime() > cutoff);
+
     // Try ranked matches first, then normal
     this.attemptMatchForMode(true);
     this.attemptMatchForMode(false);

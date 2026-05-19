@@ -30,6 +30,7 @@ export function useMatchmakingQueue() {
   const [queueSize, setQueueSize] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<QueueMode>('single');
+  const [ranked, setRanked] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const token = user?.accessToken ?? '';
@@ -52,6 +53,7 @@ export function useMatchmakingQueue() {
       }
       const body = (await res.json()) as {
         inQueue: boolean;
+        ranked?: boolean;
         queueSize: number;
         reservation?: SeatReservationData;
       };
@@ -71,12 +73,13 @@ export function useMatchmakingQueue() {
   }, [token, navigate, stopPolling]);
 
   const joinQueue = useCallback(
-    async (queueMode: QueueMode = 'single', partner?: { userId: string; username: string }, ranked = false) => {
+    async (queueMode: QueueMode = 'single', partner?: { userId: string; username: string }, isRanked = false) => {
       if (state !== 'idle') return;
       setError(null);
       setMode(queueMode);
+      setRanked(isRanked);
       try {
-        const bodyData: Record<string, unknown> = { mode: queueMode, ranked };
+        const bodyData: Record<string, unknown> = { mode: queueMode, ranked: isRanked };
         if (queueMode === 'pair' && partner) {
           bodyData.partnerId = partner.userId;
           bodyData.partnerUsername = partner.username;
@@ -145,6 +148,7 @@ export function useMatchmakingQueue() {
         if (!res.ok) return;
         const body = (await res.json()) as {
           inQueue: boolean;
+          ranked?: boolean;
           queueSize: number;
           reservation?: SeatReservationData;
         };
@@ -157,6 +161,7 @@ export function useMatchmakingQueue() {
         } else if (body.inQueue) {
           setState('queued');
           setMode('pair');
+          setRanked(body.ranked ?? false);
           if (!pollRef.current) {
             pollRef.current = setInterval(poll, POLL_INTERVAL);
           }
@@ -175,5 +180,5 @@ export function useMatchmakingQueue() {
     [stopPolling],
   );
 
-  return { state, queueSize, error, mode, joinQueue, leaveQueue, startPollingOnly };
+  return { state, queueSize, error, mode, ranked, joinQueue, leaveQueue, startPollingOnly };
 }

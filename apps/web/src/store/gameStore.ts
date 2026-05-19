@@ -8,6 +8,12 @@ export interface GameResult {
   winner: 0 | 1;
 }
 
+export interface TimerState {
+  seat: 0 | 1 | 2 | 3;
+  baseTurnMs: number;    // remaining 15s turn timer; -1 when not this seat's turn
+  roundBudgetMs: number; // remaining 60s round budget
+}
+
 export interface GameStore {
   gameState: PlayerGameStateDTO | null;
   observerState: ObserverGameStateDTO | null;
@@ -17,6 +23,7 @@ export interface GameStore {
   error: string | null;
   gameResult: GameResult | null;
   toasts: string[];
+  timers: TimerState[] | null;
   activeGameRoomId: string | null; // Persisted — for rejoin functionality
   setGameState: (state: PlayerGameStateDTO) => void;
   setObserverState: (state: ObserverGameStateDTO) => void;
@@ -27,6 +34,7 @@ export interface GameStore {
   setGameResult: (result: GameResult) => void;
   addToast: (msg: string) => void;
   dismissToast: () => void;
+  setTimers: (timers: TimerState[]) => void;
   setActiveGameRoomId: (roomId: string | null) => void;
   reset: () => void;
 }
@@ -42,6 +50,7 @@ export const useGameStore = create<GameStore>()(
       error: null,
       gameResult: null,
       toasts: [],
+      timers: null,
       activeGameRoomId: null,
       setGameState: (gameState) => set({ gameState }),
       setObserverState: (observerState) => set({ observerState }),
@@ -52,6 +61,7 @@ export const useGameStore = create<GameStore>()(
       setGameResult: (gameResult) => set({ gameResult }),
       addToast: (msg) => set((s) => ({ toasts: [...s.toasts, msg] })),
       dismissToast: () => set((s) => ({ toasts: s.toasts.slice(1) })),
+      setTimers: (timers) => set({ timers }),
       setActiveGameRoomId: (activeGameRoomId) => set({ activeGameRoomId }),
       reset: () =>
         set({
@@ -63,6 +73,7 @@ export const useGameStore = create<GameStore>()(
           error: null,
           gameResult: null,
           toasts: [],
+          timers: null,
         }),
     }),
     {

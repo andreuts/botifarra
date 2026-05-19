@@ -388,7 +388,7 @@ input::placeholder {
   gap: 12px;
   justify-items: center;
   align-items: center;
-  min-height: 220px;
+  min-height: 320px;
   padding: 16px;
   border-radius: var(--radius-lg);
   background: radial-gradient(
@@ -528,6 +528,52 @@ input::placeholder {
   }
 }
 
+/* ── Lobby Cards ─────────────────────────────────────────── */
+.lobby-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+.lobby-card {
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+  flex: 1;
+  min-width: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  border: 1px solid var(--color-border);
+}
+.lobby-card-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-gold-light);
+  margin: 0;
+}
+.lobby-card-desc {
+  font-size: 0.85rem;
+  color: var(--color-muted);
+  margin: 0;
+  flex: 1;
+}
+.lobby-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin-top: 0.5rem;
+}
+.lobby-card--disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+@media (max-width: 600px) {
+  .lobby-cards {
+    flex-direction: column;
+  }
+}
+
 /* ── Invite code display ─────────────────────────────────── */
 .invite-code {
   font-family: 'JetBrains Mono', 'Fira Code', monospace;
@@ -593,6 +639,26 @@ input::placeholder {
   background: rgba(212, 168, 68, 0.08);
 }
 
+/* ── Settings gear icon ──────────────────────────────────── */
+.app-nav-user {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+.app-nav-username {
+  color: var(--color-muted);
+  font-size: 0.82rem;
+  max-width: 12ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.app-nav-signout {
+  padding: 0.25rem 0.6rem !important;
+  font-size: 0.78rem !important;
+  white-space: nowrap;
+}
 /* ── Settings gear icon ──────────────────────────────────── */
 .settings-gear {
   background: transparent !important;

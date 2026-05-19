@@ -27,7 +27,9 @@
   "home": {
     "play": "Jugar",
     "quickMatchSolo": "Partida ràpida (Sol)",
+    "quickMatchSoloDesc": "Busca una partida contra un altre jugador ara mateix.",
     "quickMatchPair": "Partida ràpida (Parella)",
+    "quickMatchPairDesc": "Convida un amic i busqueu una parella rival junts.",
     "quickMatchPairComingSoon": "Pròximament — invita el teu company primer",
     "searching": "Cercant ({{mode}})… ({{count}} a la cua) — Cancel·la",
     "matchFound": "Partida trobada!",
@@ -81,11 +83,11 @@
     "surrenderOpponents": "Els oponents estan considerant rendir-se…"
   },
   "declare": {
-    "heading": "Escull el pal d'atot",
-    "trump": "Atot:",
-    "passToPartner": "Passa al company",
-    "passToPartnerAria": "Passa la declaració al company",
-    "waitingForDeclarant": "Esperant que {{name}} declari l'atot…",
+    "heading": "Escull el pal de trumfo",
+    "trump": "Trumfo:",
+    "passToPartner": "Delega",
+    "passToPartnerAria": "Delega la declaració al company",
+    "waitingForDeclarant": "Esperant que {{name}} declari el trumfo…",
     "contraBid": "{{contra}}? Això multiplicarà la puntuació de la ronda.",
     "callContra": "Anuncia {{contra}}",
     "waitingContra": "Esperant que els oponents decideixin sobre el contra…",
@@ -100,13 +102,15 @@
     "waitingTurn": "Esperant el teu torn…"
   },
   "trick": {
-    "currentTrick": "Basa actual",
+    "currentTrick": "Mà actual",
     "waitingToPlay": "{{name}} — esperant per jugar",
     "you": "Tu",
     "seatFallback": "Seient {{seat}}",
-    "noTrumpYet": "Encara no hi ha atot",
-    "trump": "Atot",
-    "trumpLabel": "Trump: {{trump}}"
+    "dealer": "Repartidor",
+    "declarant": "Declara",
+    "noTrumpYet": "Encara no hi ha trumfo",
+    "trump": "Trumfo",
+    "trumpLabel": "Trumfo: {{trump}}"
   },
   "scoreboard": {
     "aria": "Marcador",
@@ -150,14 +154,15 @@
     "santVicenc": "Sant Vicenç"
   },
   "toast": {
-    "trumpDeclared": "Atot: {{suit}}",
+    "trumpDeclared": "Trumfo: {{suit}}",
     "contraCalled": "{{contra}}!",
-    "trickWon": "{{name}} ha guanyat la basa",
+    "trickWon": "{{name}} ha guanyat la mà",
     "roundOver": "Ronda acabada — {{score0}} : {{score1}}",
     "playerJoined": "{{username}} s'ha unit (seient {{seat}})",
     "playerLeft": "{{name}} s'ha desconnectat",
     "connectionFailed": "Error en connectar a la partida",
-    "roomError": "Error de sala {{code}}: {{message}}"
+    "roomError": "Error de sala {{code}}: {{message}}",
+    "lobbyTimeout": "No s'han connectat tots els jugadors a temps. Torna a buscar partida."
   },
   "history": {
     "heading": "Historial de partides",

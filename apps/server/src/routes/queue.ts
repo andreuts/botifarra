@@ -69,7 +69,7 @@ export const queueRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
       message: 'Joined queue',
       mode,
       ranked,
-      queueSize: app.matchmakingQueue.size,
+      queueSize: app.matchmakingQueue.sizeForMode(ranked),
     });
   });
 
@@ -94,9 +94,15 @@ export const queueRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
 
     const inQueue = app.matchmakingQueue?.isQueued(userId) ?? false;
     const reservation = app.matchmakingQueue?.popResolvedReservation(userId);
+    // Return the count for the same ranked pool the player is in (or total if not in queue)
+    const ranked = inQueue ? (app.matchmakingQueue?.getRankedForUser(userId) ?? false) : false;
+    const queueSize = inQueue
+      ? (app.matchmakingQueue?.sizeForMode(ranked) ?? 0)
+      : (app.matchmakingQueue?.size ?? 0);
     return reply.send({
       inQueue,
-      queueSize: app.matchmakingQueue?.size ?? 0,
+      ranked,
+      queueSize,
       ...(reservation ? { reservation } : {}),
     });
   });
