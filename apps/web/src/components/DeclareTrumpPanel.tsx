@@ -5,9 +5,20 @@ import type { PlayerGameStateDTO } from '@botifarra/shared';
 interface DeclareTrumpPanelProps {
   gameState: PlayerGameStateDTO;
   mySeat: number;
+  /** Live timer state from the store — overrides gameState.timers for real-time updates */
+  timers?: PlayerGameStateDTO['timers'];
   onDeclare: (declaration: TrumpDeclaration) => void;
   onPass?: () => void;
   onContra?: () => void;
+}
+
+const BASE_TURN_MS = 15_000;
+const ROUND_BUDGET_MS = 60_000;
+
+function cdColor(ratio: number): string {
+  if (ratio > 0.5) return 'var(--color-success)';
+  if (ratio > 0.25) return '#f39c12';
+  return 'var(--color-danger)';
 }
 
 const DECLARATIONS: { value: TrumpDeclaration; label: string; symbol: string; color: string }[] = [
@@ -23,6 +34,7 @@ const CONTRA_LABELS: Record<number, string> = { 1: 'Contra', 2: 'Recontro', 3: '
 export function DeclareTrumpPanel({
   gameState,
   mySeat,
+  timers: liveTimers,
   onDeclare,
   onPass,
   onContra,
@@ -66,6 +78,22 @@ export function DeclareTrumpPanel({
 
   const nextContraLabel = CONTRA_LABELS[nextLevel] ?? 'Contra';
 
+  // Countdown: show when it's my turn to decide (declare or call contra).
+  // The server marks the active seat with baseTurnMs >= 0; others get -1.
+  // We rely on this signal rather than isMyDecision so the bar only appears
+  // when the server is actually counting down for this seat.
+  const timerSource = liveTimers ?? gameState.timers;
+  const myTimer = timerSource?.find((t) => t.seat === mySeat);
+  const iAmTimedSeat = myTimer !== undefined && myTimer.baseTurnMs >= 0;
+  const cdMs = iAmTimedSeat
+    ? (myTimer!.baseTurnMs > 0 ? myTimer!.baseTurnMs : myTimer!.roundBudgetMs)
+    : null;
+  const cdTotal = iAmTimedSeat
+    ? (myTimer!.baseTurnMs > 0 ? BASE_TURN_MS : ROUND_BUDGET_MS)
+    : null;
+  const cdRatio = cdMs !== null && cdTotal ? Math.max(0, cdMs / cdTotal) : null;
+  const cdSecs = cdMs !== null ? Math.ceil(cdMs / 1000) : null;
+
   return (
     <div
       role="region"
@@ -79,6 +107,41 @@ export function DeclareTrumpPanel({
         backdropFilter: 'blur(4px)',
       }}
     >
+      {/* Countdown bar — shown when it's this player's turn to decide */}
+      {cdRatio !== null && cdSecs !== null && (
+        <div style={{ marginBottom: '0.75rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '0.3rem' }}>
+            <span
+              style={{
+                fontFamily: 'monospace',
+                fontWeight: 700,
+                fontSize: '1.1rem',
+                color: cdColor(cdRatio),
+                letterSpacing: '0.05em',
+              }}
+            >
+              {cdSecs}s
+            </span>
+          </div>
+          <div
+            style={{
+              height: 4,
+              background: 'rgba(255,255,255,0.1)',
+              borderRadius: 2,
+              overflow: 'hidden',
+            }}
+          >
+            <div
+              style={{
+                height: '100%',
+                width: `${cdRatio * 100}%`,
+                background: cdColor(cdRatio),
+                borderRadius: 2,
+              }}
+            />
+          </div>
+        </div>
+      )}
       {iCanCallContra ? (
         <>
           <p

@@ -24,6 +24,15 @@ export const useSettingsStore = create<SettingsState>()(
         set({ language });
       },
     }),
-    { name: 'botifarra-settings' },
+    {
+      name: 'botifarra-settings',
+      onRehydrateStorage: () => (state) => {
+        const SUPPORTED_LANGUAGES = ['ca', 'en'] as const;
+        if (state && !SUPPORTED_LANGUAGES.includes(state.language as (typeof SUPPORTED_LANGUAGES)[number])) {
+          state.language = 'ca';
+          i18n.changeLanguage('ca');
+        }
+      },
+    },
   ),
 );

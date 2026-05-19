@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useNavigate, Link } from 'react-router';
+import { useNavigate, Link, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { api } from '../api/client.js';
 import { useAuthStore } from '../store/authStore.js';
@@ -11,6 +11,8 @@ export function FriendsPage() {
   const { t } = useTranslation();
   const { user } = useAuthStore();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const rankedParam = searchParams.get('ranked') === 'true';
   const queryClient = useQueryClient();
   const token = user?.accessToken ?? '';
   const { state: queueState, queueSize, leaveQueue, startPollingOnly } = useMatchmakingQueue();
@@ -76,7 +78,7 @@ export function FriendsPage() {
   async function handleSendPairInvite(friendUserId: string) {
     setActionError('');
     try {
-      await api.pairInvite.send(friendUserId, token);
+      await api.pairInvite.send(friendUserId, token, rankedParam);
       refreshAll();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : t('friends.pairInviteFailed'));
@@ -130,9 +132,6 @@ export function FriendsPage() {
     <div style={{ maxWidth: 700, margin: '0 auto', padding: '2rem' }}>
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
         <h1 style={{ fontSize: '1.5rem' }}>{t('friends.heading')}</h1>
-        <Link to="/" style={{ color: 'var(--color-accent)', fontSize: '0.9rem' }}>
-          {t('nav.backToHome')}
-        </Link>
       </header>
 
       {/* Queue status banner — shown when waiting for match after pair invite */}
@@ -192,6 +191,7 @@ export function FriendsPage() {
             <div key={inv.inviteId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '0.5rem' }}>
               <span style={{ fontSize: '0.9rem' }}>
                 <strong>{inv.fromUsername}</strong> {t('friends.wantsToQueueWithYou')}
+                {inv.ranked && <em style={{ marginLeft: '0.4rem', color: 'var(--color-gold)' }}>({t('home.ranked')})</em>}
               </span>
               <div style={{ display: 'flex', gap: '0.5rem' }}>
                 <button className="btn-success" style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem' }} onClick={() => handlePairInviteRespond(inv.inviteId, 'accept')}>

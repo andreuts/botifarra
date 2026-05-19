@@ -3,6 +3,7 @@ import { useParams, useNavigate, useSearchParams, useLocation } from 'react-rout
 import { useAuthStore } from '../store/authStore.js';
 import { useGameStore } from '../store/gameStore.js';
 import { useGameRoom } from '../hooks/useGameRoom.js';
+import { useInterpolatedTimers } from '../hooks/useInterpolatedTimers.js';
 import { HandComponent } from '../components/HandComponent.js';
 import { TrickArea } from '../components/TrickArea.js';
 import { Scoreboard } from '../components/Scoreboard.js';
@@ -23,11 +24,15 @@ export function GamePage() {
     error,
     gameResult,
     toasts,
+    timers,
     dismissToast,
     reset,
     setActiveGameRoomId,
     activeGameRoomId,
   } = useGameStore();
+
+  // Interpolate server timer snapshots (~1 s) to 50 ms for smooth bars
+  const interpolatedTimers = useInterpolatedTimers(timers);
 
   // Seat reservation passed from matchmaking via route state.
   // Only use it for fresh joins — if we're reconnecting to an active game, force joinById instead.
@@ -380,6 +385,21 @@ export function GamePage() {
               Practice
             </span>
           )}
+          {mode === 'botifarra' && gameState && (
+            <span
+              style={{
+                background: gameState.ranked
+                  ? 'rgba(155, 89, 182, 0.2)'
+                  : 'var(--color-surface-2)',
+                padding: '0.2rem 0.5rem',
+                borderRadius: 'var(--radius)',
+                color: gameState.ranked ? '#c39bd3' : 'var(--color-muted)',
+                fontWeight: gameState.ranked ? 600 : 400,
+              }}
+            >
+              {gameState.ranked ? '★ Ranked' : 'Normal'}
+            </span>
+          )}
           <span style={{ color: connected ? 'var(--color-success)' : 'var(--color-danger)' }}>
             {connected ? '● Online' : '○ Offline'}
           </span>
@@ -389,29 +409,12 @@ export function GamePage() {
       {/* Scoreboard */}
       <Scoreboard gameState={gameState} />
 
-      {/* Dealer indicator */}
-      <div
-        style={{
-          textAlign: 'center',
-          fontSize: '0.75rem',
-          color: 'var(--color-muted)',
-          padding: '0.25rem',
-        }}
-      >
-        Dealer: <strong>{names[gameState.dealerSeat]}</strong>
-        {gameState.declarantSeat !== undefined && (
-          <>
-            {' '}
-            · Declares: <strong>{names[gameState.declarantSeat]}</strong>
-          </>
-        )}
-      </div>
-
       {/* Trump declaration & contra phase */}
       {(isDeclaringPhase || isContraPhase) && (
         <DeclareTrumpPanel
           gameState={gameState}
           mySeat={mySeat}
+          timers={interpolatedTimers ?? undefined}
           onDeclare={sendDeclareTrump}
           onPass={sendPassDeclaration}
           onContra={sendCallContra}
@@ -429,7 +432,7 @@ export function GamePage() {
             justifyContent: 'center',
           }}
         >
-          <TrickArea gameState={gameState} mySeat={mySeat} />
+          <TrickArea gameState={gameState} mySeat={mySeat} timers={interpolatedTimers ?? undefined} />
         </div>
       )}
 

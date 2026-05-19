@@ -110,7 +110,7 @@ export function SettingsPanel({ open, onClose, onOpenAbout }: SettingsPanelProps
               onChange={(e) => setLanguage(e.target.value)}
             >
               <option value="ca">Català</option>
-              <option value="es">Español</option>
+              <option value="en">English</option>
             </select>
           </div>
 

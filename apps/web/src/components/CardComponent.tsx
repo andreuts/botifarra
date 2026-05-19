@@ -293,6 +293,8 @@ interface CardProps {
   selected?: boolean;
   faceDown?: boolean;
   small?: boolean;
+  /** Compact size (60×90) — for the player hand */
+  compact?: boolean;
   /** CSS animation-delay in ms — used for deal animation */
   dealDelay?: number;
   /** Show the deal animation */
@@ -310,22 +312,25 @@ export function CardComponent({
   selected,
   faceDown,
   small,
+  compact,
   dealDelay = 0,
   animate = false,
   playAnimate = false,
   rotation = 0,
 }: CardProps) {
   const [imgFailed, setImgFailed] = useState(false);
-  const w = small ? 50 : 74;
-  const h = small ? 74 : 110;
-  const cornerFs = small ? '0.6rem' : '0.82rem';
-  const cornerPipSize = small ? 9 : 12;
+  const w = small ? 50 : compact ? 60 : 74;
+  const h = small ? 74 : compact ? 90 : 110;
+  const cornerFs = small ? '0.6rem' : compact ? '0.7rem' : '0.82rem';
+  const cornerPipSize = small ? 9 : compact ? 10 : 12;
   const color = SUIT_COLOR[card.suit];
 
   const borderColor = selected ? '#C8860A' : disabled ? 'rgba(200,185,165,0.4)' : '#C8BDA0';
 
   const shadow = selected
-    ? '0 0 0 2px #C8860A, 0 8px 22px rgba(0,0,0,0.55)'
+    ? compact
+      ? '0 0 0 3px #C8860A, 0 12px 30px rgba(200,134,10,0.5)'
+      : '0 0 0 2px #C8860A, 0 8px 22px rgba(0,0,0,0.55)'
     : '2px 4px 10px rgba(0,0,0,0.45)';
 
   const animStyle: React.CSSProperties = animate
@@ -366,7 +371,9 @@ export function CardComponent({
         opacity: disabled ? 0.38 : 1,
         boxShadow: shadow,
         transition: 'transform 0.15s cubic-bezier(.34,1.56,.64,1), box-shadow 0.15s, opacity 0.15s',
-        transform: `rotate(${rotation}deg) translateY(${selected ? -14 : 0}px)`,
+        transform: compact && selected
+          ? `rotate(${rotation}deg) translateY(-20px) scale(1.5)`
+          : `rotate(${rotation}deg) translateY(${selected ? -14 : 0}px)`,
         userSelect: 'none',
         flexShrink: 0,
         overflow: 'hidden',
@@ -383,13 +390,15 @@ export function CardComponent({
       }}
       onMouseEnter={(e) => {
         if (!interactable || disabled) return;
-        (e.currentTarget as HTMLElement).style.transform =
-          `rotate(${rotation}deg) translateY(${selected ? -14 : -7}px)`;
+        (e.currentTarget as HTMLElement).style.transform = compact && selected
+          ? `rotate(${rotation}deg) translateY(-22px) scale(1.5)`
+          : `rotate(${rotation}deg) translateY(${selected ? -14 : -7}px)`;
       }}
       onMouseLeave={(e) => {
         if (!interactable || disabled) return;
-        (e.currentTarget as HTMLElement).style.transform =
-          `rotate(${rotation}deg) translateY(${selected ? -14 : 0}px)`;
+        (e.currentTarget as HTMLElement).style.transform = compact && selected
+          ? `rotate(${rotation}deg) translateY(-20px) scale(1.5)`
+          : `rotate(${rotation}deg) translateY(${selected ? -14 : 0}px)`;
       }}
     >
       {faceDown ? (

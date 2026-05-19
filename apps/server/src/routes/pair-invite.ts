@@ -15,6 +15,7 @@ interface PairInvite {
   fromUsername: string;
   toUserId: string;
   toUsername: string;
+  ranked: boolean;
   status: 'pending' | 'accepted' | 'rejected' | 'expired';
   createdAt: number;
 }
@@ -95,6 +96,7 @@ export const pairInviteRoutes: FastifyPluginAsync = async (app: FastifyInstance)
       fromUsername: username,
       toUserId: body.friendUserId,
       toUsername: friendUser.username,
+      ranked: body.ranked === true,
       status: 'pending',
       createdAt: Date.now(),
     };
@@ -107,6 +109,7 @@ export const pairInviteRoutes: FastifyPluginAsync = async (app: FastifyInstance)
       fromUsername: invite.fromUsername,
       toUserId: invite.toUserId,
       toUsername: invite.toUsername,
+      ranked: invite.ranked,
       status: invite.status,
       createdAt: new Date(invite.createdAt).toISOString(),
     };
@@ -145,10 +148,22 @@ export const pairInviteRoutes: FastifyPluginAsync = async (app: FastifyInstance)
     // Accept — add both to the matchmaking queue as a pair
     invite.status = 'accepted';
 
+    // Compute average rating for ranked pair matchmaking
+    let pairRating = 0;
+    if (invite.ranked) {
+      const [fromStats, toStats] = await Promise.all([
+        app.prisma.userStats.findUnique({ where: { userId: invite.fromUserId } }),
+        app.prisma.userStats.findUnique({ where: { userId: invite.toUserId } }),
+      ]);
+      pairRating = ((fromStats?.individualRating ?? 1000) + (toStats?.individualRating ?? 1000)) / 2;
+    }
+
     try {
       app.matchmakingQueue.enqueuePair(
         { userId: invite.fromUserId, username: invite.fromUsername },
         { userId: invite.toUserId, username: invite.toUsername },
+        invite.ranked,
+        pairRating,
       );
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to join queue';
@@ -179,6 +194,7 @@ export const pairInviteRoutes: FastifyPluginAsync = async (app: FastifyInstance)
           fromUsername: invite.fromUsername,
           toUserId: invite.toUserId,
           toUsername: invite.toUsername,
+          ranked: invite.ranked,
           status: invite.status,
           createdAt: new Date(invite.createdAt).toISOString(),
         });

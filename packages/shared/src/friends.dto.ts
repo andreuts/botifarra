@@ -49,11 +49,13 @@ export interface PairInviteDTO {
   toUserId: string;
   toUsername: string;
   status: 'pending' | 'accepted' | 'rejected' | 'expired';
+  ranked: boolean;
   createdAt: string;
 }
 
 export interface SendPairInvitePayload {
   friendUserId: string;
+  ranked?: boolean;
 }
 
 export interface PairInviteActionPayload {

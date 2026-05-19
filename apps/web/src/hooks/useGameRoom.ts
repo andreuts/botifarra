@@ -44,7 +44,7 @@ export function useGameRoom(
 ) {
   const roomRef = useRef<Room | null>(null);
   const { t } = useTranslation();
-  const { setGameState, setObserverState, addChatMessage, setConnected, setRoomId, setError, reset, setGameResult, addToast } =
+  const { setGameState, setObserverState, addChatMessage, setConnected, setRoomId, setError, reset, setGameResult, addToast, setTimers } =
     useGameStore();
 
   const connect = useCallback(
@@ -79,6 +79,11 @@ export function useGameRoom(
 
         room.onMessage('game_state', (msg: { state: PlayerGameStateDTO }) => {
           setGameState(msg.state);
+          if (msg.state.timers) setTimers(msg.state.timers as any);
+        });
+
+        room.onMessage('timer_update', (msg: { timers: { seat: 0|1|2|3; baseTurnMs: number; roundBudgetMs: number }[] }) => {
+          setTimers(msg.timers);
         });
 
         room.onMessage('observer_game_state', (msg: { state: ObserverGameStateDTO }) => {
@@ -151,6 +156,11 @@ export function useGameRoom(
 
         room.onMessage('error', (msg: { code: string; message: string }) => {
           setError(msg.message);
+        });
+
+        room.onMessage('lobby_timeout', () => {
+          setError(t('toast.lobbyTimeout'));
+          roomRef.current = null;
         });
 
         room.onLeave(() => {
