@@ -1,6 +1,6 @@
 import type { TimerState } from '../store/gameStore.js';
 
-const BASE_TURN_MS = 15_000;
+const BASE_TURN_MS = 30_000;
 const ROUND_BUDGET_MS = 60_000;
 
 function formatMs(ms: number): string {
@@ -60,19 +60,19 @@ export function TurnTimersPanel({ timers, playerNames, mySeat }: TurnTimersPanel
           >
             {/* Name + active indicator */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', minWidth: 0 }}>
-              {isActive && (
-                <span
-                  style={{
-                    display: 'inline-block',
-                    width: 6,
-                    height: 6,
-                    borderRadius: '50%',
-                    background: 'var(--color-success)',
-                    flexShrink: 0,
-                    animation: 'pulse 1s infinite',
-                  }}
-                />
-              )}
+              <span
+                style={{
+                  display: 'inline-block',
+                  width: 6,
+                  height: 6,
+                  borderRadius: '50%',
+                  background: 'var(--color-success)',
+                  flexShrink: 0,
+                  animation: isActive ? 'pulse 1s infinite' : 'none',
+                  opacity: isActive ? 1 : 0,
+                  transition: 'opacity 0.3s ease',
+                }}
+              />
               <span
                 style={{
                   fontSize: '0.75rem',
@@ -102,10 +102,10 @@ export function TurnTimersPanel({ timers, playerNames, mySeat }: TurnTimersPanel
                   >
                     <div
                       style={{
-                        width: `${Math.round(baseRatio * 100)}%`,
+                        width: `${Math.min(100, Math.round(baseRatio * 100))}%`,
                         height: '100%',
                         background: baseColor,
-                        transition: 'width 0.9s linear, background 0.3s',
+                        transition: 'width 0.08s linear, background 0.3s',
                         borderRadius: 3,
                       }}
                     />
@@ -132,10 +132,10 @@ export function TurnTimersPanel({ timers, playerNames, mySeat }: TurnTimersPanel
               >
                 <div
                   style={{
-                    width: `${Math.round(budgetRatio * 100)}%`,
+                    width: `${Math.min(100, Math.round(budgetRatio * 100))}%`,
                     height: '100%',
                     background: budgetColor,
-                    transition: 'width 0.9s linear, background 0.3s',
+                    transition: 'width 0.08s linear, background 0.3s',
                     borderRadius: 3,
                   }}
                 />

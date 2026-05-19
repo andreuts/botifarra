@@ -31,6 +31,9 @@ export function AppShell({ children }: AppShellProps) {
               {t('app.title')}
             </Link>
             <div className="app-nav-links">
+              <Link to="/news" className={location.pathname.startsWith('/news') ? 'active' : ''}>
+                {t('nav.news')}
+              </Link>
               <Link to="/history" className={location.pathname === '/history' ? 'active' : ''}>
                 {t('nav.matchHistory')}
               </Link>

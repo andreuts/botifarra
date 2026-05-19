@@ -19,6 +19,7 @@
   "nav": {
     "matchHistory": "Historial de partides",
     "rankings": "Classificació",
+    "news": "Notícies",
     "back": "← Enrere",
     "backToLobby": "← Lobby",
     "backToHome": "Torna a l'inici",
@@ -100,6 +101,19 @@
     "yourTurnMoves": "El teu torn — {{count}} moviment legal",
     "yourTurnMoves_plural": "El teu torn — {{count}} moviments legals",
     "waitingTurn": "Esperant el teu torn…"
+  },
+  "wonCards": {
+    "ourTricks": "Última mà guanyada",
+    "theirTricks": "Última mà perduda",
+    "lastTrick": "Última mà guanyada",
+    "noTricks": "Encara no s'ha guanyat cap mà",
+    "closeAria": "Tanca",
+    "clickToClose": "Fes clic a qualsevol lloc per tancar",
+    "wonBy": "Guanyada per {{name}}"
+  },
+  "trickPause": {
+    "continue": "Continua",
+    "waitingFor": "Esperant {{name}}"
   },
   "trick": {
     "currentTrick": "Mà actual",

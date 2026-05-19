@@ -43,6 +43,7 @@ export function useGameRoom(
   observe?: boolean,
 ) {
   const roomRef = useRef<Room | null>(null);
+  const timerStreamActive = useRef(false);
   const { t } = useTranslation();
   const { setGameState, setObserverState, addChatMessage, setConnected, setRoomId, setError, reset, setGameResult, addToast, setTimers } =
     useGameStore();
@@ -79,10 +80,12 @@ export function useGameRoom(
 
         room.onMessage('game_state', (msg: { state: PlayerGameStateDTO }) => {
           setGameState(msg.state);
-          if (msg.state.timers) setTimers(msg.state.timers as any);
+          // Only seed timers from game_state on initial load (before timer_update stream starts)
+          if (msg.state.timers && !timerStreamActive.current) setTimers(msg.state.timers as any);
         });
 
         room.onMessage('timer_update', (msg: { timers: { seat: 0|1|2|3; baseTurnMs: number; roundBudgetMs: number }[] }) => {
+          timerStreamActive.current = true;
           setTimers(msg.timers);
         });
 
@@ -155,6 +158,11 @@ export function useGameRoom(
         });
 
         room.onMessage('error', (msg: { code: string; message: string }) => {
+          if (msg.code === 'COMMAND_ERROR') {
+            // Non-fatal: just ignore invalid moves (e.g. race conditions)
+            console.warn('[room] command error:', msg.message);
+            return;
+          }
           setError(msg.message);
         });
 
@@ -229,6 +237,10 @@ export function useGameRoom(
     roomRef.current?.send('send_premade', { key });
   }, []);
 
+  const sendContinueTrick = useCallback(() => {
+    roomRef.current?.send('continue_trick', {});
+  }, []);
+
   const mutePlayer = useCallback((seat: number) => {
     roomRef.current?.send('mute_player', { seat });
   }, []);
@@ -244,5 +256,5 @@ export function useGameRoom(
     };
   }, [reset]);
 
-  return { connect, sendDeclareTrump, sendPlayCard, sendPassDeclaration, sendCallContra, sendChatMessage, sendSurrenderRequest, sendSurrenderRespond, sendReaction, sendPremade, mutePlayer, unmutePlayer };
+  return { connect, sendDeclareTrump, sendPlayCard, sendPassDeclaration, sendCallContra, sendChatMessage, sendSurrenderRequest, sendSurrenderRespond, sendReaction, sendPremade, sendContinueTrick, mutePlayer, unmutePlayer };
 }

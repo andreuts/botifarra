@@ -21,6 +21,10 @@ export interface FriendDTO {
   inGame: boolean;
   /** The Colyseus room ID if the friend is in-game (for spectating) */
   activeRoomId?: string;
+  /** Ranked ELO rating (undefined if they have never played ranked) */
+  individualRating?: number;
+  /** Global leaderboard rank position (1 = highest rating) */
+  rankPosition?: number;
 }
 
 export interface SendFriendRequestPayload {

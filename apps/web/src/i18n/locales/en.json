@@ -19,6 +19,7 @@
   "nav": {
     "matchHistory": "Match History",
     "rankings": "Rankings",
+    "news": "News",
     "back": "← Back",
     "backToLobby": "← Lobby",
     "backToHome": "Back to home",
@@ -100,6 +101,19 @@
     "yourTurnMoves": "Your turn — {{count}} legal move",
     "yourTurnMoves_plural": "Your turn — {{count}} legal moves",
     "waitingTurn": "Waiting for your turn…"
+  },
+  "wonCards": {
+    "ourTricks": "our tricks",
+    "theirTricks": "their tricks",
+    "lastTrick": "Last trick won",
+    "noTricks": "No tricks won yet",
+    "closeAria": "Close",
+    "clickToClose": "Click anywhere to close",
+    "wonBy": "Won by {{name}}"
+  },
+  "trickPause": {
+    "continue": "Continue",
+    "waitingFor": "Waiting for {{name}}"
   },
   "trick": {
     "currentTrick": "Current trick",

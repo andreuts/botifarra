@@ -63,6 +63,10 @@ export interface PlayerGameStateDTO {
   }[];
   /** Pending surrender request */
   surrenderPending?: { requestingSeat: Seat; partnerSeat: Seat } | null;
+  /** When set, a trick just completed and this seat must click "continue" (or wait for timeout) */
+  trickPauseLeader?: Seat | null;
+  /** Timestamp (ms since epoch) when the trick pause started — for client countdown */
+  trickPauseStartedAt?: number | null;
 }
 
 // ---------------------------------------------------------------------------

@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Seat } from '@botifarra/core';
 import type { PlayerGameStateDTO } from '@botifarra/shared';
 import { CardComponent, EmptyCardSlot } from './CardComponent.js';
+import { WonCardsModal } from './WonCardsModal.js';
 
 interface TrickAreaProps {
   gameState: PlayerGameStateDTO;
@@ -10,7 +12,7 @@ interface TrickAreaProps {
   timers?: PlayerGameStateDTO['timers'];
 }
 
-const BASE_TURN_MS = 15_000;
+const BASE_TURN_MS = 30_000;
 const ROUND_BUDGET_MS = 60_000;
 
 function barColor(ratio: number): string {
@@ -19,7 +21,8 @@ function barColor(ratio: number): string {
   return 'var(--color-danger)';
 }
 
-/** Thin vertical timer bar placed next to a card slot */
+/** Thin vertical timer bar placed next to a card slot.
+ *  Always renders a same-width spacer to avoid layout shifts when turns rotate. */
 function TimerBar({
   seat,
   timers,
@@ -27,24 +30,14 @@ function TimerBar({
   seat: Seat;
   timers: PlayerGameStateDTO['timers'];
 }) {
-  if (!timers) return null;
-  const t = timers.find((x) => x.seat === seat);
-  if (!t) return null;
-
-  // Server marks the active/timed seat with baseTurnMs >= 0.
-  // All other seats get baseTurnMs = -1.
-  // This works for both the playing phase (currentPlayerSeat) and the
-  // declaring phase (declarantSeat), where currentPlayerSeat is null.
-  const isTimedSeat = t.baseTurnMs >= 0;
-  // Show the 15-second turn bar while it is counting; switch to round budget when exhausted.
-  const ratio = isTimedSeat && t.baseTurnMs > 0
-    ? Math.max(0, t.baseTurnMs / BASE_TURN_MS)
-    : Math.max(0, t.roundBudgetMs / ROUND_BUDGET_MS);
+  const t = timers?.find((x) => x.seat === seat);
+  const isTimedSeat = t !== undefined && t.baseTurnMs >= 0;
+  const ratio = isTimedSeat
+    ? (t!.baseTurnMs > 0
+        ? Math.min(1, Math.max(0, t!.baseTurnMs / BASE_TURN_MS))
+        : Math.min(1, Math.max(0, t!.roundBudgetMs / ROUND_BUDGET_MS)))
+    : 0;
   const fill = barColor(ratio);
-
-  // Don't render an empty bar for idle seats where budget is full
-  // (they have nothing meaningful to show until their turn starts).
-  if (!isTimedSeat) return null;
 
   return (
     <div
@@ -57,6 +50,9 @@ function TimerBar({
         overflow: 'hidden',
         flexShrink: 0,
         position: 'relative',
+        // Fade in/out instead of mounting/unmounting to avoid layout shifts
+        opacity: isTimedSeat ? 1 : 0,
+        transition: 'opacity 0.3s ease',
       }}
     >
       <div
@@ -67,6 +63,8 @@ function TimerBar({
           height: `${ratio * 100}%`,
           background: fill,
           borderRadius: 3,
+          // Smooth fill changes every 50 ms from the interpolation hook
+          transition: 'height 0.08s linear, background 0.5s ease',
         }}
       />
     </div>
@@ -75,10 +73,16 @@ function TimerBar({
 
 export function TrickArea({ gameState, mySeat, timers: liveTimers }: TrickAreaProps) {
   const { t } = useTranslation();
-  const { currentTrick, playerNames, currentPlayerSeat, dealerSeat, declarantSeat } = gameState;
+  const { currentTrick, playerNames, currentPlayerSeat, dealerSeat, declarantSeat, completedTricks } = gameState;
   // Prefer live timers from store (updated every second via timer_update);
   // fall back to the snapshot timers embedded in gameState.
   const timers = liveTimers ?? gameState.timers;
+
+  const [wonModalTeam, setWonModalTeam] = useState<0 | 1 | null>(null);
+
+  // Trick counts per team
+  const team0Tricks = completedTricks.filter((tr) => tr.winner % 2 === 0).length;
+  const team1Tricks = completedTricks.filter((tr) => tr.winner % 2 === 1).length;
 
   // Relative seat positions around the table
   const partner = ((mySeat + 2) % 4) as Seat;
@@ -104,19 +108,21 @@ export function TrickArea({ gameState, mySeat, timers: liveTimers }: TrickAreaPr
         aria-label={`${name}${card ? '' : isActive ? ' — waiting to play' : ''}`}
       >
         <span className={`seat-badge ${teamClass}${isActive ? ' active' : ''}`}>
-          {isActive && (
-            <span
-              aria-hidden="true"
-              style={{
-                width: 6,
-                height: 6,
-                borderRadius: '50%',
-                background: 'var(--color-success)',
-                display: 'inline-block',
-                animation: 'pulse 1s infinite',
-              }}
-            />
-          )}
+          {/* Active indicator dot — always mounted, opacity toggled to avoid layout shift */}
+          <span
+            aria-hidden="true"
+            style={{
+              width: 6,
+              height: 6,
+              borderRadius: '50%',
+              background: 'var(--color-success)',
+              display: 'inline-block',
+              animation: isActive ? 'pulse 1s infinite' : 'none',
+              opacity: isActive ? 1 : 0,
+              marginRight: isActive ? 0 : -10,
+              transition: 'opacity 0.2s, margin-right 0.2s',
+            }}
+          />
           {name}
           {isDealer && (
             <span
@@ -155,57 +161,126 @@ export function TrickArea({ gameState, mySeat, timers: liveTimers }: TrickAreaPr
   };
 
   return (
-    <div className="trick-grid" role="region" aria-label={t('trick.currentTrick')}>
-      <Slot seat={partner} position="top" />
-      <Slot seat={leftOpp} position="left" />
-      <div
-        className="center"
-        aria-label={
-          gameState.trump
-            ? t('trick.trumpLabel', { trump: trumpLabel[gameState.trump] ?? gameState.trump })
-            : t('trick.noTrumpYet')
-        }
-        style={{
-          width: 70,
-          height: 80,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: 2,
-        }}
-      >
-        {gameState.trump && gameState.trump !== 'botifarra' ? (
-          <>
-            <span
-              style={{
-                fontSize: '0.6rem',
-                color: 'var(--color-muted)',
-                textTransform: 'uppercase',
-                letterSpacing: '0.08em',
-              }}
-            >
-              {t('trick.trump')}
-            </span>
-            <span
-              style={{
-                fontSize: '0.8rem',
-                color: 'var(--color-gold)',
-                fontWeight: 700,
-                textTransform: 'capitalize',
-              }}
-            >
-              {gameState.trump}
-            </span>
-          </>
-        ) : gameState.trump === 'botifarra' ? (
-          <span style={{ fontSize: '0.65rem', color: 'var(--color-primary)', fontWeight: 700 }}>
-            {t('game_terms.botifarra').toUpperCase()}
-          </span>
-        ) : null}
+    <>
+      {wonModalTeam !== null && (
+        <WonCardsModal
+          team={wonModalTeam}
+          completedTricks={completedTricks}
+          playerNames={playerNames as Record<number, string>}
+          onClose={() => setWonModalTeam(null)}
+        />
+      )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'center' }}>
+        <div className="trick-grid" role="region" aria-label={t('trick.currentTrick')}>
+          <Slot seat={partner} position="top" />
+          <Slot seat={leftOpp} position="left" />
+          <div
+            className="center"
+            aria-label={
+              gameState.trump
+                ? t('trick.trumpLabel', { trump: trumpLabel[gameState.trump] ?? gameState.trump })
+                : t('trick.noTrumpYet')
+            }
+            style={{
+              width: 70,
+              height: 80,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 2,
+            }}
+          >
+            {gameState.trump && gameState.trump !== 'botifarra' ? (
+              <>
+                <span
+                  style={{
+                    fontSize: '0.6rem',
+                    color: 'var(--color-muted)',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.08em',
+                  }}
+                >
+                  {t('trick.trump')}
+                </span>
+                <span
+                  style={{
+                    fontSize: '0.8rem',
+                    color: 'var(--color-gold)',
+                    fontWeight: 700,
+                    textTransform: 'capitalize',
+                  }}
+                >
+                  {gameState.trump}
+                </span>
+              </>
+            ) : gameState.trump === 'botifarra' ? (
+              <span style={{ fontSize: '0.65rem', color: 'var(--color-primary)', fontWeight: 700 }}>
+                {t('game_terms.botifarra').toUpperCase()}
+              </span>
+            ) : null}
+          </div>
+          <Slot seat={rightOpp} position="right" />
+          <Slot seat={mySeat} position="bottom" />
+        </div>
+
+        {/* Won-trick stacks — one per team, always visible during play */}
+        <div style={{ display: 'flex', gap: '1.5rem', justifyContent: 'center', marginTop: 2 }}>
+          {([0, 1] as const).map((team) => {
+            const count = team === 0 ? team0Tricks : team1Tricks;
+            const color = team === 0 ? 'var(--color-team0)' : 'var(--color-team1)';
+            const myTeam = mySeat % 2 === team;
+            return (
+              <button
+                key={team}
+                onClick={() => setWonModalTeam(team)}
+                disabled={count === 0}
+                title={`See last 4 tricks won by ${team === 0 ? `${playerNames[0]} & ${playerNames[2]}` : `${playerNames[1]} & ${playerNames[3]}`}`}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  background: 'none',
+                  border: `1px solid ${color}44`,
+                  borderRadius: 'var(--radius)',
+                  padding: '4px 10px',
+                  cursor: count === 0 ? 'default' : 'pointer',
+                  opacity: count === 0 ? 0.35 : 1,
+                  transition: 'opacity 0.2s, border-color 0.2s',
+                }}
+              >
+                {/* Mini face-down card stack */}
+                <div style={{ position: 'relative', width: 22, height: 32, flexShrink: 0 }}>
+                  {[2, 1, 0].map((offset) => (
+                    <div
+                      key={offset}
+                      style={{
+                        position: 'absolute',
+                        top: offset * 2,
+                        left: offset * 2,
+                        width: 16,
+                        height: 24,
+                        borderRadius: 2,
+                        background: `linear-gradient(135deg, ${color}44 0%, ${color}22 100%)`,
+                        border: `1px solid ${color}66`,
+                        boxShadow: '1px 1px 3px rgba(0,0,0,0.4)',
+                      }}
+                    />
+                  ))}
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 0 }}>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color, lineHeight: 1 }}>
+                    {count}
+                  </span>
+                  <span style={{ fontSize: '0.55rem', color: 'var(--color-muted)', lineHeight: 1.2 }}>
+                    {myTeam ? t('wonCards.ourTricks') : t('wonCards.theirTricks')}
+                  </span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
       </div>
-      <Slot seat={rightOpp} position="right" />
-      <Slot seat={mySeat} position="bottom" />
-    </div>
+    </>
   );
 }

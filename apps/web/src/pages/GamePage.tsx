@@ -8,6 +8,7 @@ import { HandComponent } from '../components/HandComponent.js';
 import { TrickArea } from '../components/TrickArea.js';
 import { Scoreboard } from '../components/Scoreboard.js';
 import { DeclareTrumpPanel } from '../components/DeclareTrumpPanel.js';
+import { ContinueTrickButton } from '../components/ContinueTrickButton.js';
 import type { Seat } from '@botifarra/core';
 import type { SeatReservationData } from '../hooks/useMatchmakingQueue.js';
 
@@ -41,7 +42,7 @@ export function GamePage() {
     ? (location.state as { reservation?: SeatReservationData } | null)?.reservation
     : undefined;
 
-  const { connect, sendDeclareTrump, sendPlayCard, sendPassDeclaration, sendCallContra } =
+  const { connect, sendDeclareTrump, sendPlayCard, sendPassDeclaration, sendCallContra, sendContinueTrick } =
     useGameRoom(matchId, mode, seatReservation);
 
   useEffect(() => {
@@ -429,10 +430,21 @@ export function GamePage() {
             borderRadius: 'var(--radius-lg)',
             padding: '1rem',
             display: 'flex',
-            justifyContent: 'center',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '0.75rem',
           }}
         >
           <TrickArea gameState={gameState} mySeat={mySeat} timers={interpolatedTimers ?? undefined} />
+          {gameState.trickPauseLeader != null && gameState.trickPauseStartedAt && (
+            <ContinueTrickButton
+              isLeader={gameState.trickPauseLeader === mySeat}
+              pauseStartedAt={gameState.trickPauseStartedAt}
+              pauseDuration={30_000}
+              onContinue={sendContinueTrick}
+              leaderName={gameState.playerNames[gameState.trickPauseLeader] ?? '?'}
+            />
+          )}
         </div>
       )}
 
@@ -447,7 +459,12 @@ export function GamePage() {
           color: isMyTurn ? 'var(--color-success)' : 'var(--color-muted)',
           textAlign: 'center',
           fontWeight: isMyTurn ? 600 : 400,
-          transition: 'all 0.2s',
+          transition: 'background 0.2s, border-color 0.2s, color 0.2s',
+          // Stable height so it doesn't reflow when text changes
+          minHeight: '2.4em',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
         }}
       >
         {isMyTurn

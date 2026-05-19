@@ -208,7 +208,7 @@ export function handlePlayCard(
   state: RoomGameState,
   sessionId: string,
   card: { suit: string; rank: number },
-): { state: RoomGameState; events: ServerEvent[]; roundEnded: boolean } {
+): { state: RoomGameState; events: ServerEvent[]; roundEnded: boolean; trickCompleted: boolean } {
   const seat = seatForSession(state, sessionId);
   if (seat === null) throw new Error('Session not in room');
 
@@ -223,9 +223,11 @@ export function handlePlayCard(
 
   let newState = { ...state, round: newRound };
   let roundEnded = false;
+  let trickCompleted = false;
 
   // If a trick was just completed
   if (newRound.completedTricks.length > round.completedTricks.length) {
+    trickCompleted = true;
     const completed = newRound.completedTricks.at(-1)!;
     events.push({
       type: 'trick_completed',
@@ -249,7 +251,7 @@ export function handlePlayCard(
     roundEnded = true;
   }
 
-  return { state: newState, events, roundEnded };
+  return { state: newState, events, roundEnded, trickCompleted };
 }
 
 // ---------------------------------------------------------------------------

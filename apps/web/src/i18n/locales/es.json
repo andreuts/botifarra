@@ -19,6 +19,7 @@
   "nav": {
     "matchHistory": "Historial de partidas",
     "rankings": "Clasificación",
+    "news": "Noticias",
     "back": "← Atrás",
     "backToLobby": "← Lobby",
     "backToHome": "Volver al inicio",
@@ -98,6 +99,19 @@
     "yourTurnMoves": "Tu turno — {{count}} movimiento legal",
     "yourTurnMoves_plural": "Tu turno — {{count}} movimientos legales",
     "waitingTurn": "Esperando tu turno…"
+  },
+  "wonCards": {
+    "ourTricks": "nuestras bazas",
+    "theirTricks": "sus bazas",
+    "lastTrick": "Última baza ganada",
+    "noTricks": "Todavía no se ha ganado ninguna baza",
+    "closeAria": "Cerrar",
+    "clickToClose": "Haz clic en cualquier lugar para cerrar",
+    "wonBy": "Ganada por {{name}}"
+  },
+  "trickPause": {
+    "continue": "Continuar",
+    "waitingFor": "Esperando a {{name}}"
   },
   "trick": {
     "currentTrick": "Baza actual",

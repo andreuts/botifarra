@@ -289,19 +289,41 @@ export function FriendsPage() {
             padding: '0.75rem 0', borderBottom: '1px solid var(--color-border)',
           }}>
             <div>
-              <strong>{friend.username}</strong>
-              {friend.inGame && (
-                <span style={{
-                  marginLeft: '0.5rem',
-                  background: 'rgba(46, 204, 113, 0.15)',
-                  color: 'var(--color-success)',
-                  padding: '0.15rem 0.5rem',
-                  borderRadius: 'var(--radius)',
-                  fontSize: '0.75rem',
-                }}>
-                  {t('friends.inGame')}
-                </span>
-              )}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <strong>{friend.username}</strong>
+                {friend.rankPosition !== undefined && (
+                  <span style={{
+                    fontSize: '0.72rem',
+                    fontWeight: 600,
+                    color: 'var(--color-gold)',
+                    background: 'rgba(201,168,76,0.12)',
+                    padding: '0.1rem 0.4rem',
+                    borderRadius: 'var(--radius)',
+                    letterSpacing: '0.03em',
+                  }}>
+                    #{friend.rankPosition}
+                  </span>
+                )}
+                {friend.individualRating !== undefined && (
+                  <span style={{
+                    fontSize: '0.72rem',
+                    color: 'var(--color-muted)',
+                  }}>
+                    {friend.individualRating} pts
+                  </span>
+                )}
+                {friend.inGame && (
+                  <span style={{
+                    background: 'rgba(46, 204, 113, 0.15)',
+                    color: 'var(--color-success)',
+                    padding: '0.15rem 0.5rem',
+                    borderRadius: 'var(--radius)',
+                    fontSize: '0.75rem',
+                  }}>
+                    {t('friends.inGame')}
+                  </span>
+                )}
+              </div>
             </div>
             <div style={{ display: 'flex', gap: '0.5rem' }}>
               {friend.inGame && friend.activeRoomId && (

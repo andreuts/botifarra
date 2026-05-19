@@ -47,16 +47,34 @@ export const friendsRoutes: FastifyPluginAsync = async (app: FastifyInstance) =>
       },
     });
 
-    const friends: FriendDTO[] = acceptedFriendships.map((f) => {
-      const friendUser = f.requesterId === userId ? f.addressee : f.requester;
-      const activeRoomId = activeGameMap.get(friendUser.id);
-      return {
-        userId: friendUser.id,
-        username: friendUser.username,
-        inGame: !!activeRoomId,
-        ...(activeRoomId ? { activeRoomId } : {}),
-      };
-    });
+    const friends: FriendDTO[] = await Promise.all(
+      acceptedFriendships.map(async (f) => {
+        const friendUser = f.requesterId === userId ? f.addressee : f.requester;
+        const activeRoomId = activeGameMap.get(friendUser.id);
+
+        // Fetch this friend's rated stats and compute their leaderboard rank
+        const stats = await app.prisma.userStats.findUnique({
+          where: { userId: friendUser.id },
+          select: { individualRating: true },
+        });
+        let rankPosition: number | undefined;
+        if (stats) {
+          const above = await app.prisma.userStats.count({
+            where: { individualRating: { gt: stats.individualRating } },
+          });
+          rankPosition = above + 1;
+        }
+
+        return {
+          userId: friendUser.id,
+          username: friendUser.username,
+          inGame: !!activeRoomId,
+          ...(activeRoomId ? { activeRoomId } : {}),
+          ...(stats ? { individualRating: Math.round(stats.individualRating) } : {}),
+          ...(rankPosition !== undefined ? { rankPosition } : {}),
+        };
+      }),
+    );
 
     // Incoming pending requests
     const incomingPending = await app.prisma.friendship.findMany({

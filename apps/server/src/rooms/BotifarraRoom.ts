@@ -127,12 +127,20 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
   private endReason: string | null = null;
 
   // -- Ranked turn timers --
-  private static readonly BASE_TURN_MS = 15_000; // 15 seconds
+  private static readonly BASE_TURN_MS = 30_000; // 30 seconds
   private static readonly ROUND_BUDGET_MS = 60_000; // 1 minute per player per round
   private static readonly TIMEOUT_PENALTY_POINTS = 36;
-  private turnStartedAt: number = 0;
+  protected turnStartedAt: number = 0;
   private roundBudgets: Record<Seat, number> = { 0: 60_000, 1: 60_000, 2: 60_000, 3: 60_000 };
   private lastTimerBroadcast: number = 0;
+  /** Which team (0 or 1) currently has to decide contra/recontro/sant vicenç. Null outside contra phase. */
+  private contraDecidingTeam: 0 | 1 | null = null;
+
+  // -- Trick pause: after a trick completes, wait for the next leader to "continue" --
+  private static readonly TRICK_PAUSE_MS = 30_000; // 30 seconds max wait
+  protected trickPauseLeader: Seat | null = null;
+  private trickPauseStartedAt: number = 0;
+  private trickPauseTimeout: ReturnType<typeof setTimeout> | null = null;
 
   // ---------------------------------------------------------------------------
   // Lifecycle
@@ -375,14 +383,24 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
           for (const event of events) {
             this.broadcastEvent(event, client);
           }
+          // Trump declared — contra phase begins. Non-declarant team decides first.
+          if (this.gameState.round?.trump !== null) {
+            const declarantSeat = this.gameState.round!.declarantSeat;
+            const declarantTeam: 0 | 1 = declarantSeat % 2 === 0 ? 0 : 1;
+            this.contraDecidingTeam = declarantTeam === 0 ? 1 : 0;
+            this.turnStartedAt = Date.now();
+          }
           // Send each player their personalized game state
           this.broadcastGameState();
           break;
         }
         case 'play_card': {
+          if (this.trickPauseLeader !== null) break; // can't play during trick pause
           const { card } = payload as { card: { suit: string; rank: number } };
           this.resetTurnTimer();
-          const { state, events, roundEnded } = handlePlayCard(
+          // Contra phase is over once the first card is played
+          this.contraDecidingTeam = null;
+          const { state, events, roundEnded, trickCompleted } = handlePlayCard(
             this.gameState,
             client.sessionId,
             card,
@@ -394,14 +412,25 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
           }
           // Send each player their personalized game state
           this.broadcastGameState();
+          // Immediately push fresh timer state so client interpolator has an accurate snapshot
+          this.broadcastTimerState();
+          this.lastTimerBroadcast = Date.now();
           if (roundEnded) {
             if (this.gameState.phase === 'finished') {
               this.onGameFinished();
             } else {
               // Save snapshot after each round while still in-progress
               this.persistSnapshot();
-              setTimeout(() => this.startNewRoundPublic(), 3000);
+              // Show the completed last trick for 5s, then start the new round after 15s total
+              setTimeout(() => this.startNewRoundPublic(), 15_000);
             }
+          } else if (trickCompleted) {
+            // Pause until the next leader clicks "continue" or 30s expires
+            const lastTrick = this.gameState.round!.completedTricks.at(-1)!;
+            this.startTrickPause(lastTrick.winner as Seat);
+            // Re-broadcast so the client sees trickPauseLeader (first broadcast was before pause was set)
+            this.broadcastGameState();
+            this.persistSnapshot();
           } else {
             // Save snapshot after each card play (throttled to avoid excessive writes)
             this.persistSnapshot();
@@ -421,7 +450,27 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
           this.gameState = state;
           this.syncSchemaPublic();
           for (const event of events) this.broadcastEvent(event, client);
+          // Contra level advanced — the OTHER team now has time to respond.
+          // Flip the deciding team and restart the turn clock.
+          if (this.contraDecidingTeam !== null) {
+            this.contraDecidingTeam = this.contraDecidingTeam === 0 ? 1 : 0;
+          }
+          this.turnStartedAt = Date.now();
           this.broadcastGameState();
+          // Immediately push a fresh timer broadcast so clients see the reset instantly
+          this.broadcastTimerState();
+          break;
+        }
+        case 'continue_trick': {
+          // The trick-pause leader clicks to resume play
+          if (this.trickPauseLeader === null) break;
+          const seat = this.seatForClient(client);
+          if (seat !== this.trickPauseLeader) break; // only the leader can continue
+          this.clearTrickPause();
+          this.turnStartedAt = Date.now();
+          this.broadcastGameState();
+          this.broadcastTimerState();
+          this.lastTimerBroadcast = Date.now();
           break;
         }
         case 'chat_message': {
@@ -489,6 +538,8 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
     this.roundBudgets = { 0: BotifarraRoom.ROUND_BUDGET_MS, 1: BotifarraRoom.ROUND_BUDGET_MS, 2: BotifarraRoom.ROUND_BUDGET_MS, 3: BotifarraRoom.ROUND_BUDGET_MS };
     this.turnStartedAt = Date.now();
     this.lastTimerBroadcast = 0;
+    this.contraDecidingTeam = null;
+    this.clearTrickPause();
 
     // Send each human player only their own hand
     for (const [sessionId, playerSchema] of this.state.players) {
@@ -497,6 +548,9 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
       const seat = playerSchema.seat as 0 | 1 | 2 | 3;
       this.sendGameStateTo(client, seat);
     }
+    // Immediately broadcast fresh timer state so client interpolator starts cleanly
+    this.broadcastTimerState();
+    this.lastTimerBroadcast = Date.now();
   }
 
   /** Build map of seat → username from the Colyseus schema or room state */
@@ -539,10 +593,13 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
       completedTricks: round.completedTricks,
       currentLeader: round.currentLeader,
       scores: this.gameState.game.scores,
-      currentPlayerSeat: currentPlayerSeat(round),
+      // During trick pause, suppress currentPlayerSeat so client knows nobody can play yet
+      currentPlayerSeat: this.trickPauseLeader !== null ? null : currentPlayerSeat(round),
       dealerPassed: round.dealerPassed,
       contraLevel: round.contraLevel,
       ranked: this.ranked,
+      trickPauseLeader: this.trickPauseLeader,
+      trickPauseStartedAt: this.trickPauseStartedAt || null,
     };
 
     if (this.surrenderPending) {
@@ -555,10 +612,19 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
     // Always include timer state for all game types
     {
       const nowT = Date.now();
-      const activeSeat = currentPlayerSeat(round);
       const elapsed = nowT - this.turnStartedAt;
+      let activeSeat: Seat | null = currentPlayerSeat(round);
+      let activeTeam: 0 | 1 | null = null;
+      if (activeSeat === null && round.trump === null) {
+        activeSeat = round.declarantSeat;
+      } else if (activeSeat === null && this.contraDecidingTeam !== null) {
+        activeTeam = this.contraDecidingTeam;
+      }
       statePayload['timers'] = ([0, 1, 2, 3] as Seat[]).map((s) => {
-        if (s === activeSeat && this.turnStartedAt > 0) {
+        const isSeatActive =
+          (activeSeat !== null && s === activeSeat) ||
+          (activeTeam !== null && (s % 2) === activeTeam);
+        if (isSeatActive && this.turnStartedAt > 0) {
           const baseRemaining = Math.max(0, BotifarraRoom.BASE_TURN_MS - elapsed);
           const budgetConsumed = Math.max(0, elapsed - BotifarraRoom.BASE_TURN_MS);
           return { seat: s, baseTurnMs: baseRemaining, roundBudgetMs: Math.max(0, this.roundBudgets[s] - budgetConsumed) };
@@ -798,21 +864,74 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // Trick pause — after a trick completes, wait for leader to click "continue"
+  // ---------------------------------------------------------------------------
+
+  private seatForClient(client: Client): Seat | null {
+    const p = this.state.players.get(client.sessionId);
+    return p ? (p.seat as Seat) : null;
+  }
+
+  protected startTrickPause(leader: Seat) {
+    this.trickPauseLeader = leader;
+    this.trickPauseStartedAt = Date.now();
+    // Auto-continue after 30s
+    if (this.trickPauseTimeout) clearTimeout(this.trickPauseTimeout);
+    this.trickPauseTimeout = setTimeout(() => {
+      if (this.trickPauseLeader !== null) {
+        this.clearTrickPause();
+        this.turnStartedAt = Date.now();
+        this.broadcastGameState();
+      }
+    }, BotifarraRoom.TRICK_PAUSE_MS);
+  }
+
+  protected clearTrickPause() {
+    this.trickPauseLeader = null;
+    this.trickPauseStartedAt = 0;
+    if (this.trickPauseTimeout) {
+      clearTimeout(this.trickPauseTimeout);
+      this.trickPauseTimeout = null;
+    }
+  }
+
   private broadcastTimerState() {
     if (!this.gameState.round) return;
     const now = Date.now();
     const elapsed = now - this.turnStartedAt;
 
+    // During trick pause, no seat is active — all timers show idle/frozen state
+    if (this.trickPauseLeader !== null) {
+      const timers = ([0, 1, 2, 3] as Seat[]).map((seat) => ({
+        seat,
+        baseTurnMs: -1,
+        roundBudgetMs: this.roundBudgets[seat],
+      }));
+      this.broadcast('timer_update', { timers });
+      return;
+    }
+
     // During declaring phase, the declarant is the active seat (they must declare trump).
     // During playing phase, currentPlayerSeat gives the seat whose turn it is.
-    // During contra phase (trump set, no tricks yet), no single seat is "active" — just show budgets.
+    // During contra phase, both seats on the deciding team are active simultaneously.
     let activeSeat: Seat | null = currentPlayerSeat(this.gameState.round);
+    let activeTeam: 0 | 1 | null = null;
+
     if (activeSeat === null && this.gameState.round.trump === null) {
+      // Declaring phase — single declarant seat
       activeSeat = this.gameState.round.declarantSeat;
+    } else if (activeSeat === null && this.contraDecidingTeam !== null) {
+      // Contra phase — both players on the deciding team share the timer
+      activeTeam = this.contraDecidingTeam;
     }
 
     const timers = ([0, 1, 2, 3] as Seat[]).map((seat) => {
-      if (activeSeat !== null && seat === activeSeat) {
+      const isSeatActive =
+        (activeSeat !== null && seat === activeSeat) ||
+        (activeTeam !== null && (seat % 2) === activeTeam);
+
+      if (isSeatActive) {
         const baseRemaining = Math.max(0, BotifarraRoom.BASE_TURN_MS - elapsed);
         const budgetConsumed = Math.max(0, elapsed - BotifarraRoom.BASE_TURN_MS);
         return {
@@ -1014,6 +1133,15 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
 
     // -- Turn timer enforcement (all game types) --
     if (this.turnStartedAt > 0 && this.gameState.round) {
+      // During trick pause, nobody's clock is running — skip enforcement and broadcast idle timers
+      if (this.trickPauseLeader !== null) {
+        if (now - this.lastTimerBroadcast >= 1000) {
+          this.broadcastTimerState();
+          this.lastTimerBroadcast = now;
+        }
+        return;
+      }
+
       const elapsed = now - this.turnStartedAt;
       const roundPhase = getRoundPhase(this.gameState.round);
       const currentSeat = currentPlayerSeat(this.gameState.round); // null during declaring/contra

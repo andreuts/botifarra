@@ -12,7 +12,7 @@ interface DeclareTrumpPanelProps {
   onContra?: () => void;
 }
 
-const BASE_TURN_MS = 15_000;
+const BASE_TURN_MS = 30_000;
 const ROUND_BUDGET_MS = 60_000;
 
 function cdColor(ratio: number): string {
@@ -91,8 +91,9 @@ export function DeclareTrumpPanel({
   const cdTotal = iAmTimedSeat
     ? (myTimer!.baseTurnMs > 0 ? BASE_TURN_MS : ROUND_BUDGET_MS)
     : null;
-  const cdRatio = cdMs !== null && cdTotal ? Math.max(0, cdMs / cdTotal) : null;
-  const cdSecs = cdMs !== null ? Math.ceil(cdMs / 1000) : null;
+  const cdRatio = cdMs !== null && cdTotal ? Math.min(1, Math.max(0, cdMs / cdTotal)) : null;
+  // Use Math.floor so the counter only ticks down, never jumps up
+  const cdSecs = cdMs !== null ? Math.max(0, Math.floor(cdMs / 1000)) : null;
 
   return (
     <div
@@ -107,41 +108,55 @@ export function DeclareTrumpPanel({
         backdropFilter: 'blur(4px)',
       }}
     >
-      {/* Countdown bar — shown when it's this player's turn to decide */}
-      {cdRatio !== null && cdSecs !== null && (
-        <div style={{ marginBottom: '0.75rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '0.3rem' }}>
-            <span
-              style={{
-                fontFamily: 'monospace',
-                fontWeight: 700,
-                fontSize: '1.1rem',
-                color: cdColor(cdRatio),
-                letterSpacing: '0.05em',
-              }}
-            >
-              {cdSecs}s
-            </span>
-          </div>
-          <div
+      {/* Countdown bar — always takes up the same vertical space to avoid layout shifts.
+          Uses opacity to hide when this player is not the active decision-maker. */}
+      <div
+        style={{
+          marginBottom: '0.75rem',
+          opacity: cdRatio !== null ? 1 : 0,
+          transition: 'opacity 0.3s ease',
+          // Reserve space even when hidden so the panel height stays stable
+          visibility: cdRatio !== null ? 'visible' : 'hidden',
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '0.3rem' }}>
+          <span
             style={{
-              height: 4,
-              background: 'rgba(255,255,255,0.1)',
-              borderRadius: 2,
-              overflow: 'hidden',
+              fontFamily: 'monospace',
+              fontWeight: 700,
+              fontSize: '1.1rem',
+              color: cdRatio !== null ? cdColor(cdRatio) : 'transparent',
+              letterSpacing: '0.05em',
+              // Fixed character width prevents text from shifting as digits change
+              minWidth: '3ch',
+              display: 'inline-block',
+              textAlign: 'center',
+              transition: 'color 0.5s ease',
             }}
           >
-            <div
-              style={{
-                height: '100%',
-                width: `${cdRatio * 100}%`,
-                background: cdColor(cdRatio),
-                borderRadius: 2,
-              }}
-            />
-          </div>
+            {cdSecs !== null ? `${cdSecs}s` : ''}
+          </span>
         </div>
-      )}
+        <div
+          style={{
+            height: 4,
+            background: 'rgba(255,255,255,0.1)',
+            borderRadius: 2,
+            overflow: 'hidden',
+          }}
+        >
+          <div
+            style={{
+              height: '100%',
+              width: `${(cdRatio ?? 0) * 100}%`,
+              background: cdRatio !== null ? cdColor(cdRatio) : 'transparent',
+              borderRadius: 2,
+              // Smooth fill as timer counts down (interpolated every 50 ms)
+              transition: 'width 0.08s linear, background 0.5s ease',
+            }}
+          />
+        </div>
+      </div>
       {iCanCallContra ? (
         <>
           <p

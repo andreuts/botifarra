@@ -5,9 +5,17 @@ interface ScoreboardProps {
   gameState: PlayerGameStateDTO;
 }
 
+const CONTRA_LABELS: Record<number, string> = { 1: 'Contra', 2: 'Recontro', 3: 'Sant Vicenç' };
+const CONTRA_COLORS: Record<number, string> = {
+  1: '#e74c3c',
+  2: '#e67e22',
+  3: '#8e44ad',
+};
+
 export function Scoreboard({ gameState }: ScoreboardProps) {
   const { t } = useTranslation();
   const names = gameState.playerNames;
+  const contraLevel = gameState.contraLevel ?? 0;
 
   return (
     <div
@@ -72,6 +80,24 @@ export function Scoreboard({ gameState }: ScoreboardProps) {
         <div style={{ fontSize: '0.55rem', color: 'var(--color-muted)', marginTop: 2 }}>
           {gameState.completedTricks.length}/12
         </div>
+        {contraLevel > 0 && (
+          <div
+            style={{
+              marginTop: 4,
+              display: 'inline-block',
+              padding: '1px 6px',
+              borderRadius: 999,
+              background: CONTRA_COLORS[contraLevel],
+              color: '#fff',
+              fontSize: '0.6rem',
+              fontWeight: 700,
+              textTransform: 'uppercase',
+              letterSpacing: '0.06em',
+            }}
+          >
+            {CONTRA_LABELS[contraLevel]}
+          </div>
+        )}
       </div>
 
       {/* Team 1 (seats 1,3) */}

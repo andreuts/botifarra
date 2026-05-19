@@ -5,6 +5,36 @@ import { legalMoves } from '@botifarra/core';
 import type { PlayerGameStateDTO } from '@botifarra/shared';
 import { CardComponent } from './CardComponent.js';
 
+function useIsMobile() {
+  const [mobile, setMobile] = useState(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return false;
+    return window.innerWidth <= 480;
+  });
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+    const mq = window.matchMedia('(max-width: 480px)');
+    const handler = (e: MediaQueryListEvent) => setMobile(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+  return mobile;
+}
+
+// Suit display order: oros, copes, espases, bastos
+const SUIT_ORDER: Record<string, number> = { oros: 0, copes: 1, espases: 2, bastos: 3 };
+// Rank display order within a suit (low index = leftmost in hand)
+// Groups: As, 3, 2, Rei(12), Cavall(11), Sota(10), 9, 8, 7, 6, 5, 4
+const RANK_DISPLAY: Record<number, number> = {
+  1: 0, 3: 1, 2: 2, 12: 3, 11: 4, 10: 5, 9: 6, 8: 7, 7: 8, 6: 9, 5: 10, 4: 11,
+};
+function sortHand(cards: Card[]): Card[] {
+  return [...cards].sort((a, b) => {
+    const sd = (SUIT_ORDER[a.suit] ?? 0) - (SUIT_ORDER[b.suit] ?? 0);
+    if (sd !== 0) return sd;
+    return (RANK_DISPLAY[a.rank] ?? a.rank) - (RANK_DISPLAY[b.rank] ?? b.rank);
+  });
+}
+
 interface HandProps {
   gameState: PlayerGameStateDTO;
   onPlayCard: (card: Card) => void;
@@ -12,18 +42,24 @@ interface HandProps {
 
 export function HandComponent({ gameState, onPlayCard }: HandProps) {
   const { t } = useTranslation();
+  const isMobile = useIsMobile();
   const [selected, setSelected] = useState<Card | null>(null);
   const [dealKey, setDealKey] = useState(0);
+  const [pendingPlay, setPendingPlay] = useState(false);
   const prevHandLen = useRef(gameState.hand.length);
   const liveRef = useRef<HTMLDivElement>(null);
 
-  const isMyTurn = gameState.currentPlayerSeat === gameState.mySeat && gameState.hand.length > 0;
+  const isMyTurn = !pendingPlay && gameState.currentPlayerSeat === gameState.mySeat && gameState.hand.length > 0;
 
-  // Trigger deal animation when a new hand arrives (more cards than before)
+  // Trigger deal animation when a new hand arrives (more cards than before).
+  // Also clear pendingPlay whenever the hand changes (server acknowledged our move).
   useEffect(() => {
     if (gameState.hand.length > prevHandLen.current) {
       setDealKey((k) => k + 1);
       setSelected(null);
+    }
+    if (gameState.hand.length !== prevHandLen.current) {
+      setPendingPlay(false);
     }
     prevHandLen.current = gameState.hand.length;
   }, [gameState.hand.length]);
@@ -45,6 +81,7 @@ export function HandComponent({ gameState, onPlayCard }: HandProps) {
     const key = `${card.suit}-${card.rank}`;
     if (!legalSet.has(key)) return;
     if (selected && selected.suit === card.suit && selected.rank === card.rank) {
+      setPendingPlay(true);
       onPlayCard(card);
       setSelected(null);
     } else {
@@ -56,8 +93,9 @@ export function HandComponent({ gameState, onPlayCard }: HandProps) {
   const count = gameState.hand.length;
   const maxFan = 10; // max overlap kicks in
   const overlapRatio = count > maxFan ? 0.42 : 0;
-  const cardW = 60;
-  const gap = overlapRatio > 0 ? -cardW * overlapRatio : 6;
+  // Mobile: use small (50px wide) to fit 12 cards; desktop: compact (60px)
+  const cardW = isMobile ? 50 : 60;
+  const gap = overlapRatio > 0 ? -cardW * overlapRatio : isMobile ? 3 : 6;
 
   const statusText = isMyTurn
     ? selected
@@ -112,7 +150,7 @@ export function HandComponent({ gameState, onPlayCard }: HandProps) {
           padding: '4px 4px 8px',
         }}
       >
-        {gameState.hand.map((card, i) => {
+        {sortHand(gameState.hand).map((card, i) => {
           const key = `${card.suit}-${card.rank}`;
           const isLegal = legalSet.has(key);
           const isSel = selected?.suit === card.suit && selected?.rank === card.rank;
@@ -125,7 +163,8 @@ export function HandComponent({ gameState, onPlayCard }: HandProps) {
               onClick={() => handleCardClick(card)}
               disabled={isMyTurn && !isLegal}
               selected={isSel}
-              compact={true}
+              compact={!isMobile}
+              small={isMobile}
               animate={true}
               dealDelay={i * 55}
               rotation={rotation}
