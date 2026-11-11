@@ -8,6 +8,15 @@ export interface GameResult {
   winner: 0 | 1;
 }
 
+export type ActiveGameMode = 'botifarra' | 'practice' | 'practice-duo';
+
+export interface ActiveGame {
+  roomId: string;
+  matchId: string;
+  mode: ActiveGameMode;
+  canAbandon: boolean;
+}
+
 export interface TimerState {
   seat: 0 | 1 | 2 | 3;
   baseTurnMs: number;    // remaining phase-specific base timer; -1 when not this seat's turn
@@ -25,6 +34,47 @@ export interface TimerSnapshot {
   receivedAt: number;
 }
 
+const TIMER_SEATS = [0, 1, 2, 3] as const;
+
+function finiteNumber(value: unknown): number | null {
+  if (typeof value !== 'number' && !(typeof value === 'string' && value.trim() !== '')) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+/** Reject malformed timer packets before they can poison the client clock with NaN. */
+export function normalizeTimerValues(value: unknown): TimerState[] | null {
+  const rawTimers = Array.isArray(value)
+    ? value
+    : value && typeof value === 'object' && Array.isArray((value as { timers?: unknown }).timers)
+      ? (value as { timers: unknown[] }).timers
+      : null;
+  if (!rawTimers?.length) return null;
+
+  const bySeat = new Map<TimerState['seat'], number>();
+  for (const rawTimer of rawTimers) {
+    if (!rawTimer || typeof rawTimer !== 'object') return null;
+    const timer = rawTimer as Record<string, unknown>;
+    const seatNumber = finiteNumber(timer['seat']);
+    const baseTurnMs = finiteNumber(
+      timer['baseTurnMs'] ?? timer['remainingMs'] ?? timer['remainingTimeMs'],
+    );
+    if (
+      seatNumber === null ||
+      !TIMER_SEATS.includes(seatNumber as TimerState['seat']) ||
+      baseTurnMs === null
+    ) {
+      return null;
+    }
+    bySeat.set(seatNumber as TimerState['seat'], baseTurnMs < 0 ? -1 : baseTurnMs);
+  }
+
+  return TIMER_SEATS.map((seat) => ({
+    seat,
+    baseTurnMs: bySeat.get(seat) ?? -1,
+  }));
+}
+
 export interface GameStore {
   gameState: PlayerGameStateDTO | null;
   observerState: ObserverGameStateDTO | null;
@@ -36,6 +86,7 @@ export interface GameStore {
   toasts: string[];
   timers: TimerState[] | null;
   timerSnapshot: TimerSnapshot | null;
+  activeGame: ActiveGame | null;
   activeGameRoomId: string | null; // Persisted — for rejoin functionality
   setGameState: (state: PlayerGameStateDTO) => void;
   setObserverState: (state: ObserverGameStateDTO) => void;
@@ -53,6 +104,7 @@ export interface GameStore {
     trickPauseRemainingMs?: number | null,
   ) => void;
   setActiveGameRoomId: (roomId: string | null) => void;
+  setActiveGame: (activeGame: ActiveGame | null) => void;
   reset: () => void;
 }
 
@@ -69,6 +121,7 @@ export const useGameStore = create<GameStore>()(
       toasts: [],
       timers: null,
       timerSnapshot: null,
+      activeGame: null,
       activeGameRoomId: null,
       setGameState: (gameState) => set({ gameState }),
       setObserverState: (observerState) => set({ observerState }),
@@ -79,18 +132,25 @@ export const useGameStore = create<GameStore>()(
       setGameResult: (gameResult) => set({ gameResult }),
       addToast: (msg) => set((s) => ({ toasts: [...s.toasts, msg] })),
       dismissToast: () => set((s) => ({ toasts: s.toasts.slice(1) })),
-      setTimers: (timers, serverTime, timerEpoch, trickPauseRemainingMs) =>
+      setTimers: (timers, serverTime, timerEpoch, trickPauseRemainingMs) => {
+        const normalizedTimers = normalizeTimerValues(timers);
+        if (!normalizedTimers) return;
         set({
-          timers,
+          timers: normalizedTimers,
           timerSnapshot: {
-            timers,
-            serverTime: serverTime ?? null,
-            timerEpoch: timerEpoch ?? null,
-            trickPauseRemainingMs: trickPauseRemainingMs ?? null,
+            timers: normalizedTimers,
+            serverTime: finiteNumber(serverTime),
+            timerEpoch: finiteNumber(timerEpoch),
+            trickPauseRemainingMs: finiteNumber(trickPauseRemainingMs),
             receivedAt: typeof performance !== 'undefined' ? performance.now() : Date.now(),
           },
-        }),
+        });
+      },
       setActiveGameRoomId: (activeGameRoomId) => set({ activeGameRoomId }),
+      setActiveGame: (activeGame) => set({
+        activeGame,
+        activeGameRoomId: activeGame?.roomId ?? null,
+      }),
       reset: () =>
         set({
           gameState: null,
@@ -107,7 +167,10 @@ export const useGameStore = create<GameStore>()(
     }),
     {
       name: 'botifarra-game',
-      partialize: (state) => ({ activeGameRoomId: state.activeGameRoomId }),
+      partialize: (state) => ({
+        activeGame: state.activeGame,
+        activeGameRoomId: state.activeGameRoomId,
+      }),
     },
   ),
 );

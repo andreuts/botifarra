@@ -1,7 +1,8 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { Client, type Room } from 'colyseus.js';
 import { useTranslation } from 'react-i18next';
-import { useGameStore } from '../store/gameStore.js';
+import { normalizeTimerValues, useGameStore, type TimerState } from '../store/gameStore.js';
+import { CARD_TURN_MS, CONTRA_TIMEOUT_MS, DECLARATION_TURN_MS } from '../utils/timerUtils.js';
 import type { PlayerGameStateDTO, ObserverGameStateDTO } from '@botifarra/shared';
 import type { TrumpDeclaration } from '@botifarra/core';
 import type { SeatReservationData } from './useMatchmakingQueue.js';
@@ -39,6 +40,46 @@ export interface RoomLobbyPlayer {
   connected: boolean;
 }
 
+const TIMER_SEATS = [0, 1, 2, 3] as const;
+
+function timerClockKey(state: PlayerGameStateDTO): string {
+  return [
+    state.roundNumber,
+    state.trump ?? 'none',
+    state.contraLevel,
+    state.contraDecidingTeam ?? 'none',
+    state.declarantSeat,
+    state.dealerPassed,
+    state.currentLeader,
+    state.currentPlayerSeat ?? 'none',
+    state.currentTrick.length,
+    state.trickPauseLeader ?? 'none',
+  ].join(':');
+}
+
+/** Local display fallback for servers that send an invalid timer snapshot. */
+function fallbackTimerValues(state: PlayerGameStateDTO): TimerState[] {
+  let activeSeats: number[] = [];
+  let duration = CARD_TURN_MS;
+
+  if (state.trickPauseLeader != null) {
+    activeSeats = [];
+  } else if (state.contraDecidingTeam === 0 || state.contraDecidingTeam === 1) {
+    activeSeats = state.contraDecidingTeam === 0 ? [0, 2] : [1, 3];
+    duration = CONTRA_TIMEOUT_MS;
+  } else if (state.trump === null) {
+    activeSeats = [state.declarantSeat];
+    duration = DECLARATION_TURN_MS;
+  } else if (state.currentPlayerSeat !== null) {
+    activeSeats = [state.currentPlayerSeat];
+  }
+
+  return TIMER_SEATS.map((seat) => ({
+    seat,
+    baseTurnMs: activeSeats.includes(seat) ? duration : -1,
+  }));
+}
+
 /**
  * Prevents duplicate consumption of a one-time reservation, including React
  * Strict Mode's repeated effect setup. Failed attempts are removed so they can
@@ -56,6 +97,7 @@ export function useGameRoom(
 ) {
   const roomRef = useRef<Room | null>(null);
   const timerStreamActive = useRef(false);
+  const timerClockKeyRef = useRef<string | null>(null);
   const intentionalLeaveRef = useRef(false);
   const [commandErrorVersion, setCommandErrorVersion] = useState(0);
   const [roomPlayers, setRoomPlayers] = useState<RoomLobbyPlayer[]>([]);
@@ -67,6 +109,8 @@ export function useGameRoom(
     async (token: string, userId: string, username: string) => {
       if (roomRef.current) return;
       intentionalLeaveRef.current = false;
+      timerStreamActive.current = false;
+      timerClockKeyRef.current = null;
       // Guard: consumeSeatReservation is a one-time token. If this sessionId has already
       // been attempted (including Strict Mode's double-invocation), skip to avoid
       // "seat reservation expired" on the server.
@@ -127,11 +171,27 @@ export function useGameRoom(
 
         room.onMessage('game_state', (msg: { state: PlayerGameStateDTO }) => {
           setGameState(msg.state);
-          // Only seed timers from game_state on initial load (before timer_update stream starts)
-          if (msg.state.timers && !timerStreamActive.current) {
+          const nextClockKey = timerClockKey(msg.state);
+          const previousClockKey = timerClockKeyRef.current;
+          const initialTimers = normalizeTimerValues(msg.state.timers);
+          if (initialTimers) {
+            timerClockKeyRef.current = nextClockKey;
+          }
+          // Seed the initial snapshot and refresh it when the decision changes.
+          // Ignore same-decision snapshots so a late game_state cannot rewind a
+          // countdown already advanced by timer_update.
+          if (initialTimers && (!timerStreamActive.current || previousClockKey !== nextClockKey)) {
             setTimers(
-              msg.state.timers,
+              initialTimers,
               msg.state.timerServerTime,
+              msg.state.timerEpoch,
+              msg.state.trickPauseRemainingMs,
+            );
+          } else if (previousClockKey !== nextClockKey) {
+            timerClockKeyRef.current = nextClockKey;
+            setTimers(
+              fallbackTimerValues(msg.state),
+              undefined,
               msg.state.timerEpoch,
               msg.state.trickPauseRemainingMs,
             );
@@ -144,8 +204,12 @@ export function useGameRoom(
           timerEpoch?: number;
           trickPauseRemainingMs?: number | null;
         }) => {
+          const normalizedTimers = normalizeTimerValues(msg.timers);
+          if (!normalizedTimers) return;
           timerStreamActive.current = true;
-          setTimers(msg.timers, msg.serverTime, msg.timerEpoch, msg.trickPauseRemainingMs);
+          const currentGameState = useGameStore.getState().gameState;
+          if (currentGameState) timerClockKeyRef.current = timerClockKey(currentGameState);
+          setTimers(normalizedTimers, msg.serverTime, msg.timerEpoch, msg.trickPauseRemainingMs);
         });
 
         room.onMessage('observer_game_state', (msg: { state: ObserverGameStateDTO }) => {

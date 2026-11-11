@@ -27,6 +27,7 @@ import type {
 } from '@botifarra/shared';
 
 const BASE = '/api';
+type RoomInviteMode = 'private' | 'practice-duo';
 
 async function sendRequest(path: string, options: RequestInit = {}, token?: string): Promise<Response> {
   const headers: Record<string, string> = {
@@ -86,6 +87,14 @@ export const api = {
       request<{ roomId: string }>(`/matches/${matchId}/resume`, { method: 'POST' }, token),
   },
 
+  presence: {
+    heartbeat: (clientId: string) =>
+      request<{ onlineUsers: number }>('/presence/heartbeat', {
+        method: 'POST',
+        body: JSON.stringify({ clientId }),
+      }),
+  },
+
   users: {
     myStats: (token: string) => request<PlayerStatsDTO>('/users/me/stats', {}, token),
     updateTown: (data: UpdateUserTownRequest, token: string) =>
@@ -120,16 +129,20 @@ export const api = {
   },
 
   rooms: {
-    create: (token: string) =>
-      request<{ inviteCode: string }>('/rooms/create', { method: 'POST' }, token),
+    create: (token: string, mode?: 'practice-duo') =>
+      request<{ inviteCode: string; mode: RoomInviteMode }>(
+        '/rooms/create',
+        { method: 'POST', ...(mode ? { body: JSON.stringify({ mode }) } : {}) },
+        token,
+      ),
     lookup: (code: string, token: string) =>
-      request<{ inviteCode: string; roomId: string | null; hostUserId: string }>(
+      request<{ inviteCode: string; roomId: string | null; hostUserId: string; mode: RoomInviteMode }>(
         `/rooms/${code}`,
         {},
         token,
       ),
     join: (code: string, token: string) =>
-      request<{ roomId: string; inviteCode: string }>(
+      request<{ roomId: string; inviteCode: string; mode: RoomInviteMode }>(
         `/rooms/${code}/join`,
         { method: 'POST' },
         token,

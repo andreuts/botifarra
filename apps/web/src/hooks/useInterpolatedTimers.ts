@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { TimerSnapshot, TimerState } from '../store/gameStore.js';
+import { normalizeTimerValues, type TimerSnapshot, type TimerState } from '../store/gameStore.js';
 
 interface InterpolationSnapshot {
   timers: TimerState[];
@@ -90,57 +90,68 @@ export function useInterpolatedTimers(source: TimerSnapshot | null): Interpolate
       return;
     }
 
+    const sourceTimers = normalizeTimerValues(source.timers);
+    if (!sourceTimers) return;
+    const sourceServerTime = Number.isFinite(source.serverTime) ? source.serverTime : null;
+    const sourceTimerEpoch = Number.isFinite(source.timerEpoch) ? source.timerEpoch : null;
+    const sourceTrickPauseRemainingMs = Number.isFinite(source.trickPauseRemainingMs)
+      ? source.trickPauseRemainingMs
+      : null;
+    const sourceReceivedAt = Number.isFinite(source.receivedAt) ? source.receivedAt : monotonicNow();
+
     const previous = snapshotRef.current;
     if (
       previous &&
       previous.serverTime !== null &&
-      source.serverTime !== null &&
-      source.serverTime < previous.serverTime
+      sourceServerTime !== null &&
+      sourceServerTime < previous.serverTime
     ) {
       return; // Ignore an out-of-order timer packet.
     }
 
-    let at = source.receivedAt;
-    if (source.serverTime !== null) {
-      const observedOffset = source.receivedAt - source.serverTime;
-      serverToClientOffsetRef.current = serverToClientOffsetRef.current === null
-        ? observedOffset
-        : Math.min(serverToClientOffsetRef.current, observedOffset);
-      at = source.serverTime + serverToClientOffsetRef.current;
+    let at = sourceReceivedAt;
+    if (sourceServerTime !== null) {
+      const observedOffset = sourceReceivedAt - sourceServerTime;
+      if (Number.isFinite(observedOffset)) {
+        serverToClientOffsetRef.current = serverToClientOffsetRef.current === null
+          ? observedOffset
+          : Math.min(serverToClientOffsetRef.current, observedOffset);
+        at = sourceServerTime + serverToClientOffsetRef.current;
+      }
     }
 
     const serverElapsed = previous
-      ? source.serverTime !== null && previous.serverTime !== null
-        ? Math.max(0, source.serverTime - previous.serverTime)
-        : Math.max(0, source.receivedAt - previous.receivedAt)
+      ? sourceServerTime !== null && previous.serverTime !== null
+        ? Math.max(0, sourceServerTime - previous.serverTime)
+        : Math.max(0, sourceReceivedAt - previous.receivedAt)
       : 0;
     const previousAtNewTime = previous ? advance(previous.timers, serverElapsed) : null;
     const clockRestarted =
       !previous ||
-      activeKey(source.timers) !== activeKey(previous.timers) ||
-      (source.timerEpoch !== null &&
+      activeKey(sourceTimers) !== activeKey(previous.timers) ||
+      (sourceTimerEpoch !== null &&
         previous.timerEpoch !== null &&
-        source.timerEpoch !== previous.timerEpoch);
+        sourceTimerEpoch !== previous.timerEpoch);
     const timers = previous && previousAtNewTime && !clockRestarted
-      ? keepCountdownMonotonic(source.timers, previousAtNewTime)
-      : source.timers;
+      ? keepCountdownMonotonic(sourceTimers, previousAtNewTime)
+      : sourceTimers;
     const previousPauseAtNewTime = previous?.trickPauseRemainingMs === null || !previous
       ? null
       : Math.max(0, previous.trickPauseRemainingMs - serverElapsed);
     const trickPauseRemainingMs =
       !clockRestarted &&
-      source.trickPauseRemainingMs !== null &&
+      sourceTrickPauseRemainingMs !== null &&
       previousPauseAtNewTime !== null
-        ? Math.min(source.trickPauseRemainingMs, previousPauseAtNewTime)
-        : source.trickPauseRemainingMs;
+        ? Math.min(sourceTrickPauseRemainingMs, previousPauseAtNewTime)
+        : sourceTrickPauseRemainingMs;
 
     const nextSnapshot: InterpolationSnapshot = {
       timers,
       trickPauseRemainingMs,
       at,
-      serverTime: source.serverTime,
-      timerEpoch: source.timerEpoch,
-      receivedAt: source.receivedAt,
+      serverTime: sourceServerTime,
+      timerEpoch: sourceTimerEpoch,
+      receivedAt: sourceReceivedAt,
     };
     snapshotRef.current = nextSnapshot;
     setLocal(interpolate(nextSnapshot, monotonicNow()));

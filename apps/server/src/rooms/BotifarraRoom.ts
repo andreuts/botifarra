@@ -71,6 +71,8 @@ export interface BotifarraRoomOptions {
   fillBots?: boolean;
   /** How many human players are expected (used with fillBots). Default 4. */
   humanPlayers?: number;
+  /** Lobby deadline override for rooms waiting on invited players. */
+  lobbyTimeoutMs?: number;
   /** Pre-assigned seats from matchmaking: userId → seat number */
   seatAssignments?: Record<string, number>;
   /** Serialized snapshot to restore (resume flow) */
@@ -127,6 +129,7 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
   private static readonly GAME_TIMEOUT_MS = 4 * 60 * 60 * 1000; // 4 hours
   // -- Lobby fill timeout: if not full after reservation time + buffer, close --
   private static readonly LOBBY_FILL_TIMEOUT_MS = 150_000; // 2.5 minutes (>120s reservation)
+  private lobbyFillTimeoutMs = BotifarraRoom.LOBBY_FILL_TIMEOUT_MS;
   private gameStartedAt: number = 0;
   private endReason: string | null = null;
   private gameFinished = false;
@@ -143,6 +146,8 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
   private lastTimerBroadcast: number = 0;
   /** Which team (0 or 1) currently has to decide contra/recontro/sant vicenç. Null outside contra phase. */
   protected contraDecidingTeam: 0 | 1 | null = null;
+  /** Each deciding-team player must confirm a pass; a call still resolves immediately. */
+  protected contraPassVotes = new Set<Seat>();
 
   // -- Fixed pause: let players review the completed trick before the next one --
   private static readonly TRICK_PAUSE_MS = TRICK_PAUSE_DURATION_MS;
@@ -159,6 +164,7 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
     this.targetScore = options.targetScore ?? 101;
     this.fillBots = options.fillBots ?? false;
     this.humanPlayersExpected = options.humanPlayers ?? 4;
+    this.lobbyFillTimeoutMs = options.lobbyTimeoutMs ?? BotifarraRoom.LOBBY_FILL_TIMEOUT_MS;
     this.seatAssignments = options.seatAssignments ?? {};
     this.ranked = options.ranked ?? false;
     // Use the original match creation time if provided (resume flow),
@@ -186,6 +192,13 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
           'contraDecidingTeam' in options.initialSnapshot
             ? options.initialSnapshot.contraDecidingTeam ?? null
             : this.getContraDecidingTeamForRound(this.gameState.round);
+        this.contraPassVotes = new Set(
+          this.contraDecidingTeam === null
+            ? []
+            : (options.initialSnapshot.contraPassVotes ?? []).filter(
+                (seat) => seat % 2 === this.contraDecidingTeam,
+              ),
+        );
         // Restore Colyseus schema state from snapshot
         this.state.phase = this.gameState.phase;
         this.state.score0 = this.gameState.game.scores[0];
@@ -256,14 +269,16 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
       } else {
         // New player — assign a seat
         const assignedSeat = this.seatAssignments[userId];
+        const isPartnerPractice = this.fillBots && this.humanPlayersExpected === 2;
+        const partnerPracticeSeat = assignedSeat ?? (isPartnerPractice ? 2 : undefined);
         const result =
-          assignedSeat !== undefined
+          partnerPracticeSeat !== undefined
             ? assignSpecificSeat(
                 this.gameState,
                 client.sessionId,
                 userId,
                 username,
-                assignedSeat as Seat,
+                partnerPracticeSeat as Seat,
               )
             : assignSeat(this.gameState, client.sessionId, userId, username);
         this.gameState = result.state;
@@ -303,7 +318,11 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
       if (this.gameState.phase === 'lobby') {
         if (isRoomFull(this.gameState)) {
           this.startNewRoundPublic();
-        } else if (this.fillBots && this.gameState.seats.size >= this.humanPlayersExpected) {
+        } else if (
+          this.fillBots &&
+          [...this.gameState.seats.values()].filter((seatInfo) => !this.botSeeds.has(seatInfo.sessionId)).length >=
+            this.humanPlayersExpected
+        ) {
           // Fill remaining seats with bots then start
           const botsNeeded = 4 - this.gameState.seats.size;
           for (let i = 0; i < botsNeeded; i++) {
@@ -335,7 +354,9 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
       const seatInfo = this.gameState.seats.get(seat);
       if (seatInfo?.sessionId === client.sessionId) {
         this.gameState.seats.delete(seat);
-        delete this.seatAssignments[seatInfo.userId];
+        if (!(this.fillBots && this.humanPlayersExpected === 2)) {
+          delete this.seatAssignments[seatInfo.userId];
+        }
         clearUserActiveGame(seatInfo.userId);
       }
       // A deliberate exit frees the waiting seat and removes the departed player
@@ -415,6 +436,7 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
           for (const event of events) this.broadcastEvent(event);
           // Trump declared — contra phase begins. Non-declarant team decides first.
           this.contraDecidingTeam = this.getContraDecidingTeamForRound(this.gameState.round);
+          this.contraPassVotes.clear();
           // Send each player their personalized game state
           this.broadcastGameState();
           this.broadcastTimerState();
@@ -496,7 +518,7 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
         case 'pass_contra': {
           const seat = this.seatForClient(client);
           if (seat === null) throw new Error('Session not in room');
-          this.resolveContraPass(seat);
+          this.registerContraPass(seat);
           this.broadcastGameState();
           this.broadcastTimerState();
           this.lastTimerBroadcast = performance.now();
@@ -518,6 +540,7 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
           this.syncSchemaPublic();
           for (const event of events) this.broadcastEvent(event);
           this.contraDecidingTeam = this.getContraDecidingTeamForRound(this.gameState.round);
+          this.contraPassVotes.clear();
           this.broadcastGameState();
           // Immediately push a fresh timer broadcast so clients see the reset instantly
           this.broadcastTimerState();
@@ -573,7 +596,13 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
     const prisma = _prisma;
     const matchId = this.matchId;
     const state = this.gameState;
-    void saveGameSnapshot(prisma, matchId, state, this.contraDecidingTeam).catch((err) => {
+    void saveGameSnapshot(
+      prisma,
+      matchId,
+      state,
+      this.contraDecidingTeam,
+      [...this.contraPassVotes],
+    ).catch((err) => {
       console.error('[BotifarraRoom] Snapshot save error:', err);
     });
   }
@@ -593,6 +622,7 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
     this.startTurnTimerClock();
     this.lastTimerBroadcast = 0;
     this.contraDecidingTeam = null;
+    this.contraPassVotes.clear();
     this.clearTrickPause();
 
     // Send each human player only their own hand
@@ -652,6 +682,7 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
       dealerPassed: round.dealerPassed,
       contraLevel: round.contraLevel,
       contraDecidingTeam: this.contraDecidingTeam,
+      contraPassVotes: [...this.contraPassVotes],
       ranked: this.ranked,
       trickPauseLeader: this.trickPauseLeader,
       trickPauseStartedAt: this.trickPauseStartedAt || null,
@@ -798,6 +829,7 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
       currentPlayerSeat: currentPlayerSeat(round),
       contraLevel: round.contraLevel,
       contraDecidingTeam: this.contraDecidingTeam,
+      contraPassVotes: [...this.contraPassVotes],
     };
     client.send('observer_game_state', { type: 'observer_game_state', state: observerState });
   }
@@ -1051,6 +1083,23 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
     }
     this.resetTurnTimer();
     this.contraDecidingTeam = null;
+    this.contraPassVotes.clear();
+  }
+
+  /** Record one player's pass and resolve only after both teammates pass. */
+  protected registerContraPass(seat: Seat) {
+    if (this.contraDecidingTeam === null || seat % 2 !== this.contraDecidingTeam) {
+      throw new Error('Your team is not deciding contra');
+    }
+    if (this.contraPassVotes.has(seat)) {
+      throw new Error('You have already passed this contra decision');
+    }
+
+    this.contraPassVotes.add(seat);
+    const teamSeats: Seat[] = this.contraDecidingTeam === 0 ? [0, 2] : [1, 3];
+    if (teamSeats.every((teamSeat) => this.contraPassVotes.has(teamSeat))) {
+      this.resolveContraPass(seat);
+    }
   }
 
   protected getContraDecidingTeamForRound(
@@ -1236,7 +1285,7 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
 
     // -- Lobby timeout: close room if not all players connect in time --
     if (this.gameState.phase === 'lobby') {
-      if (now - this.gameStartedAt >= BotifarraRoom.LOBBY_FILL_TIMEOUT_MS) {
+      if (now - this.gameStartedAt >= this.lobbyFillTimeoutMs) {
         this.broadcast('lobby_timeout', {
           message: 'Not all players connected in time. Please re-queue.',
         });
@@ -1269,7 +1318,13 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
       if (activeSeats.length > 0) {
         if (this.contraDecidingTeam !== null) {
           if (elapsed >= BotifarraRoom.CONTRA_TIMEOUT_MS) {
-            this.handleRankedTimeout(activeSeats[0]!);
+            // A contra timeout resolves as a team pass, without the card-turn
+            // timeout penalty. Passing early still requires both players.
+            this.resolveContraPass(activeSeats[0]!);
+            this.broadcastGameState();
+            this.broadcastTimerState();
+            this.lastTimerBroadcast = timerNow;
+            this.persistSnapshot();
             return;
           }
         } else {

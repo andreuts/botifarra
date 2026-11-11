@@ -6,6 +6,10 @@ export const CONTRA_TIMEOUT_MS = 30_000;
 
 /** Remaining time on the fixed decision clock. */
 export function remainingTurnTimeMs(timer: Pick<TimerState, 'baseTurnMs'>): number {
-  if (timer.baseTurnMs < 0) return 0;
-  return Math.max(0, timer.baseTurnMs);
+  if (!Number.isFinite(timer.baseTurnMs) || timer.baseTurnMs < 0) return 0;
+  return timer.baseTurnMs;
+}
+
+export function isTimerActive(timer: Pick<TimerState, 'baseTurnMs'> | undefined): boolean {
+  return timer !== undefined && Number.isFinite(timer.baseTurnMs) && timer.baseTurnMs >= 0;
 }

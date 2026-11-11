@@ -7,8 +7,19 @@ import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
  * with their friends. When the room fills up, the game starts automatically.
  */
 
-// In-memory invite code → Colyseus roomId mapping
-const inviteCodeMap = new Map<string, { roomId: string; createdAt: number; hostUserId: string }>();
+type InviteMode = 'private' | 'practice-duo';
+const INVITE_TTL_MS = 30 * 60 * 1000;
+
+interface InviteEntry {
+  roomId: string;
+  creatingRoom?: Promise<string>;
+  createdAt: number;
+  hostUserId: string;
+  mode: InviteMode;
+}
+
+// In-memory invite code → Colyseus room mapping
+const inviteCodeMap = new Map<string, InviteEntry>();
 
 /** Generate a 6-character random code */
 function generateInviteCode(): string {
@@ -24,7 +35,7 @@ function generateInviteCode(): string {
 function cleanupStaleInvites() {
   const now = Date.now();
   for (const [code, entry] of inviteCodeMap) {
-    if (now - entry.createdAt > 30 * 60 * 1000) {
+    if (now - entry.createdAt > INVITE_TTL_MS) {
       inviteCodeMap.delete(code);
     }
   }
@@ -32,8 +43,13 @@ function cleanupStaleInvites() {
 
 export const privateRoomRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   // POST /api/rooms/create — create a private room, get back invite code
-  app.post('/create', { onRequest: [(app as any).authenticate] }, async (request, reply) => {
+  app.post<{ Body: { mode?: unknown } }>('/create', { onRequest: [(app as any).authenticate] }, async (request, reply) => {
     const { sub: userId } = (request as any).user as { sub: string; username: string };
+    const requestedMode = request.body?.mode ?? 'private';
+    if (requestedMode !== 'private' && requestedMode !== 'practice-duo') {
+      return reply.status(400).send({ error: 'Invalid room mode' });
+    }
+    const mode: InviteMode = requestedMode;
 
     cleanupStaleInvites();
 
@@ -47,9 +63,9 @@ export const privateRoomRoutes: FastifyPluginAsync = async (app: FastifyInstance
 
     // We'll create the Colyseus room lazily when the first player joins via the code.
     // For now, we just reserve the code and return it.
-    inviteCodeMap.set(code, { roomId: '', createdAt: Date.now(), hostUserId: userId });
+    inviteCodeMap.set(code, { roomId: '', createdAt: Date.now(), hostUserId: userId, mode });
 
-    return reply.status(201).send({ inviteCode: code });
+    return reply.status(201).send({ inviteCode: code, mode });
   });
 
   // GET /api/rooms/:code — look up a room by invite code
@@ -57,6 +73,7 @@ export const privateRoomRoutes: FastifyPluginAsync = async (app: FastifyInstance
     '/:code',
     { onRequest: [(app as any).authenticate] },
     async (request, reply) => {
+      cleanupStaleInvites();
       const { code } = request.params;
       const entry = inviteCodeMap.get(code.toUpperCase());
 
@@ -68,6 +85,7 @@ export const privateRoomRoutes: FastifyPluginAsync = async (app: FastifyInstance
         inviteCode: code.toUpperCase(),
         roomId: entry.roomId || null,
         hostUserId: entry.hostUserId,
+        mode: entry.mode,
       });
     },
   );
@@ -78,6 +96,7 @@ export const privateRoomRoutes: FastifyPluginAsync = async (app: FastifyInstance
     '/:code/join',
     { onRequest: [(app as any).authenticate] },
     async (request, reply) => {
+      cleanupStaleInvites();
       const { code } = request.params;
       const upperCode = code.toUpperCase();
       const entry = inviteCodeMap.get(upperCode);
@@ -88,31 +107,48 @@ export const privateRoomRoutes: FastifyPluginAsync = async (app: FastifyInstance
 
       // If room already created, return the roomId
       if (entry.roomId) {
-        return reply.send({ roomId: entry.roomId, inviteCode: upperCode });
+        return reply.send({ roomId: entry.roomId, inviteCode: upperCode, mode: entry.mode });
       }
 
       // Create Colyseus room on demand
       try {
-        let roomId: string;
-        if (app.createColyseusRoom) {
-          const roomData = await app.createColyseusRoom('botifarra', {
-            matchId: `private_${upperCode}`,
-            targetScore: 101,
-          });
-          roomId = roomData.roomId;
-        } else {
-          // We import matchMaker dynamically to avoid circular deps at module level
-          const { matchMaker } = await import('colyseus');
-          const roomData = await matchMaker.createRoom('botifarra', {
-            matchId: `private_${upperCode}`,
-            targetScore: 101,
-          });
-          roomId = roomData.roomId;
-        }
-        entry.roomId = roomId;
+        if (!entry.creatingRoom) {
+          const roomType = entry.mode === 'practice-duo' ? 'practice' : 'botifarra';
+          const roomOptions: Record<string, unknown> = entry.mode === 'practice-duo'
+            ? {
+                matchId: `practice_${upperCode}`,
+                targetScore: 101,
+                fillBots: true,
+                humanPlayers: 2,
+                seatAssignments: { [entry.hostUserId]: 0 },
+                lobbyTimeoutMs: Math.max(1, entry.createdAt + INVITE_TTL_MS - Date.now()),
+              }
+            : {
+                matchId: `private_${upperCode}`,
+                targetScore: 101,
+              };
 
-        return reply.send({ roomId: entry.roomId, inviteCode: upperCode });
+          entry.creatingRoom = (async () => {
+            if (app.createColyseusRoom) {
+              const roomData = await app.createColyseusRoom(roomType, roomOptions);
+              return roomData.roomId;
+            }
+            // We import matchMaker dynamically to avoid circular deps at module level
+            const { matchMaker } = await import('colyseus');
+            const roomData = await matchMaker.createRoom(roomType, roomOptions);
+            return roomData.roomId;
+          })();
+        }
+
+        const roomCreation = entry.creatingRoom;
+        if (!roomCreation) throw new Error('Failed to create room');
+        const roomId = await roomCreation;
+        entry.roomId = roomId;
+        delete entry.creatingRoom;
+
+        return reply.send({ roomId: entry.roomId, inviteCode: upperCode, mode: entry.mode });
       } catch (err) {
+        delete entry.creatingRoom;
         const msg = err instanceof Error ? err.message : 'Failed to create room';
         return reply.status(500).send({ error: msg });
       }

@@ -45,7 +45,7 @@ describe('BotifarraRoom contra decisions', () => {
     expect(timers.find((timer) => timer.seat === 3)?.baseTurnMs).toBe(-1);
   });
 
-  it('starts a fresh clock when the deciding team passes', () => {
+  it('requires both deciding players to pass and starts a fresh decision clock', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-01-01T00:00:00.000Z'));
     const room = Object.create(BotifarraRoom.prototype) as any;
@@ -59,13 +59,19 @@ describe('BotifarraRoom contra decisions', () => {
       },
     };
     room.contraDecidingTeam = 0;
+    room.contraPassVotes = new Set();
     room.trickPauseLeader = null;
-    room.turnStartedAt = performance.now() - 1000;
+    room.turnStartedAt = performance.now() - 35_000;
     room.timerEpoch = 0;
-    room.seatForClient = vi.fn().mockReturnValue(2);
+    room.seatForClient = vi.fn().mockReturnValueOnce(0).mockReturnValueOnce(2);
     room.broadcastGameState = vi.fn();
     room.broadcastTimerState = vi.fn();
     room.persistSnapshot = vi.fn();
+
+    room.handleCommand({ send: vi.fn() }, 'pass_contra', {});
+
+    expect(room.contraDecidingTeam).toBe(0);
+    expect([...room.contraPassVotes]).toEqual([0]);
 
     room.handleCommand({ send: vi.fn() }, 'pass_contra', {});
 

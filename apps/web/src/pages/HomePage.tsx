@@ -1,14 +1,14 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { api } from '../api/client.js';
 import { useAuthStore } from '../store/authStore.js';
 import { useMatchmakingQueue } from '../hooks/useMatchmakingQueue.js';
 import { useGameStore } from '../store/gameStore.js';
-import { RecentGameRow } from '../components/RecentGameRow.js';
 import { LobbyCard } from '../components/LobbyCard.js';
+import { useOnlineUserCount } from '../hooks/useOnlinePresence.js';
 
 const SUITS = [
   { key: 'O', suit: 'oros', image: '/cards/01-oros.png' },
@@ -74,10 +74,50 @@ function RankedHelpTooltip({ id, label, message }: { id: string; label: string; 
   );
 }
 
+type PlayMode = 'online' | 'bots' | 'ranked';
+
+function PlayModeSwitcher({
+  name,
+  label,
+  value,
+  options,
+  disabled = false,
+  onChange,
+}: {
+  name: string;
+  label: string;
+  value: PlayMode;
+  options: Array<{ value: PlayMode; label: string }>;
+  disabled?: boolean;
+  onChange: (mode: PlayMode) => void;
+}) {
+  return (
+    <div className="lobby-mode-switcher" role="radiogroup" aria-label={label}>
+      {options.map((option) => (
+        <label
+          className={`lobby-mode-option${value === option.value ? ' is-selected' : ''}`}
+          key={option.value}
+        >
+          <input
+            type="radio"
+            name={name}
+            value={option.value}
+            checked={value === option.value}
+            disabled={disabled}
+            onChange={() => onChange(option.value)}
+          />
+          <span>{option.label}</span>
+        </label>
+      ))}
+    </div>
+  );
+}
+
 export function HomePage() {
   const { t } = useTranslation();
   const { user } = useAuthStore();
   const navigate = useNavigate();
+  const onlineUsers = useOnlineUserCount();
   const token = user?.accessToken ?? '';
   const { activeGameRoomId, setActiveGameRoomId } = useGameStore();
   const queryClient = useQueryClient();
@@ -92,17 +132,19 @@ export function HomePage() {
 
   // Private room state
   const [inviteCode, setInviteCode] = useState('');
+  const [practiceInviteCode, setPracticeInviteCode] = useState('');
+  const [practiceInviteError, setPracticeInviteError] = useState('');
   const [joinCode, setJoinCode] = useState('');
   const [roomError, setRoomError] = useState('');
   const [roomLoading, setRoomLoading] = useState(false);
-  const [ranked, setRanked] = useState(false);
-  const [rankedPair, setRankedPair] = useState(false);
+  const [soloPlayMode, setSoloPlayMode] = useState<PlayMode>('online');
+  const [pairPlayMode, setPairPlayMode] = useState<PlayMode>('online');
 
-  const { data: matches, isLoading } = useQuery({
-    queryKey: ['matches'],
-    queryFn: () => api.matches.list(token),
-    enabled: !!token,
-  });
+  const playModeOptions: Array<{ value: PlayMode; label: string }> = [
+    { value: 'online', label: t('home.modeOnline') },
+    { value: 'bots', label: t('home.modeBots') },
+    { value: 'ranked', label: t('home.modeRanked') },
+  ];
 
   async function handleResume(matchId: string) {
     try {
@@ -133,18 +175,40 @@ export function HomePage() {
     }
   }
 
+  async function handleCreatePracticeInvite() {
+    setPracticeInviteError('');
+    setRoomLoading(true);
+    try {
+      const { inviteCode: code } = await api.rooms.create(token, 'practice-duo');
+      setPracticeInviteCode(code);
+    } catch (err) {
+      setPracticeInviteError(err instanceof Error ? err.message : t('home.practicePairCreateFailed'));
+    } finally {
+      setRoomLoading(false);
+    }
+  }
+
   async function handleJoinRoom(code: string) {
     if (!code.trim()) return;
     setRoomError('');
     setRoomLoading(true);
     try {
-      const { roomId, inviteCode: joinedCode } = await api.rooms.join(code.trim().toUpperCase(), token);
-      navigate(`/match/${roomId}?mode=botifarra`, { state: { inviteCode: joinedCode } });
+      // Entering a private room takes priority over either matchmaking queue.
+      await leaveQueue();
+      const { roomId, inviteCode: joinedCode, mode } = await api.rooms.join(code.trim().toUpperCase(), token);
+      const gameMode = mode === 'practice-duo' ? 'practice-duo' : 'botifarra';
+      navigate(`/match/${roomId}?mode=${gameMode}`, { state: { inviteCode: joinedCode } });
     } catch (err) {
       setRoomError(err instanceof Error ? err.message : t('home.privateRoomJoinFailed'));
     } finally {
       setRoomLoading(false);
     }
+  }
+
+  async function handleStartPractice() {
+    // Stop any solo or pair search before opening a bot game.
+    await leaveQueue();
+    navigate('/play?mode=practice');
   }
 
   return (
@@ -197,7 +261,15 @@ export function HomePage() {
           <div className="lobby-section-heading">
             <div className="lobby-section-title-wrap">
               <p className="lobby-overline">{t('home.playOptions')}</p>
-              <h2 id="lobby-play-heading">{t('home.play')}</h2>
+              <div className="lobby-play-heading-row">
+                <h2 id="lobby-play-heading">{t('home.play')}</h2>
+                {onlineUsers !== null && (
+                  <span className="lobby-online-count">
+                    <span className="lobby-online-dot" aria-hidden="true" />
+                    {t('home.onlineNow', { count: onlineUsers })}
+                  </span>
+                )}
+              </div>
             </div>
             <div className="lobby-suit-line" aria-hidden="true">
               {SUITS.map((suit) => (
@@ -211,20 +283,24 @@ export function HomePage() {
               variant="solo"
               markerImage="/cards/01-oros.png"
               title={t('home.quickMatchSolo')}
-              description={t('home.quickMatchSoloDesc')}
+              description={t(
+                soloPlayMode === 'bots'
+                  ? 'home.practiceSoloDesc'
+                  : soloPlayMode === 'ranked'
+                    ? 'home.quickMatchSoloRankedDesc'
+                    : 'home.quickMatchSoloDesc',
+              )}
               disabled={queueState !== 'idle' && queueMode !== 'single'}
             >
-              <div className="lobby-ranked-setting">
-                <label className="lobby-ranked-toggle" htmlFor="ranked-solo">
-                  <input
-                    id="ranked-solo"
-                    type="checkbox"
-                    checked={ranked}
-                    disabled={queueState !== 'idle'}
-                    onChange={(e) => setRanked(e.target.checked)}
-                  />
-                  {t('home.ranked')}
-                </label>
+              <div className="lobby-mode-setting">
+                <PlayModeSwitcher
+                  name="solo-play-mode"
+                  label={t('home.choosePlayMode')}
+                  value={soloPlayMode}
+                  options={playModeOptions}
+                  disabled={queueState !== 'idle' || roomLoading}
+                  onChange={setSoloPlayMode}
+                />
                 <RankedHelpTooltip
                   id="ranked-solo-help"
                   label={t('home.rankedHelpLabel')}
@@ -232,7 +308,13 @@ export function HomePage() {
                 />
               </div>
               {queueState === 'idle' ? (
-                <button className="btn-accent lobby-primary-action" onClick={() => joinQueue('single', undefined, ranked)}>
+                <button
+                  className="btn-accent lobby-primary-action"
+                  onClick={() => {
+                    if (soloPlayMode === 'bots') void handleStartPractice();
+                    else void joinQueue('single', undefined, soloPlayMode === 'ranked');
+                  }}
+                >
                   {t('home.quickMatchSolo')}
                 </button>
               ) : queueState === 'queued' && queueMode === 'single' ? (
@@ -255,29 +337,67 @@ export function HomePage() {
               variant="pair"
               markerImage="/cards/01-copas.png"
               title={t('home.quickMatchPair')}
-              description={t('home.quickMatchPairDesc')}
+              description={t(
+                pairPlayMode === 'bots'
+                  ? 'home.practicePairDesc'
+                  : pairPlayMode === 'ranked'
+                    ? 'home.quickMatchPairRankedDesc'
+                    : 'home.quickMatchPairDesc',
+              )}
               disabled={queueState !== 'idle' && queueMode !== 'pair'}
             >
-              <div className="lobby-ranked-setting">
-                <label className="lobby-ranked-toggle" htmlFor="ranked-pair">
-                  <input
-                    id="ranked-pair"
-                    type="checkbox"
-                    checked={rankedPair}
-                    disabled={queueState !== 'idle'}
-                    onChange={(e) => setRankedPair(e.target.checked)}
-                  />
-                  {t('home.ranked')}
-                </label>
+              <div className="lobby-mode-setting">
+                <PlayModeSwitcher
+                  name="pair-play-mode"
+                  label={t('home.choosePlayMode')}
+                  value={pairPlayMode}
+                  options={playModeOptions}
+                  disabled={queueState !== 'idle' || roomLoading}
+                  onChange={setPairPlayMode}
+                />
                 <RankedHelpTooltip
                   id="ranked-pair-help"
                   label={t('home.rankedHelpLabel')}
                   message={t('home.rankedHelp')}
                 />
               </div>
-              <button className="btn-accent lobby-primary-action" onClick={() => navigate(`/friends?ranked=${rankedPair}`)}>
-                {t('home.quickMatchPair')}
-              </button>
+              {pairPlayMode === 'bots' ? (
+                practiceInviteCode ? (
+                  <div className="practice-pair-invite">
+                    <div className="practice-pair-invite-copy">
+                      <div className="invite-code">{practiceInviteCode}</div>
+                      <span>{t('home.practicePairShareHint')}</span>
+                    </div>
+                    <button
+                      className="btn-accent lobby-primary-action"
+                      onClick={() => void handleJoinRoom(practiceInviteCode)}
+                      disabled={roomLoading}
+                    >
+                      {t('home.practicePairEnter')}
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    className="btn-accent lobby-primary-action"
+                    onClick={() => void handleCreatePracticeInvite()}
+                    disabled={roomLoading}
+                  >
+                    {roomLoading ? t('home.privateRoomCreating') : t('home.practicePairCreate')}
+                  </button>
+                )
+              ) : (
+                <button
+                  className="btn-accent lobby-primary-action"
+                  onClick={() => navigate(`/friends?ranked=${pairPlayMode === 'ranked'}`)}
+                >
+                  {t('home.quickMatchPair')}
+                </button>
+              )}
+              {practiceInviteError && pairPlayMode === 'bots' && (
+                <p className="lobby-error" role="alert">
+                  {practiceInviteError}
+                </p>
+              )}
             </LobbyCard>
 
             <LobbyCard
@@ -324,33 +444,8 @@ export function HomePage() {
             </LobbyCard>
           </div>
 
-          <div className="lobby-secondary-actions">
-            <button className="practice-button" onClick={() => navigate('/play?mode=practice')}>
-              {t('home.practiceBot')}
-            </button>
-          </div>
         </section>
 
-        <section className="lobby-section lobby-activity" aria-labelledby="lobby-activity-heading">
-          <div className="lobby-section-heading lobby-section-heading--activity">
-            <div className="lobby-section-title-wrap">
-              <p className="lobby-overline">{t('nav.matchHistory')}</p>
-              <h2 id="lobby-activity-heading">{t('home.recentMatches')}</h2>
-            </div>
-          </div>
-
-          {isLoading && <p className="recent-match-empty">{t('home.loading')}</p>}
-          {matches && matches.length === 0 && (
-            <p className="recent-match-empty">{t('home.noMatches')}</p>
-          )}
-          {matches && matches.length > 0 && (
-            <ul className="recent-match-list">
-              {matches.map((match) => (
-                <RecentGameRow key={match.matchId} match={match} onResume={handleResume} />
-              ))}
-            </ul>
-          )}
-        </section>
       </main>
     </div>
   );

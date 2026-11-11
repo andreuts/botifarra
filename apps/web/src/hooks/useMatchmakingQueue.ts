@@ -32,6 +32,8 @@ export function useMatchmakingQueue() {
   const [mode, setMode] = useState<QueueMode>('single');
   const [ranked, setRanked] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const queueVersionRef = useRef(0);
+  const activeQueueVersionRef = useRef<number | null>(null);
 
   const token = user?.accessToken ?? '';
 
@@ -43,10 +45,14 @@ export function useMatchmakingQueue() {
   }, []);
 
   const poll = useCallback(async () => {
+    const queueVersion = activeQueueVersionRef.current;
+    if (queueVersion === null) return;
+
     try {
       const res = await fetch('/api/matches/queue/status', {
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (activeQueueVersionRef.current !== queueVersion) return;
       if (!res.ok) {
         stopPolling();
         return;
@@ -61,6 +67,7 @@ export function useMatchmakingQueue() {
       setQueueSize(body.queueSize);
       if (body.mode) setMode(body.mode);
       if (body.reservation) {
+        activeQueueVersionRef.current = null;
         stopPolling();
         setState('matched');
         // Pass seat reservation via route state so GamePage can use consumeSeatReservation,
@@ -76,7 +83,9 @@ export function useMatchmakingQueue() {
 
   const joinQueue = useCallback(
     async (queueMode: QueueMode = 'single', partner?: { userId: string; username: string }, isRanked = false) => {
-      if (state !== 'idle') return;
+      if (state !== 'idle' || activeQueueVersionRef.current !== null) return;
+      const queueVersion = ++queueVersionRef.current;
+      activeQueueVersionRef.current = queueVersion;
       setError(null);
       setMode(queueMode);
       setRanked(isRanked);
@@ -99,7 +108,19 @@ export function useMatchmakingQueue() {
           error?: string;
           queueSize?: number;
         };
+        if (activeQueueVersionRef.current !== queueVersion) {
+          // If the user left while the join request was still in flight, make
+          // sure a late successful response cannot leave them queued server-side.
+          if (res.ok) {
+            await fetch('/api/matches/queue/leave', {
+              method: 'POST',
+              headers: { Authorization: `Bearer ${token}` },
+            }).catch(() => {});
+          }
+          return;
+        }
         if (!res.ok) {
+          activeQueueVersionRef.current = null;
           setError(responseBody.error ?? 'Failed to join queue');
           return;
         }
@@ -107,6 +128,8 @@ export function useMatchmakingQueue() {
         setState('queued');
         pollRef.current = setInterval(poll, POLL_INTERVAL);
       } catch {
+        if (activeQueueVersionRef.current !== queueVersion) return;
+        activeQueueVersionRef.current = null;
         setError('Network error joining queue');
       }
     },
@@ -114,6 +137,8 @@ export function useMatchmakingQueue() {
   );
 
   const leaveQueue = useCallback(async () => {
+    ++queueVersionRef.current;
+    activeQueueVersionRef.current = null;
     stopPolling();
     setState('idle');
     if (!token) return;
@@ -130,7 +155,9 @@ export function useMatchmakingQueue() {
    */
   const startPollingOnly = useCallback(
     (queueMode: QueueMode = 'pair', reservation?: SeatReservationData) => {
-      if (state !== 'idle') return;
+      if (state !== 'idle' || activeQueueVersionRef.current !== null) return;
+      const queueVersion = ++queueVersionRef.current;
+      activeQueueVersionRef.current = reservation ? null : queueVersion;
       setState(reservation ? 'matched' : 'queued');
       setMode(queueMode);
       if (reservation) {
@@ -153,6 +180,7 @@ export function useMatchmakingQueue() {
   // while on another page, or navigating back after pair accept).
   useEffect(() => {
     if (!token) return;
+    const queueVersion = queueVersionRef.current;
     void (async () => {
       try {
         const res = await fetch('/api/matches/queue/status', {
@@ -166,13 +194,16 @@ export function useMatchmakingQueue() {
           queueSize: number;
           reservation?: SeatReservationData;
         };
+        if (queueVersionRef.current !== queueVersion) return;
         setQueueSize(body.queueSize);
         if (body.reservation) {
+          activeQueueVersionRef.current = null;
           setState('matched');
           navigate(`/match/${body.reservation.room.roomId}`, {
             state: { reservation: body.reservation },
           });
         } else if (body.inQueue) {
+          activeQueueVersionRef.current = queueVersion;
           setState('queued');
           setMode(body.mode ?? 'pair');
           setRanked(body.ranked ?? false);
@@ -189,6 +220,8 @@ export function useMatchmakingQueue() {
   // Clean up on unmount
   useEffect(
     () => () => {
+      ++queueVersionRef.current;
+      activeQueueVersionRef.current = null;
       stopPolling();
     },
     [stopPolling],

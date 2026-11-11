@@ -459,7 +459,7 @@ input::placeholder {
 @keyframes cardDeal {
   from {
     opacity: 0;
-    transform: translateY(30px) scale(0.88) rotate(var(--card-rotation, 0deg));
+    transform: translateY(6px) scale(0.88) rotate(var(--card-rotation, 0deg));
   }
   to {
     opacity: 1;
@@ -1684,6 +1684,13 @@ body::before {
   gap: 0.28rem;
 }
 
+.lobby-play-heading-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+}
+
 .lobby-section-heading h2 {
   margin-top: 0.12rem;
   color: #f1e5cc;
@@ -1692,6 +1699,28 @@ body::before {
   font-weight: 600;
   letter-spacing: -0.025em;
   line-height: 1.1;
+}
+
+.lobby-online-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+  padding: 0.28rem 0.58rem;
+  border: 1px solid rgba(145, 191, 127, 0.32);
+  border-radius: 999px;
+  background: rgba(75, 112, 64, 0.16);
+  color: #d7e4cc;
+  font-size: 0.74rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.lobby-online-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #91bf7f;
+  box-shadow: 0 0 0 3px rgba(145, 191, 127, 0.12);
 }
 
 .lobby-suit-line {
@@ -1851,6 +1880,87 @@ body::before {
   font-weight: 650;
 }
 
+.lobby-mode-setting {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.lobby-mode-switcher {
+  display: grid;
+  flex: 1 1 auto;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  min-width: 0;
+  padding: 0.2rem;
+  gap: 0.15rem;
+  border: 1px solid rgba(121, 91, 39, 0.2);
+  border-radius: 999px;
+  background: rgba(92, 76, 43, 0.08);
+}
+
+.lobby-mode-option {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 34px;
+  align-items: stretch;
+  justify-content: center;
+  color: var(--lobby-muted);
+  cursor: pointer;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.lobby-mode-option input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  opacity: 0;
+}
+
+.lobby-mode-option span {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  padding: 0.2rem 0.28rem;
+  border-radius: 999px;
+  line-height: 1.1;
+  transition: color 140ms ease, background-color 140ms ease, box-shadow 140ms ease;
+}
+
+.lobby-mode-option.is-selected span {
+  background: #214630;
+  box-shadow: 0 2px 5px rgba(31, 48, 29, 0.2);
+  color: #fff5df;
+}
+
+.lobby-mode-option input:focus-visible + span {
+  outline: 2px solid #ad8a44;
+  outline-offset: 2px;
+}
+
+.lobby-mode-option input:disabled + span {
+  cursor: default;
+}
+
+.lobby-card--solo .lobby-mode-switcher {
+  border-color: rgba(219, 188, 114, 0.3);
+  background: rgba(8, 25, 16, 0.36);
+}
+
+.lobby-card--solo .lobby-mode-option {
+  color: #d7dbc8;
+}
+
+.lobby-card--solo .lobby-mode-option.is-selected span {
+  background: #ead8a8;
+  color: #253a28;
+}
+
 .lobby-ranked-setting {
   display: flex;
   align-items: center;
@@ -1971,7 +2081,8 @@ body::before {
   width: 100%;
 }
 
-.lobby-card--private .invite-code {
+.lobby-card--private .invite-code,
+.lobby-card--pair .invite-code {
   padding: 0.7rem 0.5rem;
   border: 1px dashed #af8a4b;
   background: #e8ddc4;
@@ -2042,7 +2153,10 @@ body::before {
 
 .lobby-secondary-actions {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.7rem;
   margin-top: 0.9rem;
   padding-top: 0.8rem;
   border-top: 1px solid rgba(212, 168, 68, 0.2);
@@ -2061,6 +2175,36 @@ body::before {
 .practice-button:hover:not(:disabled) {
   border-color: rgba(223, 190, 120, 0.7);
   color: #ffe5a8;
+}
+
+.practice-pair-invite {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.practice-pair-invite-copy {
+  display: grid;
+  gap: 0.2rem;
+  text-align: center;
+}
+
+.practice-pair-invite-copy span {
+  max-width: 21rem;
+  color: var(--lobby-muted);
+  font-size: 0.7rem;
+  line-height: 1.35;
+}
+
+.practice-pair-invite .lobby-primary-action {
+  width: 100%;
+  min-height: 43px;
+  border-radius: 7px;
+  font-size: 0.85rem;
+}
+
+.practice-pair-error {
+  flex: 1 1 100%;
+  text-align: right;
 }
 
 .lobby-activity {
@@ -3443,6 +3587,37 @@ body::before {
   padding: 0.9rem 1rem 1.5rem;
 }
 
+.game-room.has-toast {
+  grid-template-rows: auto auto auto auto minmax(0, 1fr) auto;
+}
+
+.game-room.has-toast > .toast {
+  position: relative;
+  z-index: 30;
+  inset: auto;
+  justify-self: center;
+  width: fit-content;
+  max-width: min(90%, 40rem);
+  max-height: min(10dvh, 4rem);
+  overflow-y: auto;
+  margin: 0;
+  padding: 0.3rem 0.75rem;
+  transform: none;
+  font-size: 0.72rem;
+  animation: gameToastFlowEnter 0.2s ease-out both;
+}
+
+@keyframes gameToastFlowEnter {
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 .game-room-topbar {
   display: flex;
   align-items: center;
@@ -3704,6 +3879,16 @@ body::before {
 
   .lobby-cards {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .practice-pair-invite {
+    flex: 1 1 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .practice-pair-invite-copy {
+    text-align: center;
   }
 
   .lobby-card,
@@ -5567,5 +5752,956 @@ body::before {
 
   .stats-top-lists {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Keep the full game controls inside the viewport. The table gets the flexible
+   middle row; the scoreboard, status, and hand keep their own readable height. */
+.game-room {
+  display: grid;
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+  align-content: stretch;
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+  gap: clamp(0.25rem, 0.8dvh, 0.65rem);
+  padding: max(0.55rem, env(safe-area-inset-top)) max(0.75rem, env(safe-area-inset-right)) max(0.65rem, env(safe-area-inset-bottom)) max(0.75rem, env(safe-area-inset-left));
+}
+
+.game-room-topbar {
+  position: relative;
+  top: auto;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+.game-room-status {
+  min-width: 0;
+}
+
+.game-play-stage {
+  display: flex;
+  min-height: 0;
+  height: 100%;
+}
+
+.game-table-panel {
+  height: 100%;
+  min-height: 0;
+}
+
+.game-table-panel > .trick-area {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.game-table-panel .trick-grid {
+  flex: 1 1 auto;
+  height: 100%;
+  min-height: 0;
+}
+
+.game-hand-panel {
+  margin-top: 0;
+}
+
+/* Keep the four played cards around the center of the table in landscape. */
+@media (orientation: landscape) and (max-height: 760px) {
+  .game-room {
+    gap: clamp(0.15rem, 0.8dvh, 0.5rem);
+    padding: max(0.3rem, env(safe-area-inset-top)) clamp(0.45rem, 1.5vw, 1rem) max(0.3rem, env(safe-area-inset-bottom));
+  }
+
+  .game-room-topbar {
+    min-height: 34px;
+    padding: 0.2rem 3rem 0.2rem 0.4rem;
+    gap: 0.5rem;
+  }
+
+  .game-room-topbar .btn-outline {
+    min-height: 29px;
+    padding: 0.18rem 0.55rem;
+    font-size: 0.72rem;
+    white-space: nowrap;
+  }
+
+  .game-room-status {
+    flex-wrap: nowrap;
+    gap: 0.3rem;
+    font-size: 0.65rem;
+    white-space: nowrap;
+  }
+
+  .game-mode-badge,
+  .game-rules-link {
+    padding: 0.16rem 0.4rem;
+    font-size: 0.64rem;
+  }
+
+  .game-connection {
+    gap: 0.25rem;
+    font-size: 0.64rem;
+  }
+
+  .game-scoreboard {
+    grid-template-columns: minmax(0, 1fr) 88px minmax(0, 1fr);
+    gap: 0.25rem;
+    padding: 0.2rem 0.6rem;
+  }
+
+  .game-score-value {
+    font-size: 1.35rem;
+  }
+
+  .game-score-names {
+    font-size: 0.61rem;
+  }
+
+  .game-score-round {
+    min-height: 0;
+    padding: 0 0.25rem;
+  }
+
+  .game-round-number {
+    font-size: 0.92rem;
+  }
+
+  .game-trick-progress {
+    margin-top: 0.05rem;
+    font-size: 0.54rem;
+  }
+
+  .game-status-strip {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.2fr);
+  }
+
+  .game-status-item {
+    gap: 0.35rem;
+    padding: 0.22rem 0.5rem;
+  }
+
+  .game-status-card {
+    width: 24px;
+    height: 32px;
+  }
+
+  .game-status-dealer-mark {
+    width: 20px;
+    height: 20px;
+  }
+
+  .game-status-label {
+    font-size: 0.5rem;
+  }
+
+  .game-status-copy strong {
+    font-size: 0.74rem;
+  }
+
+  .game-status-detail {
+    font-size: 0.57rem;
+  }
+
+  .game-table-panel {
+    gap: 0.25rem;
+    padding: clamp(0.25rem, 1dvh, 0.65rem);
+    border-width: 5px;
+  }
+
+  .game-table-panel .trick-grid {
+    grid-template-areas:
+      '. top .'
+      'left center right'
+      '. bottom .';
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto minmax(0, 1fr);
+    gap: clamp(0.15rem, 0.5vw, 0.5rem);
+    padding: clamp(0.2rem, 0.9dvh, 0.65rem);
+  }
+
+  .game-table-panel .trick-grid .center {
+    display: flex;
+  }
+
+  .trick-center {
+    width: 76px;
+    min-height: 88px;
+  }
+
+  .trick-trump-display {
+    width: 70px;
+    padding: 0.25rem 0.2rem;
+  }
+
+  .trick-trump-card {
+    width: 23px;
+    height: 34px;
+  }
+
+  .trick-seat {
+    gap: 1px !important;
+    min-width: 0;
+    max-width: 100%;
+    justify-content: center;
+  }
+
+  .trick-seat-roles {
+    width: 100%;
+    height: 12px;
+    min-height: 12px;
+  }
+
+  .trick-seat-declarant-icon {
+    width: 12px;
+    height: 12px;
+  }
+
+  .trick-seat-declarant-icon svg {
+    width: 11px;
+    height: 11px;
+  }
+
+  .seat-badge {
+    max-width: 100%;
+    overflow: hidden;
+    padding: 0.1rem 0.3rem;
+    font-size: clamp(0.55rem, 1.35dvh, 0.7rem);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .trick-seat > div:last-child {
+    gap: 2px !important;
+  }
+
+  .won-trick-piles {
+    flex: 0 0 auto;
+    gap: clamp(0.3rem, 1vw, 0.75rem) !important;
+    margin-top: 0 !important;
+  }
+
+  .won-trick-piles .won-trick-toggle {
+    padding: 2px 6px !important;
+  }
+
+  .game-hand-panel {
+    padding: 0.4rem 0.65rem;
+  }
+
+  .game-hand-panel > div > div[aria-label]:not([role]) {
+    min-height: 1em !important;
+    margin-bottom: 0.2rem !important;
+    font-size: 0.68rem !important;
+    line-height: 1.1;
+  }
+
+  .game-hand-panel [role='group'] {
+    padding: 2px 2px 3px !important;
+  }
+
+  .settings-gear-game {
+    top: 0.4rem;
+    right: 0.4rem;
+    width: 2rem;
+    height: 2rem;
+    min-height: 2rem;
+    padding: 0;
+    font-size: 1rem;
+  }
+
+  .game-decision-overlay {
+    width: min(620px, calc(100vw - 1rem));
+  }
+
+  .game-decision-overlay .game-declare-panel {
+    max-height: calc(100dvh - 0.75rem);
+  }
+
+  .game-room > .toast {
+    top: max(0.35rem, env(safe-area-inset-top));
+    max-height: min(22dvh, 7rem);
+    overflow-y: auto;
+    padding: 0.4rem 0.75rem;
+    font-size: 0.74rem;
+  }
+}
+
+/* On short landscape screens, put the compact square table beside the hand. */
+@media (orientation: landscape) and (max-height: 620px) {
+  .game-room {
+    grid-template-areas:
+      'top top'
+      'score score'
+      'status status'
+      'play hand';
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: auto auto auto minmax(0, 1fr);
+    align-items: stretch;
+    gap: 3px;
+    padding: max(3px, env(safe-area-inset-top)) 5px max(3px, env(safe-area-inset-bottom));
+  }
+
+  .game-room-topbar { grid-area: top; }
+  .game-scoreboard { grid-area: score; }
+  .game-status-strip { grid-area: status; }
+  .game-play-stage { grid-area: play; min-width: 0; }
+  .game-hand-panel { grid-area: hand; min-width: 0; min-height: 0; }
+
+  .game-room-topbar {
+    min-height: 30px;
+    padding: 1px 2.5rem 1px 0.25rem;
+    gap: 0.25rem;
+  }
+
+  .game-room-topbar .btn-outline {
+    min-height: 27px;
+    padding: 0.12rem 0.4rem;
+    font-size: 0.66rem;
+  }
+
+  .game-room-status {
+    gap: 0.2rem;
+    font-size: 0.58rem;
+  }
+
+  .game-mode-badge,
+  .game-rules-link {
+    padding: 0.12rem 0.3rem;
+    font-size: 0.58rem;
+  }
+
+  .game-connection,
+  .game-connection-dot {
+    font-size: 0.58rem;
+  }
+
+  .game-scoreboard {
+    grid-template-columns: minmax(0, 1fr) 68px minmax(0, 1fr);
+    gap: 0.15rem;
+    padding: 0.12rem 0.35rem;
+  }
+
+  .game-score-value {
+    font-size: 1.12rem;
+  }
+
+  .game-score-names {
+    font-size: 0.53rem;
+  }
+
+  .game-score-label {
+    font-size: 0.49rem;
+  }
+
+  .game-round-number {
+    font-size: 0.78rem;
+  }
+
+  .game-trick-progress {
+    font-size: 0.49rem;
+  }
+
+  .game-status-item {
+    gap: 0.2rem;
+    padding: 0.12rem 0.25rem;
+  }
+
+  .game-status-card {
+    width: 19px;
+    height: 27px;
+  }
+
+  .game-status-dealer-mark {
+    width: 15px;
+    height: 15px;
+  }
+
+  .game-status-label {
+    font-size: 0.43rem;
+    letter-spacing: 0.04em;
+  }
+
+  .game-status-copy strong {
+    font-size: 0.64rem;
+  }
+
+  .game-status-detail {
+    font-size: 0.49rem;
+  }
+
+  .game-status-turn-mark {
+    width: 7px;
+    height: 7px;
+  }
+
+  .game-table-panel {
+    gap: 2px;
+    min-width: 0;
+    padding: 3px;
+    border-width: 3px;
+    border-radius: 9px;
+  }
+
+  .game-table-panel .trick-grid {
+    grid-template-rows: minmax(62px, 1fr) minmax(40px, auto) minmax(62px, 1fr);
+    gap: 2px;
+    padding: 3px;
+  }
+
+  .trick-seat {
+    position: relative;
+    justify-content: center;
+    width: max-content;
+    max-width: 100%;
+    height: 62px;
+  }
+
+  .trick-seat-roles {
+    position: absolute;
+    z-index: 3;
+    top: 6px;
+    right: -7px;
+    width: 10px;
+    height: 10px;
+    min-height: 10px;
+  }
+
+  .trick-seat .seat-badge {
+    position: absolute;
+    z-index: 2;
+    max-width: min(92px, 34vw);
+    overflow: hidden;
+    font-size: 0.56rem;
+    line-height: 1.1;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .trick-seat.top .seat-badge {
+    bottom: calc(100% - 4px);
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
+  .trick-seat.bottom .seat-badge {
+    top: calc(100% - 4px);
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
+  .trick-seat.left .seat-badge {
+    left: 50%;
+    top: -15px;
+    transform: translateX(-50%);
+  }
+
+  .trick-seat.right .seat-badge {
+    left: 50%;
+    top: -15px;
+    transform: translateX(-50%);
+  }
+
+  .trick-seat > div:last-child {
+    gap: 0 !important;
+  }
+
+  .trick-center {
+    width: 48px;
+    min-height: 40px;
+  }
+
+  .trick-trump-display {
+    width: 46px;
+    gap: 0;
+    padding: 2px;
+  }
+
+  .trick-trump-label {
+    font-size: 0.36rem;
+  }
+
+  .trick-trump-card {
+    width: 16px;
+    height: 23px;
+  }
+
+  .trick-trump-display strong {
+    font-size: 0.48rem;
+  }
+
+  .won-trick-piles {
+    position: absolute;
+    z-index: 4;
+    top: 1px;
+    left: 2px;
+    right: 2px;
+    justify-content: space-between !important;
+    pointer-events: none;
+  }
+
+  .won-trick-piles .won-trick-toggle {
+    max-width: 47%;
+    gap: 2px !important;
+    pointer-events: auto;
+  }
+
+  .won-trick-piles .won-trick-toggle > div:first-child {
+    width: 15px !important;
+    height: 21px !important;
+  }
+
+  .won-trick-piles .won-trick-toggle > div:first-child > div {
+    width: 10px !important;
+    height: 14px !important;
+  }
+
+  .trick-seat-roles {
+    height: 10px;
+    min-height: 10px;
+  }
+
+  .trick-seat-declarant-icon {
+    width: 10px;
+    height: 10px;
+  }
+
+  .trick-seat-declarant-icon svg {
+    width: 9px;
+    height: 9px;
+  }
+
+  .seat-badge {
+    padding: 0.06rem 0.22rem;
+  }
+
+  .won-trick-piles .won-trick-toggle > div:last-child > span:last-child {
+    font-size: 0.46rem !important;
+  }
+
+  .game-hand-panel {
+    padding: 0.25rem 0.45rem;
+  }
+
+  .game-hand-panel > div > div[aria-label]:not([role]) {
+    margin-bottom: 0.08rem !important;
+    font-size: 0.59rem !important;
+  }
+
+  .game-hand-panel [role='group'] {
+    padding: 1px 1px 2px !important;
+    flex-wrap: nowrap !important;
+  }
+
+  .game-decision-overlay {
+    position: fixed;
+    top: 50dvh;
+    left: 25vw;
+    width: min(620px, calc(50vw - 1rem));
+    transform: translate(-50%, -50%);
+  }
+
+  .game-decision-overlay .game-declare-panel {
+    max-height: calc(100dvh - 0.5rem);
+  }
+
+  .game-room.has-toast > .toast {
+    width: min(50rem, calc(100% - 4rem));
+    max-width: calc(100% - 4rem);
+    top: 0.2rem;
+    max-height: 24dvh;
+    padding: 0.22rem 0.5rem;
+    font-size: 0.61rem;
+  }
+
+  .settings-gear-game {
+    top: 2px;
+    right: 2px;
+    width: 1.7rem;
+    height: 1.7rem;
+    min-height: 1.7rem;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 620px) and (max-width: 640px) {
+  .game-room {
+    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1fr);
+  }
+}
+
+/* Portrait play remains scrollable, so every card stays reachable. */
+@media (orientation: portrait) and (max-width: 700px) {
+  .game-room {
+    height: auto;
+    min-height: 100dvh;
+    overflow: visible;
+    grid-template-rows: auto auto auto minmax(300px, 1fr) auto;
+  }
+
+  .game-play-stage {
+    height: auto;
+    min-height: 300px;
+  }
+
+  .game-table-panel {
+    height: auto;
+  }
+
+  .game-table-panel .trick-grid {
+    height: auto;
+    min-height: 300px;
+  }
+}
+
+/* Dialogs are independent of the table layout and scroll within short viewports. */
+.settings-overlay,
+.confirm-dialog-overlay,
+.game-result-overlay {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.settings-overlay {
+  padding: max(0.6rem, env(safe-area-inset-top)) max(0.6rem, env(safe-area-inset-right)) max(0.6rem, env(safe-area-inset-bottom)) max(0.6rem, env(safe-area-inset-left));
+}
+
+.settings-panel {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100dvh - 1.2rem);
+}
+
+.settings-header {
+  flex: 0 0 auto;
+}
+
+.settings-body {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.confirm-dialog-overlay {
+  padding: max(0.6rem, env(safe-area-inset-top)) max(0.6rem, env(safe-area-inset-right)) max(0.6rem, env(safe-area-inset-bottom)) max(0.6rem, env(safe-area-inset-left));
+}
+
+.confirm-dialog {
+  max-height: calc(100dvh - 1.2rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.game-result-panel {
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.game-decision-overlay .game-declare-panel {
+  max-height: calc(100dvh - 1rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.won-trick-board-panel {
+  max-height: calc(100dvh - 1rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* Keep score, round, trump, turn, table, and hand together as one game board. */
+.game-room {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.game-room.has-toast {
+  grid-template-rows: auto auto minmax(0, 1fr);
+}
+
+.game-board-shell {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  align-content: stretch;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  gap: clamp(3px, 0.55dvh, 6px);
+  padding: clamp(0.3rem, 1dvh, 0.65rem);
+  border: 7px solid #654326;
+  outline: 1px solid rgba(229, 190, 111, 0.45);
+  border-radius: 15px;
+  background: radial-gradient(ellipse at 50% 30%, #28532e, #19371f 76%);
+  box-shadow: 0 13px 25px rgba(0, 0, 0, 0.32), inset 0 1px rgba(255, 255, 255, 0.07);
+  overflow: hidden;
+}
+
+.game-board-shell > .game-scoreboard,
+.game-board-shell > .game-status-strip,
+.game-board-shell > .game-play-stage,
+.game-board-shell > .game-hand-panel {
+  min-width: 0;
+  min-height: 0;
+}
+
+.game-board-shell > .game-play-stage {
+  height: 100%;
+}
+
+.game-board-shell > .game-hand-panel {
+  margin: 0;
+}
+
+.game-board-shell .game-table-panel {
+  height: 100%;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: none;
+  box-shadow: none;
+}
+
+.game-board-shell .game-table-panel .trick-grid {
+  grid-template-areas:
+    '. top .'
+    'left . right'
+    '. bottom .';
+  grid-template-columns: minmax(0, 1fr) 8px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto minmax(0, 1fr);
+  width: 100%;
+  min-height: 0;
+  padding: clamp(3px, 0.8dvh, 10px);
+}
+
+.game-board-shell .game-table-panel .trick-grid .center {
+  display: none;
+}
+
+.game-board-shell .trick-seat {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.game-board-shell .trick-seat.left {
+  transform: translateX(clamp(12px, 2.5vw, 32px));
+}
+
+.game-board-shell .trick-seat.right {
+  transform: translateX(clamp(-32px, -2.5vw, -12px));
+}
+
+@media (orientation: landscape) and (max-height: 760px) {
+  .game-board-shell {
+    gap: 3px;
+    padding: clamp(3px, 0.8dvh, 6px);
+    border-width: 5px;
+    border-radius: 11px;
+  }
+
+  .game-board-shell .game-table-panel .trick-grid {
+    grid-template-columns: minmax(0, 1fr) 8px minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto minmax(0, 1fr);
+    gap: clamp(2px, 0.5vw, 4px);
+    padding: 3px;
+  }
+
+  .game-room.has-toast > .toast {
+    top: auto;
+    left: auto;
+    right: auto;
+    bottom: auto;
+    width: fit-content;
+    max-height: min(8dvh, 3rem);
+    animation: gameToastFlowEnter 0.2s ease-out both;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 620px) {
+  .game-room {
+    grid-template-areas: 'top' 'board';
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .game-room.has-toast {
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .game-room-topbar { grid-area: top; }
+
+  .game-board-shell {
+    grid-area: board;
+    grid-template-areas:
+      'score score'
+      'status status'
+      'table hand';
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(0, 1fr);
+    gap: 3px;
+    padding: 3px;
+    border-width: 3px;
+    border-radius: 9px;
+  }
+
+  .game-board-shell > .game-scoreboard { grid-area: score; }
+  .game-board-shell > .game-status-strip { grid-area: status; }
+  .game-board-shell > .game-play-stage { grid-area: table; height: 100%; }
+  .game-board-shell > .game-hand-panel { grid-area: hand; }
+
+  .game-board-shell .game-table-panel .trick-grid {
+    grid-template-areas:
+      '. top .'
+      'left . right'
+      '. bottom .';
+    grid-template-columns: minmax(0, 1fr) 8px minmax(0, 1fr);
+    grid-template-rows: minmax(62px, 1fr) minmax(40px, auto) minmax(62px, 1fr);
+    gap: 2px;
+    padding: 3px;
+  }
+
+  .game-board-shell .won-trick-piles .won-trick-toggle {
+    width: min(104px, calc(50% - 42px));
+    max-width: none;
+    justify-content: center;
+    gap: 2px !important;
+    padding: 1px 3px !important;
+  }
+
+  .game-board-shell .won-trick-piles .won-trick-toggle > div:first-child {
+    width: 13px !important;
+    height: 18px !important;
+  }
+
+  .game-board-shell .won-trick-piles .won-trick-toggle > div:first-child > div {
+    width: 9px !important;
+    height: 13px !important;
+  }
+
+  .game-board-shell .won-trick-piles .won-trick-toggle > div:last-child {
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .game-board-shell .won-trick-piles .won-trick-toggle > div:last-child > span:last-child {
+    display: block;
+    max-width: 44px;
+    overflow-wrap: anywhere;
+    white-space: normal;
+    font-size: 0.39rem !important;
+    line-height: 1.05;
+  }
+
+  .game-room.has-toast > .toast {
+    position: fixed;
+    top: auto;
+    left: auto;
+    right: max(4.5rem, env(safe-area-inset-right));
+    bottom: max(5px, env(safe-area-inset-bottom));
+    width: fit-content;
+    max-width: calc(50vw - 1rem);
+    max-height: min(24dvh, 6rem);
+    padding: 0.22rem 0.5rem;
+    font-size: 0.61rem;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 620px) and (max-width: 640px) {
+  .game-board-shell {
+    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1fr);
+  }
+
+  .game-board-shell .game-decision-overlay {
+    left: 50vw;
+    width: min(620px, calc(100vw - 1rem));
+  }
+
+  .game-room.has-toast > .toast {
+    max-width: calc(56vw - 1rem);
+  }
+}
+
+@media (orientation: landscape) and (max-height: 620px) {
+  .game-result-overlay {
+    padding: 0.4rem;
+  }
+
+  .game-result-panel {
+    padding: 0.55rem 0.8rem;
+    border-radius: 12px;
+  }
+
+  .game-result-eyebrow {
+    margin: 0 0 0.2rem;
+    font-size: 0.52rem;
+  }
+
+  .game-result-title {
+    margin: 0.1rem 0 0.5rem;
+    font-size: 1.55rem;
+    line-height: 1;
+  }
+
+  .game-result-score {
+    gap: 0.3rem;
+    margin-bottom: 0.5rem;
+    padding: 0.45rem;
+  }
+
+  .game-result-team {
+    gap: 0.1rem;
+  }
+
+  .game-result-team-label {
+    font-size: 0.48rem;
+  }
+
+  .game-result-team strong {
+    font-size: 1.65rem;
+  }
+
+  .game-result-player-names {
+    font-size: 0.52rem;
+  }
+
+  .game-result-separator {
+    font-size: 1rem;
+  }
+
+  .game-result-button {
+    min-height: 34px;
+    padding: 0.38rem 0.9rem;
+    font-size: 0.74rem;
+  }
+}
+
+@media (orientation: portrait) and (max-width: 700px) {
+  .game-room {
+    height: auto;
+    min-height: 100dvh;
+    overflow: visible;
+    grid-template-rows: auto auto;
+  }
+
+  .game-room.has-toast {
+    grid-template-rows: auto auto auto;
+  }
+
+  .game-board-shell {
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+    grid-template-rows: auto auto minmax(300px, 1fr) auto;
+  }
+
+  .game-board-shell > .game-play-stage {
+    height: auto;
+    min-height: 300px;
+  }
+
+  .game-board-shell .game-table-panel {
+    height: auto;
+  }
+
+  .game-board-shell .game-table-panel .trick-grid {
+    height: auto;
+    min-height: 300px;
   }
 }

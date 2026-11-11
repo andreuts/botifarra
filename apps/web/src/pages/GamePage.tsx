@@ -26,7 +26,13 @@ export function GamePage() {
   const [searchParams] = useSearchParams();
   const location = useLocation();
   const { t } = useTranslation();
-  const mode = searchParams.get('mode') === 'practice' ? 'practice' : 'botifarra';
+  const requestedMode = searchParams.get('mode');
+  const mode = requestedMode === 'practice-duo'
+    ? 'practice-duo'
+    : requestedMode === 'practice'
+      ? 'practice'
+      : 'botifarra';
+  const isPracticeMode = mode !== 'botifarra';
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const {
@@ -142,7 +148,7 @@ export function GamePage() {
     commandErrorVersion,
     roomPlayers,
     leaveRoom,
-  } = useGameRoom(matchId, mode, seatReservation);
+  } = useGameRoom(matchId, isPracticeMode ? 'practice' : 'botifarra', seatReservation);
 
   function returnToLobby() {
     setLeaveConfirmOpen(false);
@@ -176,7 +182,7 @@ export function GamePage() {
   }
 
   function requestReturnToLobby() {
-    if (mode === 'practice' && !gameResult) {
+    if (isPracticeMode && !gameResult) {
       setLeaveConfirmOpen(true);
       return;
     }
@@ -196,7 +202,7 @@ export function GamePage() {
     />
   );
 
-  const practiceGameInProgress = mode === 'practice' && !!gameState && !gameResult;
+  const practiceGameInProgress = isPracticeMode && !!gameState && !gameResult;
   useEffect(() => {
     if (!practiceGameInProgress) return;
 
@@ -289,7 +295,9 @@ export function GamePage() {
       : connectedPlayerCount >= 4
         ? t('game.allPlayersConnected')
         : inviteCode
-          ? t('game.waitingForCodePlayers', { code: inviteCode })
+          ? mode === 'practice-duo'
+            ? t('game.waitingForPracticePartner', { code: inviteCode })
+            : t('game.waitingForCodePlayers', { code: inviteCode })
           : t('game.waitingForMatch');
 
     return (
@@ -368,7 +376,7 @@ export function GamePage() {
       (isDeclaringPhase && gameState.declarantSeat === mySeat));
 
   return (
-    <div className="game-room">
+    <div className={`game-room${toasts.length > 0 ? ' has-toast' : ''}`}>
       {/* Toast */}
       {toasts.length > 0 && (
         <div className="toast" onClick={dismissToast}>
@@ -422,9 +430,9 @@ export function GamePage() {
           {t('game.backToLobby')}
         </button>
         <div className="game-room-status">
-          {mode === 'practice' && (
+          {isPracticeMode && (
             <span className="game-mode-badge game-mode-badge--practice">
-              {t('game.practice')}
+              {t(mode === 'practice-duo' ? 'game.practiceWithPartner' : 'game.practice')}
             </span>
           )}
           {mode === 'botifarra' && gameState && (
@@ -442,51 +450,48 @@ export function GamePage() {
         </div>
       </header>
 
-      {/* Scoreboard */}
-      <Scoreboard gameState={gameState} />
+      <div className="game-board-shell">
+        <Scoreboard gameState={gameState} />
+        <GameStatusPanel gameState={gameState} isMyTurn={isMyTurn} />
 
-      {/* Table status: trump, dealer, and active seat */}
-      <GameStatusPanel gameState={gameState} isMyTurn={isMyTurn} />
-
-      {/* Keep the table mounted in one stable stage through bidding and card play. */}
-      <div className="game-play-stage">
-        <div className="game-table-panel">
-          <TrickArea
-            gameState={gameState}
-            mySeat={mySeat}
-            timers={interpolatedTimers?.timers}
-            trickReveal={activeTrickReveal}
-            trickRevealAnimating={isTrickRevealAnimating}
-            finalTrickReveal={finalTrickReveal}
-            finalTrickAnimating={finalTrickAnimating}
-          />
-        </div>
-
-        {/* Bidding and contra prompts float over the table, so showing or hiding them
-            never pushes the board up or down. */}
-        {(isDeclaringPhase || isContraPhase) && (
-          <div className="game-decision-overlay">
-            <DeclareTrumpPanel
+        {/* Keep the table mounted in one stable stage through bidding and card play. */}
+        <div className="game-play-stage">
+          <div className="game-table-panel">
+            <TrickArea
               gameState={gameState}
               mySeat={mySeat}
               timers={interpolatedTimers?.timers}
-              onDeclare={sendDeclareTrump}
-              onPass={sendPassDeclaration}
-              onPassContra={sendPassContra}
-              onContra={sendCallContra}
+              trickReveal={activeTrickReveal}
+              trickRevealAnimating={isTrickRevealAnimating}
+              finalTrickReveal={finalTrickReveal}
+              finalTrickAnimating={finalTrickAnimating}
             />
           </div>
-        )}
 
-      </div>
+          {/* Bidding and contra prompts float over the table, so showing or hiding them
+              never pushes the board up or down. */}
+          {(isDeclaringPhase || isContraPhase) && (
+            <div className="game-decision-overlay">
+              <DeclareTrumpPanel
+                gameState={gameState}
+                mySeat={mySeat}
+                timers={interpolatedTimers?.timers}
+                onDeclare={sendDeclareTrump}
+                onPass={sendPassDeclaration}
+                onPassContra={sendPassContra}
+                onContra={sendCallContra}
+              />
+            </div>
+          )}
+        </div>
 
-      {/* Hand */}
-      <div className="game-hand-panel">
-        <HandComponent
-          gameState={gameState}
-          onPlayCard={(card) => sendPlayCard(card)}
-          commandErrorVersion={commandErrorVersion}
-        />
+        <div className="game-hand-panel">
+          <HandComponent
+            gameState={gameState}
+            onPlayCard={(card) => sendPlayCard(card)}
+            commandErrorVersion={commandErrorVersion}
+          />
+        </div>
       </div>
       {leaveConfirmDialog}
     </div>

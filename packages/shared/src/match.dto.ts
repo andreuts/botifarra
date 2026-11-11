@@ -55,6 +55,8 @@ export interface PlayerGameStateDTO {
   contraLevel: number;
   /** Team that must decide whether to raise the contra level, if any. */
   contraDecidingTeam?: 0 | 1 | null;
+  /** Seats on the deciding team that have confirmed passing this contra level. */
+  contraPassVotes?: Seat[];
   /** Whether this is a ranked game */
   ranked?: boolean;
   /** Current turn timer state. */
@@ -157,4 +159,6 @@ export interface ObserverGameStateDTO {
   contraLevel: number;
   /** Team that must decide whether to raise the contra level, if any. */
   contraDecidingTeam?: 0 | 1 | null;
+  /** Seats on the deciding team that have confirmed passing this contra level. */
+  contraPassVotes?: Seat[];
 }

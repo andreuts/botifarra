@@ -19,8 +19,10 @@ import { pairInviteRoutes } from './routes/pair-invite.js';
 import { tournamentRoutes } from './routes/tournaments.js';
 import { newsRoutes } from './routes/news.js';
 import { bugReportRoutes } from './routes/bug-reports.js';
+import { presenceRoutes } from './routes/presence.js';
 import { MatchmakingQueue } from './services/matchmaking.js';
 import { MonitoringService } from './services/monitoring.js';
+import { OnlinePresenceService } from './services/online-presence.js';
 import fp from 'fastify-plugin';
 import type { PrismaClient } from '@prisma/client';
 
@@ -111,6 +113,9 @@ export async function buildApp(opts: AppOptions = {}) {
   const monitoringService = new MonitoringService();
   app.decorate('monitoringService', monitoringService);
 
+  const onlinePresence = new OnlinePresenceService();
+  app.decorate('onlinePresence', onlinePresence);
+
   // Track request metrics for monitoring
   app.addHook('onResponse', (request, reply, done) => {
     const duration = reply.elapsedTime ?? 0;
@@ -140,6 +145,7 @@ export async function buildApp(opts: AppOptions = {}) {
   await app.register(adminRoutes, { prefix: '/api/admin' });
   await app.register(newsRoutes, { prefix: '/api/news' });
   await app.register(bugReportRoutes, { prefix: '/api/bugs' });
+  await app.register(presenceRoutes, { prefix: '/api/presence' });
   await app.register(monitoringRoutes, { prefix: '/api/monitoring' });
 
   // Health check

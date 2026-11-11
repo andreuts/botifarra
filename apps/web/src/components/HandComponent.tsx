@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Card } from '@botifarra/core';
 import { legalMoves } from '@botifarra/core';
@@ -7,19 +7,19 @@ import { getContraDecidingTeam } from '../gamePhase.js';
 import { useAuthStore } from '../store/authStore.js';
 import { CardComponent } from './CardComponent.js';
 
+const COMPACT_HAND_QUERY = '(max-width: 480px), (orientation: landscape) and (max-height: 620px)';
+
 function useIsMobile() {
-  const [mobile, setMobile] = useState(() => {
-    if (typeof window === 'undefined' || !window.matchMedia) return false;
-    return window.innerWidth <= 480;
-  });
-  useEffect(() => {
-    if (typeof window === 'undefined' || !window.matchMedia) return;
-    const mq = window.matchMedia('(max-width: 480px)');
-    const handler = (e: MediaQueryListEvent) => setMobile(e.matches);
-    mq.addEventListener('change', handler);
-    return () => mq.removeEventListener('change', handler);
-  }, []);
-  return mobile;
+  return useSyncExternalStore(
+    (onChange) => {
+      if (typeof window === 'undefined' || !window.matchMedia) return () => {};
+      const mediaQuery = window.matchMedia(COMPACT_HAND_QUERY);
+      mediaQuery.addEventListener('change', onChange);
+      return () => mediaQuery.removeEventListener('change', onChange);
+    },
+    () => typeof window !== 'undefined' && !!window.matchMedia?.(COMPACT_HAND_QUERY).matches,
+    () => false,
+  );
 }
 
 // Suit display order: oros, copes, espases, bastos
@@ -135,10 +135,12 @@ export function HandComponent({ gameState, onPlayCard, commandErrorVersion = 0 }
   // Fan parameters — cards fan out when there are many
   const count = gameState.hand.length;
   const maxFan = 10; // max overlap kicks in
-  const overlapRatio = count > maxFan ? 0.42 : 0;
+  const overlapRatio = count > maxFan
+    ? typeof window !== 'undefined' && window.innerWidth < 760 ? 0.6 : 0.42
+    : 0;
   // Mobile: use small (50px wide) to fit 12 cards; desktop: compact (60px)
   const cardW = isMobile ? 50 : 60;
-  const gap = overlapRatio > 0 ? -cardW * overlapRatio : isMobile ? 3 : 6;
+  const gap = overlapRatio > 0 ? 0 : isMobile ? 3 : 6;
 
   const statusText = rejectedCard
     ? t('hand.invalidMove')
@@ -202,6 +204,7 @@ export function HandComponent({ gameState, onPlayCard, commandErrorVersion = 0 }
             <CardComponent
               key={key}
               card={card}
+              overlapBefore={i > 0 ? cardW * overlapRatio : 0}
               disabled={!isMyTurn || !legalSet.has(key)}
               onClick={() => handleCardClick(card)}
               selected={isSel}

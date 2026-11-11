@@ -1,5 +1,5 @@
 import type { TimerState } from '../store/gameStore.js';
-import { CARD_TURN_MS } from '../utils/timerUtils.js';
+import { CARD_TURN_MS, isTimerActive } from '../utils/timerUtils.js';
 
 function formatMs(ms: number): string {
   const s = Math.ceil(ms / 1000);
@@ -44,7 +44,7 @@ export function TurnTimersPanel({
         const t = timers.find((x) => x.seat === seat);
         if (!t) return null;
 
-        const isActive = t.baseTurnMs >= 0;
+        const isActive = isTimerActive(t);
         const baseRatio = isActive ? t.baseTurnMs / maxTurnMs : 1;
         const baseColor = timerColor(baseRatio);
         const isMe = seat === mySeat;

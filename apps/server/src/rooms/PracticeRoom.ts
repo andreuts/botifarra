@@ -19,8 +19,7 @@ function botDelay() {
 }
 
 // ---------------------------------------------------------------------------
-// PracticeRoom — fills empty seats with heuristic bots so a single human
-// player can play immediately without waiting for others.
+// PracticeRoom supports solo practice and invited partner practice against bots.
 // ---------------------------------------------------------------------------
 
 export class PracticeRoom extends BotifarraRoom {
@@ -30,7 +29,10 @@ export class PracticeRoom extends BotifarraRoom {
   override onCreate(options: BotifarraRoomOptions) {
     super.onCreate(options);
 
-    for (let i = 0; i < 3; i++) {
+    // Solo practice starts with three bots already in place. Invited pair
+    // practice waits for both humans, then BotifarraRoom fills the two seats left.
+    const botsToPreload = this.fillBots ? 0 : 3;
+    for (let i = 0; i < botsToPreload; i++) {
       const fakeSid = `bot-${i}-${this.roomId}`;
       this.botSeeds.add(fakeSid);
       this.injectBotSeat(fakeSid, BOT_USERNAMES[i] ?? `Bot-${i}`);
@@ -47,20 +49,18 @@ export class PracticeRoom extends BotifarraRoom {
     if (!this.gameState?.round) return;
     if (this.trickPauseLeader !== null) return; // don't play during trick pause
 
-    // Bots pass on contra when their team is deciding. If the human is on that
-    // team, leave the choice to them instead of letting a bot's next card play
-    // accidentally close the decision window.
+    // Bots vote to pass when their team is deciding. A bot pass only counts as
+    // one confirmation, so a human partner still gets to contra or confirm pass.
     if (this.contraDecidingTeam !== null) {
       const decidingTeam = this.contraDecidingTeam;
-      const humanCanDecide = [...this.state.players].some(
-        ([sessionId, player]) =>
-          !this.botSeeds.has(sessionId) && player.seat % 2 === decidingTeam,
-      );
-      if (humanCanDecide) return;
-
       const botEntry = [...this.botSeeds]
         .map((sessionId) => this.state.players.get(sessionId))
-        .find((player) => player && player.seat % 2 === decidingTeam);
+        .find(
+          (player) =>
+            player &&
+            player.seat % 2 === decidingTeam &&
+            !this.contraPassVotes.has(player.seat as Seat),
+        );
       if (!botEntry) return;
 
       const seat = botEntry.seat as Seat;
@@ -68,8 +68,9 @@ export class PracticeRoom extends BotifarraRoom {
       setTimeout(() => {
         this.botPendingMove = false;
         if (this.contraDecidingTeam !== decidingTeam) return;
+        if (this.contraPassVotes.has(seat)) return;
         try {
-          this.resolveContraPass(seat);
+          this.registerContraPass(seat);
           this.broadcastGameState();
           this.broadcastTimerState();
           this.persistSnapshot();

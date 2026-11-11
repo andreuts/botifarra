@@ -294,6 +294,8 @@ interface CardProps {
   selected?: boolean;
   faceDown?: boolean;
   small?: boolean;
+  /** Smaller table card for very short landscape screens. */
+  tiny?: boolean;
   /** Compact size (60×90) — for the player hand */
   compact?: boolean;
   /** CSS animation-delay in ms — used for deal animation */
@@ -304,6 +306,8 @@ interface CardProps {
   playAnimate?: boolean;
   /** Custom CSS rotation for fan layout */
   rotation?: number;
+  /** Horizontal overlap from the previous card in a hand fan. */
+  overlapBefore?: number;
   /** Show a larger hover preview (used for hand and current-trick cards only). */
   magnifyOnHover?: boolean;
   /** Render this card at the preview size. */
@@ -319,11 +323,13 @@ export function CardComponent({
   selected,
   faceDown,
   small,
+  tiny,
   compact,
   dealDelay = 0,
   animate = false,
   playAnimate = false,
   rotation = 0,
+  overlapBefore = 0,
   magnifyOnHover = false,
   magnified = false,
   rejectionAnimationVersion = 0,
@@ -331,10 +337,10 @@ export function CardComponent({
   const [imgFailed, setImgFailed] = useState(false);
   const [rejected, setRejected] = useState(false);
   const [hoverPosition, setHoverPosition] = useState<{ left: number; top: number } | null>(null);
-  const w = magnified ? 130 : small ? 50 : compact ? 60 : 74;
-  const h = magnified ? 195 : small ? 74 : compact ? 90 : 110;
-  const cornerFs = small ? '0.6rem' : compact ? '0.7rem' : '0.82rem';
-  const cornerPipSize = small ? 9 : compact ? 10 : 12;
+  const w = magnified ? 130 : tiny ? 42 : small ? 50 : compact ? 60 : 74;
+  const h = magnified ? 195 : tiny ? 62 : small ? 74 : compact ? 90 : 110;
+  const cornerFs = tiny ? '0.52rem' : small ? '0.6rem' : compact ? '0.7rem' : '0.82rem';
+  const cornerPipSize = tiny ? 7 : small ? 9 : compact ? 10 : 12;
   const color = SUIT_COLOR[card.suit];
 
   useEffect(() => {
@@ -391,11 +397,12 @@ export function CardComponent({
         zIndex: hoverPosition ? 2 : undefined,
         width: w,
         height: h,
+        marginLeft: overlapBefore > 0 ? -overlapBefore : undefined,
         background: faceDown
           ? 'repeating-linear-gradient(50deg, #1e3d1a 0px, #1e3d1a 5px, #173315 5px, #173315 10px)'
           : '#FFFEF5',
         border: `2px solid ${borderColor}`,
-        borderRadius: small ? 5 : 7,
+        borderRadius: small || tiny ? 5 : 7,
         cursor: interactable ? 'pointer' : 'default',
         opacity: disabled ? 0.38 : 1,
         boxShadow: shadow,
@@ -561,9 +568,9 @@ export function CardComponent({
 // Empty slot
 // ---------------------------------------------------------------------------
 
-export function EmptyCardSlot({ label, small }: { label?: string; small?: boolean }) {
-  const w = small ? 50 : 74;
-  const h = small ? 74 : 110;
+export function EmptyCardSlot({ label, small, tiny }: { label?: string; small?: boolean; tiny?: boolean }) {
+  const w = tiny ? 42 : small ? 50 : 74;
+  const h = tiny ? 62 : small ? 74 : 110;
   return (
     <div
       aria-label={label ?? 'Empty card slot'}
@@ -571,7 +578,7 @@ export function EmptyCardSlot({ label, small }: { label?: string; small?: boolea
         width: w,
         height: h,
         border: '2px dashed rgba(201,168,76,0.2)',
-        borderRadius: small ? 5 : 7,
+        borderRadius: small || tiny ? 5 : 7,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',

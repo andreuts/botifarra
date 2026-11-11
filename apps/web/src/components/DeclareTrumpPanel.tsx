@@ -1,10 +1,11 @@
 import { useTranslation } from 'react-i18next';
-import type { TrumpDeclaration } from '@botifarra/core';
+import type { Seat, TrumpDeclaration } from '@botifarra/core';
 import type { PlayerGameStateDTO } from '@botifarra/shared';
 import { getContraDecidingTeam } from '../gamePhase.js';
 import {
   CONTRA_TIMEOUT_MS,
   DECLARATION_TURN_MS,
+  isTimerActive,
   remainingTurnTimeMs,
 } from '../utils/timerUtils.js';
 
@@ -74,6 +75,10 @@ export function DeclareTrumpPanel({
   const nextLevel = contraLevel + 1;
   const contraTeam = getContraDecidingTeam(gameState);
   const iCanCallContra = contraTeam !== null && myTeam === contraTeam;
+  const contraPassVotes = gameState.contraPassVotes ?? [];
+  const teammateSeat = ((gameState.mySeat + 2) % 4) as Seat;
+  const iHavePassed = contraPassVotes.includes(gameState.mySeat);
+  const teammateHasPassed = contraPassVotes.includes(teammateSeat);
 
   // In contra phase but it's the OTHER team's turn to decide
   const isWaitingContraPhase =
@@ -92,7 +97,7 @@ export function DeclareTrumpPanel({
   // when the server is actually counting down for this seat.
   const timerSource = liveTimers ?? gameState.timers;
   const myTimer = timerSource?.find((t) => t.seat === mySeat);
-  const iAmTimedSeat = myTimer !== undefined && myTimer.baseTurnMs >= 0;
+  const iAmTimedSeat = isTimerActive(myTimer);
   const cdMs = iAmTimedSeat ? remainingTurnTimeMs(myTimer!) : null;
   const cdTotal = iAmTimedSeat
     ? contraTeam !== null
@@ -137,7 +142,13 @@ export function DeclareTrumpPanel({
             {contraLevel > 0 && <> · {currentContraLabel}</>}
           </p>
           <p className="game-declare-help">
-            {t('declare.contraBid', { contra: nextContraLabel })}
+            {iHavePassed
+              ? t('declare.contraPassConfirmed')
+              : teammateHasPassed
+                ? t('declare.teammateContraPassed', {
+                    name: gameState.playerNames[teammateSeat],
+                  })
+                : t('declare.contraBid', { contra: nextContraLabel })}
           </p>
           <div className="game-declare-actions">
             <button
@@ -151,6 +162,7 @@ export function DeclareTrumpPanel({
               <button
                 className="game-pass-button"
                 onClick={onPassContra}
+                disabled={iHavePassed}
                 aria-label={t('declare.passContraAria')}
               >
                 {t('declare.passContra')}

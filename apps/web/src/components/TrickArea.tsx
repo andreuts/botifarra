@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { CompletedTrick, Seat } from '@botifarra/core';
 import type { PlayerGameStateDTO } from '@botifarra/shared';
@@ -9,6 +9,7 @@ import {
   CARD_TURN_MS,
   DECLARATION_TURN_MS,
   CONTRA_TIMEOUT_MS,
+  isTimerActive,
   remainingTurnTimeMs,
 } from '../utils/timerUtils.js';
 
@@ -27,13 +28,34 @@ interface TrickAreaProps {
   finalTrickAnimating?: boolean;
 }
 
-const TRUMP_CARD_IMAGES: Record<string, string> = {
-  oros: '/cards/01-oros.png',
-  copes: '/cards/01-copas.png',
-  espases: '/cards/01-espadas.png',
-  bastos: '/cards/01-bastos.png',
-  botifarra: '/cards/botifarra.png',
-};
+const COMPACT_TABLE_QUERY = '(orientation: landscape) and (max-height: 760px)';
+const TINY_TABLE_QUERY = '(orientation: landscape) and (max-height: 620px)';
+
+function useCompactLandscape() {
+  return useSyncExternalStore(
+    (onChange) => {
+      if (typeof window === 'undefined' || !window.matchMedia) return () => {};
+      const mediaQuery = window.matchMedia(COMPACT_TABLE_QUERY);
+      mediaQuery.addEventListener('change', onChange);
+      return () => mediaQuery.removeEventListener('change', onChange);
+    },
+    () => typeof window !== 'undefined' && !!window.matchMedia?.(COMPACT_TABLE_QUERY).matches,
+    () => false,
+  );
+}
+
+function useTinyLandscape() {
+  return useSyncExternalStore(
+    (onChange) => {
+      if (typeof window === 'undefined' || !window.matchMedia) return () => {};
+      const mediaQuery = window.matchMedia(TINY_TABLE_QUERY);
+      mediaQuery.addEventListener('change', onChange);
+      return () => mediaQuery.removeEventListener('change', onChange);
+    },
+    () => typeof window !== 'undefined' && !!window.matchMedia?.(TINY_TABLE_QUERY).matches,
+    () => false,
+  );
+}
 
 function barColor(ratio: number): string {
   if (ratio > 0.5) return 'var(--color-success)';
@@ -47,13 +69,17 @@ function TimerBar({
   seat,
   timers,
   maxTimeMs,
+  compact,
+  tiny,
 }: {
   seat: Seat;
   timers: PlayerGameStateDTO['timers'];
   maxTimeMs: number;
+  compact: boolean;
+  tiny: boolean;
 }) {
   const t = timers?.find((x) => x.seat === seat);
-  const isTimedSeat = t !== undefined && t.baseTurnMs >= 0;
+  const isTimedSeat = isTimerActive(t);
   const ratio = isTimedSeat
     ? Math.min(1, Math.max(0, remainingTurnTimeMs(t!) / maxTimeMs))
     : 0;
@@ -64,7 +90,7 @@ function TimerBar({
       aria-hidden="true"
       style={{
         width: 5,
-        height: 110,
+        height: tiny ? 62 : compact ? 74 : 110,
         background: 'rgba(255,255,255,0.08)',
         borderRadius: 3,
         overflow: 'hidden',
@@ -101,6 +127,8 @@ export function TrickArea({
   finalTrickAnimating = false,
 }: TrickAreaProps) {
   const { t } = useTranslation();
+  const compactLandscape = useCompactLandscape();
+  const tinyLandscape = useTinyLandscape();
   const { currentTrick, playerNames, currentPlayerSeat, declarantSeat, completedTricks } = gameState;
   const contraTeam = getContraDecidingTeam(gameState);
   const maxTimerMs = contraTeam !== null
@@ -249,23 +277,14 @@ export function TrickArea({
                   : undefined,
               }}
             >
-              <CardComponent card={card} magnifyOnHover />
+              <CardComponent card={card} small={compactLandscape} tiny={tinyLandscape} magnifyOnHover />
             </div>
-          ) : <EmptyCardSlot label="" />}
-          <TimerBar seat={seat} timers={timers} maxTimeMs={maxTimerMs} />
+          ) : <EmptyCardSlot label="" small={compactLandscape} tiny={tinyLandscape} />}
+          <TimerBar seat={seat} timers={timers} maxTimeMs={maxTimerMs} compact={compactLandscape} tiny={tinyLandscape} />
         </div>
       </div>
     );
   }
-
-  // Trump label for center
-  const trumpLabel: Record<string, string> = {
-    oros: t('suits.O'),
-    copes: t('suits.C'),
-    espases: t('suits.E'),
-    bastos: t('suits.B'),
-    botifarra: t('game_terms.botifarra'),
-  };
 
   return (
     <>
@@ -276,29 +295,6 @@ export function TrickArea({
         <div className="trick-grid" role="region" aria-label={t('trick.currentTrick')}>
           <Slot seat={partner} position="top" />
           <Slot seat={leftOpp} position="left" />
-          <div
-            className="center trick-center"
-            aria-label={
-              gameState.trump
-                ? t('trick.trumpLabel', { trump: trumpLabel[gameState.trump] ?? gameState.trump })
-                : t('trick.noTrumpYet')
-            }
-          >
-            <div className={`trick-trump-display${gameState.trump === 'botifarra' ? ' is-botifarra' : ''}`}>
-              <span className="trick-trump-label">{t('trick.trump')}</span>
-              {gameState.trump && (
-                <img
-                  className="trick-trump-card"
-                  src={TRUMP_CARD_IMAGES[gameState.trump]}
-                  alt=""
-                  draggable={false}
-                />
-              )}
-              <strong>
-                {gameState.trump ? trumpLabel[gameState.trump] ?? gameState.trump : t('trick.noTrumpYet')}
-              </strong>
-            </div>
-          </div>
           <Slot seat={rightOpp} position="right" />
           <Slot seat={mySeat} position="bottom" />
           {selectedLastTrickTeam !== null && (
@@ -328,7 +324,7 @@ export function TrickArea({
                 <div className="won-trick-board-cards">
                   {selectedLastTrick.cards.map((tc) => (
                     <div className="won-trick-board-card" key={tc.seat}>
-                      <CardComponent card={tc.card} small />
+                      <CardComponent card={tc.card} small magnifyOnHover />
                       <span className={tc.seat === selectedLastTrick.winner ? 'is-winner' : undefined}>
                         {playerNames[tc.seat] ?? `S${tc.seat}`}
                       </span>
@@ -343,7 +339,7 @@ export function TrickArea({
         </div>
 
         {/* Won-trick stacks — one per team, always visible during play */}
-        <div style={{ display: 'flex', gap: '1.5rem', justifyContent: 'center', marginTop: 2 }}>
+        <div className="won-trick-piles" style={{ display: 'flex', gap: '1.5rem', justifyContent: 'center', marginTop: 2 }}>
           {([0, 1] as const).map((team) => {
             const count = team === 0 ? team0Tricks : team1Tricks;
             const color = team === 0 ? 'var(--color-team0)' : 'var(--color-team1)';
