@@ -184,7 +184,7 @@ export function useMatchmakingQueue() {
         // ignore — network errors on mount check are non-fatal
       }
     })();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps — intentional one-time mount check
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- intentional one-time mount check
 
   // Clean up on unmount
   useEffect(

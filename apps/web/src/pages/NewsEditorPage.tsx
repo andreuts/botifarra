@@ -220,7 +220,6 @@ export function NewsEditorPage() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     placeholderData: undefined as any,
     // Set state when data loads
-    // @ts-ignore - using onSuccess via refetchOnWindowFocus:false
     gcTime: 0,
     refetchOnWindowFocus: false,
   });
@@ -421,7 +420,6 @@ export function NewsEditorPage() {
                 className="news-body"
                 style={{ padding: '1rem', minHeight: 320 }}
                 // Preview of the already-sanitized HTML the server will store
-                // eslint-disable-next-line react/no-danger
                 dangerouslySetInnerHTML={{ __html: previewHtml }}
               />
             )}

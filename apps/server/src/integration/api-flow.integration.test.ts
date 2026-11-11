@@ -117,7 +117,7 @@ async function registerUser(username: string, password: string) {
   const res = await app.inject({
     method: 'POST',
     url: '/api/auth/register',
-    payload: { username, password },
+    payload: { username, password, townId: 'ES-08001' },
   });
   return { res, body: res.json() };
 }

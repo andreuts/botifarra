@@ -59,7 +59,6 @@ export function NewsDetailPage() {
           <div
             className="news-body"
             // The server already sanitizes the HTML — only trusted stored content is rendered.
-            // eslint-disable-next-line react/no-danger
             dangerouslySetInnerHTML={{ __html: data.bodyHtml }}
           />
         </article>

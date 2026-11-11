@@ -92,7 +92,7 @@ describe('POST /api/auth/register', () => {
     const res = await a.inject({
       method: 'POST',
       url: '/api/auth/register',
-      payload: { username: 'taken', password: 'password123' },
+      payload: { username: 'taken', password: 'password123', townId: 'ES-08001' },
     });
     expect(res.statusCode).toBe(409);
     await a.close();
