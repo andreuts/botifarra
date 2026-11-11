@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next';
 import type { Card } from '@botifarra/core';
 import { legalMoves } from '@botifarra/core';
 import type { PlayerGameStateDTO } from '@botifarra/shared';
+import { getContraDecidingTeam } from '../gamePhase.js';
+import { useAuthStore } from '../store/authStore.js';
 import { CardComponent } from './CardComponent.js';
 
 function useIsMobile() {
@@ -22,17 +24,17 @@ function useIsMobile() {
 
 // Suit display order: oros, copes, espases, bastos
 const SUIT_ORDER: Record<string, number> = { oros: 0, copes: 1, espases: 2, bastos: 3 };
-// Rank display order within a suit (low index = leftmost in hand)
-// Groups: As, 3, 2, Rei(12), Cavall(11), Sota(10), 9, 8, 7, 6, 5, 4
+// Botifarra strength order, displayed highest to lowest from left to right.
 const RANK_DISPLAY: Record<number, number> = {
-  1: 0, 3: 1, 2: 2, 12: 3, 11: 4, 10: 5, 9: 6, 8: 7, 7: 8, 6: 9, 5: 10, 4: 11,
+  9: 0, 1: 1, 12: 2, 11: 3, 10: 4, 8: 5, 7: 6, 6: 7, 5: 8, 4: 9, 3: 10, 2: 11,
 };
-function sortHand(cards: Card[]): Card[] {
-  return [...cards].sort((a, b) => {
+function sortHand(cards: Card[], direction: 'left-to-right' | 'right-to-left'): Card[] {
+  const sorted = [...cards].sort((a, b) => {
     const sd = (SUIT_ORDER[a.suit] ?? 0) - (SUIT_ORDER[b.suit] ?? 0);
     if (sd !== 0) return sd;
     return (RANK_DISPLAY[a.rank] ?? a.rank) - (RANK_DISPLAY[b.rank] ?? b.rank);
   });
+  return direction === 'right-to-left' ? sorted.reverse() : sorted;
 }
 
 interface HandProps {
@@ -43,15 +45,32 @@ interface HandProps {
 
 export function HandComponent({ gameState, onPlayCard, commandErrorVersion = 0 }: HandProps) {
   const { t } = useTranslation();
+  const handSortDirection = useAuthStore(
+    (state) => state.user?.handSortDirection ?? 'left-to-right',
+  );
   const isMobile = useIsMobile();
   const [selected, setSelected] = useState<Card | null>(null);
+  const [rejectedCard, setRejectedCard] = useState<{ key: string; version: number } | null>(null);
   const [dealKey, setDealKey] = useState(0);
   const [pendingPlay, setPendingPlay] = useState(false);
+  const rejectionVersion = useRef(0);
+  const rejectionTimeout = useRef<number | null>(null);
   const prevHandLen = useRef(gameState.hand.length);
   const prevCommandErrorVersion = useRef(commandErrorVersion);
   const liveRef = useRef<HTMLDivElement>(null);
 
-  const isMyTurn = !pendingPlay && gameState.currentPlayerSeat === gameState.mySeat && gameState.hand.length > 0;
+  useEffect(
+    () => () => {
+      if (rejectionTimeout.current !== null) window.clearTimeout(rejectionTimeout.current);
+    },
+    [],
+  );
+
+  const isMyTurn =
+    !pendingPlay &&
+    getContraDecidingTeam(gameState) === null &&
+    gameState.currentPlayerSeat === gameState.mySeat &&
+    gameState.hand.length > 0;
 
   // Trigger deal animation when a new hand arrives (more cards than before).
   // Also clear pendingPlay whenever the hand changes (server acknowledged our move).
@@ -89,12 +108,26 @@ export function HandComponent({ gameState, onPlayCard, commandErrorVersion = 0 }
   function handleCardClick(card: Card) {
     if (!isMyTurn) return;
     const key = `${card.suit}-${card.rank}`;
-    if (!legalSet.has(key)) return;
     if (selected && selected.suit === card.suit && selected.rank === card.rank) {
+      if (!legalSet.has(key)) {
+        rejectionVersion.current += 1;
+        setRejectedCard({ key, version: rejectionVersion.current });
+        setSelected(null);
+        if (rejectionTimeout.current !== null) window.clearTimeout(rejectionTimeout.current);
+        rejectionTimeout.current = window.setTimeout(() => {
+          setRejectedCard(null);
+          rejectionTimeout.current = null;
+        }, 700);
+        return;
+      }
+      setRejectedCard(null);
+      if (rejectionTimeout.current !== null) window.clearTimeout(rejectionTimeout.current);
       setPendingPlay(true);
       onPlayCard(card);
       setSelected(null);
     } else {
+      setRejectedCard(null);
+      if (rejectionTimeout.current !== null) window.clearTimeout(rejectionTimeout.current);
       setSelected(card);
     }
   }
@@ -107,13 +140,13 @@ export function HandComponent({ gameState, onPlayCard, commandErrorVersion = 0 }
   const cardW = isMobile ? 50 : 60;
   const gap = overlapRatio > 0 ? -cardW * overlapRatio : isMobile ? 3 : 6;
 
-  const statusText = isMyTurn
-    ? selected
-      ? t('hand.clickToConfirm')
-      : t(legal.length !== 1 ? 'hand.yourTurnMoves_plural' : 'hand.yourTurnMoves', {
-          count: legal.length,
-        })
-    : t('hand.waitingTurn');
+  const statusText = rejectedCard
+    ? t('hand.invalidMove')
+    : isMyTurn
+      ? selected
+        ? t('hand.clickToConfirm')
+        : t('game.currentTurn')
+      : t('hand.waitingTurn');
 
   return (
     <div>
@@ -160,9 +193,8 @@ export function HandComponent({ gameState, onPlayCard, commandErrorVersion = 0 }
           padding: '4px 4px 8px',
         }}
       >
-        {sortHand(gameState.hand).map((card, i) => {
+        {sortHand(gameState.hand, handSortDirection).map((card, i) => {
           const key = `${card.suit}-${card.rank}`;
-          const isLegal = legalSet.has(key);
           const isSel = selected?.suit === card.suit && selected?.rank === card.rank;
           // Subtle fan rotation (-2° to +2°)
           const rotation = count > 3 ? (i / (count - 1) - 0.5) * 4 : 0;
@@ -171,13 +203,14 @@ export function HandComponent({ gameState, onPlayCard, commandErrorVersion = 0 }
               key={key}
               card={card}
               onClick={() => handleCardClick(card)}
-              disabled={isMyTurn && !isLegal}
               selected={isSel}
               compact={!isMobile}
               small={isMobile}
               animate={true}
               dealDelay={i * 55}
               rotation={rotation}
+              magnifyOnHover
+              rejectionAnimationVersion={rejectedCard?.key === key ? rejectedCard.version : 0}
             />
           );
         })}

@@ -14,16 +14,10 @@ export function EloGraph({ data, label, width = 320, height = 120 }: EloGraphPro
   if (data.length === 0) {
     return (
       <div
+        className="elo-graph-empty"
         style={{
           width,
           height,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          background: 'var(--color-surface)',
-          borderRadius: 'var(--radius)',
-          color: 'var(--color-muted)',
-          fontSize: '0.8rem',
         }}
         aria-label={label}
       >
@@ -47,21 +41,15 @@ export function EloGraph({ data, label, width = 320, height = 120 }: EloGraphPro
   const points = data.map((d, i) => `${toX(i)},${toY(d.eloAfter)}`).join(' ');
 
   return (
-    <figure style={{ margin: 0 }} aria-label={label}>
-      <figcaption
-        style={{ fontSize: '0.75rem', color: 'var(--color-muted)', marginBottom: '0.25rem' }}
-      >
+    <figure className="elo-graph" aria-label={label}>
+      <figcaption className="elo-graph-caption">
         {label}
       </figcaption>
       <svg
+        className="elo-graph-svg"
         width={width}
         height={height}
         viewBox={`0 0 ${width} ${height}`}
-        style={{
-          display: 'block',
-          background: 'var(--color-surface)',
-          borderRadius: 'var(--radius)',
-        }}
         role="img"
         aria-label={label}
       >
@@ -71,7 +59,7 @@ export function EloGraph({ data, label, width = 320, height = 120 }: EloGraphPro
           y1={pad}
           x2={pad}
           y2={height - pad}
-          stroke="var(--color-border)"
+          stroke="rgba(111, 95, 58, 0.2)"
           strokeWidth="1"
         />
         <line
@@ -79,7 +67,7 @@ export function EloGraph({ data, label, width = 320, height = 120 }: EloGraphPro
           y1={height - pad}
           x2={width - pad}
           y2={height - pad}
-          stroke="var(--color-border)"
+          stroke="rgba(111, 95, 58, 0.2)"
           strokeWidth="1"
         />
 
@@ -87,7 +75,7 @@ export function EloGraph({ data, label, width = 320, height = 120 }: EloGraphPro
         <polyline
           points={points}
           fill="none"
-          stroke="var(--color-accent, #3498db)"
+          stroke="#4e744d"
           strokeWidth="2"
           strokeLinejoin="round"
           strokeLinecap="round"
@@ -100,15 +88,15 @@ export function EloGraph({ data, label, width = 320, height = 120 }: EloGraphPro
             cx={toX(i)}
             cy={toY(d.eloAfter)}
             r={3}
-            fill={d.eloChange >= 0 ? 'var(--color-success, #27ae60)' : 'var(--color-danger, #e74c3c)'}
+            fill={d.eloChange >= 0 ? '#5c8559' : '#ad5144'}
           />
         ))}
 
         {/* Min/max ELO labels */}
-        <text x={pad + 2} y={pad + 10} fontSize="9" fill="var(--color-muted)">
+        <text x={pad + 2} y={pad + 10} fontSize="9" fill="#766f5b">
           {Math.round(maxElo)}
         </text>
-        <text x={pad + 2} y={height - pad - 2} fontSize="9" fill="var(--color-muted)">
+        <text x={pad + 2} y={height - pad - 2} fontSize="9" fill="#766f5b">
           {Math.round(minElo)}
         </text>
       </svg>

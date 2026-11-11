@@ -10,8 +10,20 @@ export interface GameResult {
 
 export interface TimerState {
   seat: 0 | 1 | 2 | 3;
-  baseTurnMs: number;    // remaining 15s turn timer; -1 when not this seat's turn
-  roundBudgetMs: number; // remaining 60s round budget
+  baseTurnMs: number;    // remaining phase-specific base timer; -1 when not this seat's turn
+  roundBudgetMs: number; // remaining 60s per-player round budget (zero during contra)
+}
+
+export interface TimerSnapshot {
+  timers: TimerState[];
+  /** Server monotonic time when these timer values were calculated. */
+  serverTime: number | null;
+  /** Incremented by the server whenever a new decision clock starts. */
+  timerEpoch: number | null;
+  /** Remaining trick-pause countdown at serverTime, when a pause is active. */
+  trickPauseRemainingMs: number | null;
+  /** Monotonic client time recorded when the snapshot was received. */
+  receivedAt: number;
 }
 
 export interface GameStore {
@@ -24,6 +36,7 @@ export interface GameStore {
   gameResult: GameResult | null;
   toasts: string[];
   timers: TimerState[] | null;
+  timerSnapshot: TimerSnapshot | null;
   activeGameRoomId: string | null; // Persisted — for rejoin functionality
   setGameState: (state: PlayerGameStateDTO) => void;
   setObserverState: (state: ObserverGameStateDTO) => void;
@@ -34,7 +47,12 @@ export interface GameStore {
   setGameResult: (result: GameResult) => void;
   addToast: (msg: string) => void;
   dismissToast: () => void;
-  setTimers: (timers: TimerState[]) => void;
+  setTimers: (
+    timers: TimerState[],
+    serverTime?: number,
+    timerEpoch?: number,
+    trickPauseRemainingMs?: number | null,
+  ) => void;
   setActiveGameRoomId: (roomId: string | null) => void;
   reset: () => void;
 }
@@ -51,6 +69,7 @@ export const useGameStore = create<GameStore>()(
       gameResult: null,
       toasts: [],
       timers: null,
+      timerSnapshot: null,
       activeGameRoomId: null,
       setGameState: (gameState) => set({ gameState }),
       setObserverState: (observerState) => set({ observerState }),
@@ -61,7 +80,17 @@ export const useGameStore = create<GameStore>()(
       setGameResult: (gameResult) => set({ gameResult }),
       addToast: (msg) => set((s) => ({ toasts: [...s.toasts, msg] })),
       dismissToast: () => set((s) => ({ toasts: s.toasts.slice(1) })),
-      setTimers: (timers) => set({ timers }),
+      setTimers: (timers, serverTime, timerEpoch, trickPauseRemainingMs) =>
+        set({
+          timers,
+          timerSnapshot: {
+            timers,
+            serverTime: serverTime ?? null,
+            timerEpoch: timerEpoch ?? null,
+            trickPauseRemainingMs: trickPauseRemainingMs ?? null,
+            receivedAt: typeof performance !== 'undefined' ? performance.now() : Date.now(),
+          },
+        }),
       setActiveGameRoomId: (activeGameRoomId) => set({ activeGameRoomId }),
       reset: () =>
         set({
@@ -74,6 +103,7 @@ export const useGameStore = create<GameStore>()(
           gameResult: null,
           toasts: [],
           timers: null,
+          timerSnapshot: null,
         }),
     }),
     {

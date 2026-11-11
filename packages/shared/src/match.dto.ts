@@ -53,19 +53,26 @@ export interface PlayerGameStateDTO {
   currentPlayerSeat: Seat | null;
   dealerPassed: boolean;
   contraLevel: number;
+  /** Team that must decide whether to raise the contra level, if any. */
+  contraDecidingTeam?: 0 | 1 | null;
   /** Whether this is a ranked game */
   ranked?: boolean;
-  /** Turn timer state (ranked only) */
+  /** Current turn timer state. */
   timers?: {
     seat: Seat;
     baseTurnMs: number;
     roundBudgetMs: number;
   }[];
+  /** Server monotonic timestamp and clock epoch matching the timer snapshot above. */
+  timerServerTime?: number;
+  timerEpoch?: number;
+  /** Remaining trick-pause countdown at timerServerTime, when paused. */
+  trickPauseRemainingMs?: number | null;
   /** Pending surrender request */
   surrenderPending?: { requestingSeat: Seat; partnerSeat: Seat } | null;
   /** When set, a trick just completed and this seat must click "continue" (or wait for timeout) */
   trickPauseLeader?: Seat | null;
-  /** Timestamp (ms since epoch) when the trick pause started — for client countdown */
+  /** Server monotonic time when the trick pause started. */
   trickPauseStartedAt?: number | null;
 }
 
@@ -149,4 +156,6 @@ export interface ObserverGameStateDTO {
   scores: [number, number];
   currentPlayerSeat: Seat | null;
   contraLevel: number;
+  /** Team that must decide whether to raise the contra level, if any. */
+  contraDecidingTeam?: 0 | 1 | null;
 }

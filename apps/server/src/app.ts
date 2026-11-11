@@ -18,6 +18,7 @@ import { friendsRoutes } from './routes/friends.js';
 import { pairInviteRoutes } from './routes/pair-invite.js';
 import { tournamentRoutes } from './routes/tournaments.js';
 import { newsRoutes } from './routes/news.js';
+import { bugReportRoutes } from './routes/bug-reports.js';
 import { MatchmakingQueue } from './services/matchmaking.js';
 import { MonitoringService } from './services/monitoring.js';
 import fp from 'fastify-plugin';
@@ -138,6 +139,7 @@ export async function buildApp(opts: AppOptions = {}) {
   await app.register(rankingsRoutes);
   await app.register(adminRoutes, { prefix: '/api/admin' });
   await app.register(newsRoutes, { prefix: '/api/news' });
+  await app.register(bugReportRoutes, { prefix: '/api/bugs' });
   await app.register(monitoringRoutes, { prefix: '/api/monitoring' });
 
   // Health check
@@ -161,9 +163,9 @@ export async function buildApp(opts: AppOptions = {}) {
 
   if (process.env['NODE_ENV'] === 'production') {
     // In Docker the web build lives at /app/apps/web/dist
-    // In a local production build it's at ../../apps/web/dist relative to server dist
+    // In a local production build it's at ../../web/dist relative to server dist
     const webDistDir = resolve(
-      process.env['WEB_DIST_DIR'] ?? join(__dirname, '..', '..', '..', 'web', 'dist'),
+      process.env['WEB_DIST_DIR'] ?? join(__dirname, '..', '..', 'web', 'dist'),
     );
 
     if (existsSync(webDistDir)) {

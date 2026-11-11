@@ -1,7 +1,7 @@
 import type { TimerState } from '../store/gameStore.js';
+import { CARD_TURN_MS, ROUND_BUDGET_MS } from '../utils/timerUtils.js';
 
-const BASE_TURN_MS = 30_000;
-const ROUND_BUDGET_MS = 60_000;
+const BASE_TURN_MS = CARD_TURN_MS;
 
 function formatMs(ms: number): string {
   const s = Math.ceil(ms / 1000);
@@ -87,7 +87,7 @@ export function TurnTimersPanel({ timers, playerNames, mySeat }: TurnTimersPanel
               </span>
             </div>
 
-            {/* 15s turn bar (active player only) */}
+            {/* 10s card-play bar (active player only) */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', width: 80 }}>
               {isActive ? (
                 <>

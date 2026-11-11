@@ -68,6 +68,11 @@ describe('serializeSnapshot', () => {
     expect((snap.game as any).roundNumber).toBe(3);
     expect(snap.round).toBeNull();
   });
+
+  it('preserves an explicit contra pass in the snapshot', () => {
+    const snap = serializeSnapshot(makeRoomGameState(), null);
+    expect(snap).toHaveProperty('contraDecidingTeam', null);
+  });
 });
 
 describe('deserializeSnapshot', () => {

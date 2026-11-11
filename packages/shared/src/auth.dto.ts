@@ -23,8 +23,19 @@ export interface LoginResponse {
   username: string;
 }
 
+export type HandSortDirection = 'left-to-right' | 'right-to-left';
+
+export interface UpdateUserPreferencesRequest {
+  handSortDirection: HandSortDirection;
+}
+
+export interface UpdateUserPreferencesResponse {
+  handSortDirection: HandSortDirection;
+}
+
 export interface MeResponse {
   userId: string;
   username: string;
   createdAt: string;
+  handSortDirection: HandSortDirection;
 }

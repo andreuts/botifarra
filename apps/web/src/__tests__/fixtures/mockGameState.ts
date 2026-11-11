@@ -21,4 +21,5 @@ export const mockGameState: PlayerGameStateDTO = {
   currentPlayerSeat: 0,
   dealerPassed: false,
   contraLevel: 0,
+  contraDecidingTeam: null,
 };

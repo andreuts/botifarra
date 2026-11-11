@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../store/authStore.js';
@@ -8,12 +8,16 @@ import { useInterpolatedTimers } from '../hooks/useInterpolatedTimers.js';
 import { HandComponent } from '../components/HandComponent.js';
 import { TrickArea } from '../components/TrickArea.js';
 import { Scoreboard } from '../components/Scoreboard.js';
+import { GameStatusPanel } from '../components/GameStatusPanel.js';
 import { DeclareTrumpPanel } from '../components/DeclareTrumpPanel.js';
 import { ContinueTrickButton } from '../components/ContinueTrickButton.js';
+import { getContraDecidingTeam } from '../gamePhase.js';
+import { ConfirmDialog } from '../components/ConfirmDialog.js';
 import type { Seat } from '@botifarra/core';
 import type { SeatReservationData } from '../hooks/useMatchmakingQueue.js';
 
 export function GamePage() {
+  const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
   const { matchId } = useParams<{ matchId: string }>();
   const [searchParams] = useSearchParams();
   const location = useLocation();
@@ -27,15 +31,16 @@ export function GamePage() {
     error,
     gameResult,
     toasts,
-    timers,
+    timerSnapshot,
     dismissToast,
     reset,
+    setError,
     setActiveGameRoomId,
     activeGameRoomId,
   } = useGameStore();
 
-  // Interpolate server timer snapshots (~1 s) to 50 ms for smooth bars
-  const interpolatedTimers = useInterpolatedTimers(timers);
+  // Interpolate authoritative server timer snapshots against monotonic client time.
+  const interpolatedTimers = useInterpolatedTimers(timerSnapshot);
 
   // Seat reservation passed from matchmaking via route state.
   // Only use it for fresh joins — if we're reconnecting to an active game, force joinById instead.
@@ -49,10 +54,51 @@ export function GamePage() {
     sendDeclareTrump,
     sendPlayCard,
     sendPassDeclaration,
+    sendPassContra,
     sendCallContra,
     sendContinueTrick,
     commandErrorVersion,
   } = useGameRoom(matchId, mode, seatReservation);
+
+  function returnToLobby() {
+    setLeaveConfirmOpen(false);
+    setActiveGameRoomId(null);
+    reset();
+    navigate('/');
+  }
+
+  function requestReturnToLobby() {
+    if (mode === 'practice' && !gameResult) {
+      setLeaveConfirmOpen(true);
+      return;
+    }
+    returnToLobby();
+  }
+
+  const leaveConfirmDialog = (
+    <ConfirmDialog
+      open={leaveConfirmOpen}
+      title={t('game.leavePracticeTitle')}
+      message={t('game.leavePracticeMessage')}
+      confirmLabel={t('game.leavePracticeConfirm')}
+      cancelLabel={t('game.leavePracticeCancel')}
+      dangerous
+      onCancel={() => setLeaveConfirmOpen(false)}
+      onConfirm={returnToLobby}
+    />
+  );
+
+  const practiceGameInProgress = mode === 'practice' && !!gameState && !gameResult;
+  useEffect(() => {
+    if (!practiceGameInProgress) return;
+
+    const warnBeforeLeaving = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warnBeforeLeaving);
+    return () => window.removeEventListener('beforeunload', warnBeforeLeaving);
+  }, [practiceGameInProgress]);
 
   useEffect(() => {
     if (!user) {
@@ -92,18 +138,28 @@ export function GamePage() {
   if (error) {
     return (
       <div className="page game-screen">
-        <div className="card" style={{ textAlign: 'center' }}>
-          <h2 style={{ color: 'var(--color-danger)', marginBottom: '1rem' }}>{t('game.connectionError')}</h2>
-          <p style={{ color: 'var(--color-muted)', marginBottom: '1.5rem' }}>{error}</p>
+        <div className="card game-error-panel">
+          <h2>{t('game.connectionError')}</h2>
+          <p>{error}</p>
+          {!connected && user && (
+            <button
+              className="game-result-button game-state-button"
+              onClick={() => {
+                setError(null);
+                void connect(user.accessToken, user.userId, user.username);
+              }}
+            >
+              {t('game.retryConnection')}
+            </button>
+          )}
           <button
-            onClick={() => {
-              setActiveGameRoomId(null);
-              navigate('/');
-            }}
+            className="game-result-button game-state-button"
+            onClick={requestReturnToLobby}
           >
             {t('game.backToLobby')}
           </button>
         </div>
+        {leaveConfirmDialog}
       </div>
     );
   }
@@ -113,23 +169,11 @@ export function GamePage() {
   // ---------------------------------------------------------------------------
   if ((!connected && !gameResult) || !gameState) {
     return (
-      <div className="page game-screen">
-        <div style={{ textAlign: 'center' }}>
-          <div
-            style={{
-              width: 40,
-              height: 40,
-              border: '3px solid var(--color-border)',
-              borderTopColor: 'var(--color-accent)',
-              borderRadius: '50%',
-              animation: 'pulse 0.8s linear infinite',
-              margin: '0 auto 1rem',
-            }}
-          />
-          <p style={{ color: 'var(--color-muted)' }}>
-            {connected ? t('game.waitingForPlayers') : t('game.connecting')}
-          </p>
-        </div>
+      <div className="page game-screen game-loading">
+        <div className="game-loading-indicator" aria-hidden="true" />
+        <p className="game-loading-copy">
+          {connected ? t('game.waitingForPlayers') : t('game.connecting')}
+        </p>
       </div>
     );
   }
@@ -142,33 +186,15 @@ export function GamePage() {
   const names = gameState.playerNames;
 
   const isDeclaringPhase = gameState.trump === null;
-  // Contra phase: trump declared, no cards played yet, and contra escalation is still possible
-  const contraLevel = gameState.contraLevel ?? 0;
-  const isContraPhase =
-    gameState.trump !== null &&
-    gameState.currentTrick.length === 0 &&
-    gameState.completedTricks.length === 0 &&
-    contraLevel < 3 &&
-    // Sant Vicenç (level 3) blocked on botifarra — so after recontro on botifarra we're done
-    !(contraLevel === 2 && gameState.trump === 'botifarra');
+  const isContraPhase = getContraDecidingTeam(gameState) !== null;
   const isPlayingPhase = gameState.trump !== null && gameState.completedTricks.length < 12;
-  const isMyTurn = gameState.currentPlayerSeat === mySeat;
+  const isMyTurn =
+    getContraDecidingTeam(gameState) === null &&
+    (gameState.currentPlayerSeat === mySeat ||
+      (isDeclaringPhase && gameState.declarantSeat === mySeat));
 
   return (
-    <div
-      className="game-room"
-      style={{
-        maxWidth: 1040,
-        width: '100%',
-        margin: '0 auto',
-        padding: '0.9rem 1rem 1.5rem',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '0.75rem',
-        minHeight: '100dvh',
-        position: 'relative',
-      }}
-    >
+    <div className="game-room">
       {/* Toast */}
       {toasts.length > 0 && (
         <div className="toast" onClick={dismissToast}>
@@ -179,240 +205,61 @@ export function GamePage() {
       {/* Game Over overlay */}
       {gameResult && (
         <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background:
-              gameResult.winner === myTeam
-                ? 'linear-gradient(135deg, rgba(46, 204, 113, 0.95) 0%, rgba(39, 174, 96, 0.95) 100%)'
-                : 'linear-gradient(135deg, rgba(192, 57, 43, 0.95) 0%, rgba(142, 68, 173, 0.95) 100%)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 200,
-            animation: 'fadeIn 0.5s ease',
-          }}
+          className={`game-result-overlay ${gameResult.winner === myTeam ? 'is-victory' : 'is-defeat'}`}
         >
-          <div
-            style={{
-              textAlign: 'center',
-              maxWidth: 600,
-              padding: '3rem 2rem',
-              background: 'rgba(0,0,0,0.4)',
-              borderRadius: 'var(--radius-lg)',
-              backdropFilter: 'blur(10px)',
-              border: '2px solid rgba(255,255,255,0.2)',
-            }}
-          >
-            {/* Result title */}
-            <div
-              style={{
-                fontSize: '4.5rem',
-                fontWeight: 'bold',
-                marginBottom: '1rem',
-                textTransform: 'uppercase',
-                letterSpacing: '0.1em',
-                color: '#fff',
-                textShadow: '0 4px 20px rgba(0,0,0,0.5)',
-                animation: 'slideDown 0.6s ease-out',
-              }}
-            >
+          <section className="game-result-panel" aria-labelledby="game-result-heading">
+            <p className="game-result-eyebrow">{t('game.finalScore')}</p>
+            <h1 className="game-result-title" id="game-result-heading">
               {t(gameResult.winner === myTeam ? 'game.victory' : 'game.defeat')}
-            </div>
-
-            {/* Icon */}
-            <div
-              style={{
-                fontSize: '5rem',
-                marginBottom: '1.5rem',
-                animation: 'scaleIn 0.5s ease-out 0.3s backwards',
-              }}
-            >
-              {gameResult.winner === myTeam ? '🏆' : '😔'}
-            </div>
-
-            {/* Score display */}
-            <div
-              style={{
-                background: 'rgba(0,0,0,0.3)',
-                borderRadius: 'var(--radius)',
-                padding: '2rem',
-                marginBottom: '2rem',
-                animation: 'fadeIn 0.6s ease-out 0.5s backwards',
-              }}
-            >
-              <div
-                style={{
-                  fontSize: '0.9rem',
-                  color: 'rgba(255,255,255,0.7)',
-                  marginBottom: '1rem',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.1em',
-                }}
-              >
-                {t('game.finalScore')}
+            </h1>
+            <div className="game-result-score">
+              <div className="game-result-team">
+                <span className="game-result-team-label">
+                  {myTeam === 0 ? t('game.yourTeam') : t('game.opponents')}
+                </span>
+                <strong className={gameResult.winner === 0 ? 'is-winner' : ''}>{gameResult.scores[0]}</strong>
+                <span className="game-result-player-names">{names[0]} &amp; {names[2]}</span>
               </div>
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  gap: '3rem',
-                }}
-              >
-                <div style={{ textAlign: 'center' }}>
-                  <div
-                    style={{
-                      fontSize: '0.75rem',
-                      color: 'rgba(255,255,255,0.6)',
-                      marginBottom: '0.5rem',
-                      textTransform: 'uppercase',
-                    }}
-                  >
-                    {myTeam === 0 ? t('game.yourTeam') : t('game.opponents')}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: '3.5rem',
-                      fontWeight: 'bold',
-                      color: gameResult.winner === 0 ? '#2ecc71' : '#fff',
-                      textShadow:
-                        gameResult.winner === 0 ? '0 0 20px rgba(46, 204, 113, 0.8)' : 'none',
-                    }}
-                  >
-                    {gameResult.scores[0]}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: '0.7rem',
-                      color: 'rgba(255,255,255,0.5)',
-                      marginTop: '0.25rem',
-                    }}
-                  >
-                    {names[0]} & {names[2]}
-                  </div>
-                </div>
-                <div
-                  style={{
-                    fontSize: '2.5rem',
-                    color: 'rgba(255,255,255,0.4)',
-                    fontWeight: 300,
-                  }}
-                >
-                  :
-                </div>
-                <div style={{ textAlign: 'center' }}>
-                  <div
-                    style={{
-                      fontSize: '0.75rem',
-                      color: 'rgba(255,255,255,0.6)',
-                      marginBottom: '0.5rem',
-                      textTransform: 'uppercase',
-                    }}
-                  >
-                    {myTeam === 1 ? t('game.yourTeam') : t('game.opponents')}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: '3.5rem',
-                      fontWeight: 'bold',
-                      color: gameResult.winner === 1 ? '#2ecc71' : '#fff',
-                      textShadow:
-                        gameResult.winner === 1 ? '0 0 20px rgba(46, 204, 113, 0.8)' : 'none',
-                    }}
-                  >
-                    {gameResult.scores[1]}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: '0.7rem',
-                      color: 'rgba(255,255,255,0.5)',
-                      marginTop: '0.25rem',
-                    }}
-                  >
-                    {names[1]} & {names[3]}
-                  </div>
-                </div>
+              <span className="game-result-separator" aria-hidden="true">:</span>
+              <div className="game-result-team">
+                <span className="game-result-team-label">
+                  {myTeam === 1 ? t('game.yourTeam') : t('game.opponents')}
+                </span>
+                <strong className={gameResult.winner === 1 ? 'is-winner' : ''}>{gameResult.scores[1]}</strong>
+                <span className="game-result-player-names">{names[1]} &amp; {names[3]}</span>
               </div>
             </div>
-
-            {/* Action button */}
             <button
-              onClick={() => {
-                setActiveGameRoomId(null);
-                reset();
-                navigate('/');
-              }}
-              style={{
-                background: 'rgba(255,255,255,0.95)',
-                color: '#1a1a1a',
-                fontWeight: 600,
-                padding: '0.75rem 2.5rem',
-                fontSize: '1rem',
-                border: 'none',
-                borderRadius: 'var(--radius)',
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em',
-                boxShadow: '0 4px 15px rgba(0,0,0,0.3)',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'scale(1.05)';
-                e.currentTarget.style.boxShadow = '0 6px 20px rgba(0,0,0,0.4)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'scale(1)';
-                e.currentTarget.style.boxShadow = '0 4px 15px rgba(0,0,0,0.3)';
-              }}
+              className="game-result-button"
+              onClick={returnToLobby}
             >
               {t('game.backToLobby')}
             </button>
-          </div>
+          </section>
         </div>
       )}
 
       {/* Top bar */}
-      <header className="game-room-topbar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <header className="game-room-topbar">
         <button
           className="btn-outline"
-          onClick={() => {
-            setActiveGameRoomId(null);
-            navigate('/');
-          }}
-          style={{ padding: '0.3rem 0.8rem', fontSize: '0.8rem' }}
+          onClick={requestReturnToLobby}
         >
           {t('game.backToLobby')}
         </button>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.75rem' }}>
+        <div className="game-room-status">
           {mode === 'practice' && (
-            <span
-              style={{
-                background: 'var(--color-surface-2)',
-                padding: '0.2rem 0.5rem',
-                borderRadius: 'var(--radius)',
-                color: 'var(--color-warning)',
-              }}
-            >
+            <span className="game-mode-badge game-mode-badge--practice">
               {t('game.practice')}
             </span>
           )}
           {mode === 'botifarra' && gameState && (
-            <span
-              style={{
-                background: gameState.ranked
-                  ? 'rgba(155, 89, 182, 0.2)'
-                  : 'var(--color-surface-2)',
-                padding: '0.2rem 0.5rem',
-                borderRadius: 'var(--radius)',
-                color: gameState.ranked ? '#c39bd3' : 'var(--color-muted)',
-                fontWeight: gameState.ranked ? 600 : 400,
-              }}
-            >
-              {gameState.ranked ? t('game.ranked') : 'Normal'}
+            <span className={`game-mode-badge${gameState.ranked ? ' game-mode-badge--ranked' : ''}`}>
+              {gameState.ranked ? t('game.ranked') : t('game.normal')}
             </span>
           )}
-          <span style={{ color: connected ? 'var(--color-success)' : 'var(--color-danger)' }}>
+          <span className={`game-connection${connected ? ' is-online' : ' is-offline'}`}>
+            <span className="game-connection-dot" aria-hidden="true" />
             {connected ? t('game.online') : t('game.offline')}
           </span>
         </div>
@@ -421,37 +268,30 @@ export function GamePage() {
       {/* Scoreboard */}
       <Scoreboard gameState={gameState} />
 
+      {/* Table status: trump, dealer, and active seat */}
+      <GameStatusPanel gameState={gameState} isMyTurn={isMyTurn} />
+
       {/* Trump declaration & contra phase */}
       {(isDeclaringPhase || isContraPhase) && (
         <DeclareTrumpPanel
           gameState={gameState}
           mySeat={mySeat}
-          timers={interpolatedTimers ?? undefined}
+          timers={interpolatedTimers?.timers}
           onDeclare={sendDeclareTrump}
           onPass={sendPassDeclaration}
+          onPassContra={sendPassContra}
           onContra={sendCallContra}
         />
       )}
 
       {/* Trick area */}
       {isPlayingPhase && (
-        <div
-          className="game-table-panel"
-          style={{
-            background: 'var(--color-surface)',
-            borderRadius: 'var(--radius-lg)',
-            padding: '1rem',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: '0.75rem',
-          }}
-        >
-          <TrickArea gameState={gameState} mySeat={mySeat} timers={interpolatedTimers ?? undefined} />
-          {gameState.trickPauseLeader != null && gameState.trickPauseStartedAt && (
+        <div className="game-table-panel">
+          <TrickArea gameState={gameState} mySeat={mySeat} timers={interpolatedTimers?.timers} />
+          {gameState.trickPauseLeader != null && (
             <ContinueTrickButton
               isLeader={gameState.trickPauseLeader === mySeat}
-              pauseStartedAt={gameState.trickPauseStartedAt}
+              pauseRemainingMs={interpolatedTimers?.trickPauseRemainingMs ?? 30_000}
               pauseDuration={30_000}
               onContinue={sendContinueTrick}
               leaderName={gameState.playerNames[gameState.trickPauseLeader] ?? '?'}
@@ -460,53 +300,15 @@ export function GamePage() {
         </div>
       )}
 
-      {/* Turn indicator */}
-      <div
-        className="game-turn-status"
-        style={{
-          background: isMyTurn ? 'rgba(46, 204, 113, 0.1)' : 'var(--color-surface)',
-          border: isMyTurn ? '1px solid var(--color-success)' : '1px solid transparent',
-          borderRadius: 'var(--radius)',
-          padding: '0.5rem 1rem',
-          fontSize: '0.85rem',
-          color: isMyTurn ? 'var(--color-success)' : 'var(--color-muted)',
-          textAlign: 'center',
-          fontWeight: isMyTurn ? 600 : 400,
-          transition: 'background 0.2s, border-color 0.2s, color 0.2s',
-          // Stable height so it doesn't reflow when text changes
-          minHeight: '2.4em',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        {isMyTurn
-          ? t('game.yourTurn')
-          : gameState.currentPlayerSeat !== null
-            ? t('game.waitingFor', {
-                name:
-                  names[gameState.currentPlayerSeat] ??
-                  t('trick.seatFallback', { seat: gameState.currentPlayerSeat }),
-              })
-            : t('game.waiting')}
-      </div>
-
       {/* Hand */}
-      <div
-        className="game-hand-panel"
-        style={{
-          background: 'var(--color-surface)',
-          borderRadius: 'var(--radius-lg)',
-          padding: '1rem',
-          marginTop: 'auto',
-        }}
-      >
+      <div className="game-hand-panel">
         <HandComponent
           gameState={gameState}
           onPlayCard={(card) => sendPlayCard(card)}
           commandErrorVersion={commandErrorVersion}
         />
       </div>
+      {leaveConfirmDialog}
     </div>
   );
 }

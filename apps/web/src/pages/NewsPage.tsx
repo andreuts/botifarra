@@ -17,61 +17,48 @@ export function NewsPage() {
   const totalPages = data ? Math.ceil(data.total / limit) : 1;
 
   return (
-    <div className="page">
-      <header style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '2rem' }}>
-        <Link to="/" style={{ textDecoration: 'none', color: 'var(--color-accent)' }}>
-          {t('nav.back')}
-        </Link>
-        <h1 style={{ margin: 0 }}>{t('news.heading')}</h1>
+    <div className="section-page news-page">
+      <header className="section-page-header">
+        <div className="section-page-title">
+          <Link to="/" className="section-page-back">
+            {t('nav.back')}
+          </Link>
+          <h1>{t('news.heading')}</h1>
+        </div>
+        <img className="section-page-card" src="/cards/01-bastos.png" alt="" />
       </header>
 
-      {isLoading && <p style={{ color: 'var(--color-muted)' }}>{t('news.loading')}</p>}
-      {error && <p style={{ color: 'var(--color-danger)' }}>{t('news.error')}</p>}
+      {isLoading && <p className="section-page-message">{t('news.loading')}</p>}
+      {error && <p className="section-page-message is-error">{t('news.error')}</p>}
 
       {data && data.posts.length === 0 && (
-        <p style={{ color: 'var(--color-muted)' }}>{t('news.empty')}</p>
+        <p className="section-page-message">{t('news.empty')}</p>
       )}
 
       {data && data.posts.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+        <div className="news-list">
           {data.posts.map((post) => (
-            <article
-              key={post.id}
-              style={{
-                background: 'var(--color-surface)',
-                border: '1px solid var(--color-border)',
-                borderRadius: 'var(--radius)',
-                padding: '1.25rem 1.5rem',
-                display: 'flex',
-                gap: '1.25rem',
-              }}
-            >
+            <article key={post.id} className={`news-card${post.featuredImageUrl ? ' has-image' : ''}`}>
               {post.featuredImageUrl && (
                 <img
                   src={post.featuredImageUrl}
                   alt=""
-                  style={{
-                    width: 120,
-                    height: 80,
-                    objectFit: 'cover',
-                    borderRadius: 4,
-                    flexShrink: 0,
-                  }}
+                  className="news-card-image"
                 />
               )}
-              <div style={{ flex: 1, minWidth: 0 }}>
+              <div className="news-card-content">
                 <Link
                   to={`/news/${post.id}`}
-                  style={{ color: 'var(--color-gold)', textDecoration: 'none' }}
+                  className="news-card-title-link"
                 >
-                  <h2 style={{ margin: '0 0 0.4rem', fontSize: '1.1rem' }}>{post.title}</h2>
+                  <h2>{post.title}</h2>
                 </Link>
                 {post.excerpt && (
-                  <p style={{ margin: '0 0 0.6rem', color: 'var(--color-muted)', fontSize: '0.9rem' }}>
+                  <p className="news-card-excerpt">
                     {post.excerpt}
                   </p>
                 )}
-                <div style={{ fontSize: '0.8rem', color: 'var(--color-muted)', display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                <div className="news-card-meta">
                   {post.publishedAt && (
                     <span>
                       {t('news.publishedAt', {
@@ -85,7 +72,7 @@ export function NewsPage() {
                 </div>
                 <Link
                   to={`/news/${post.id}`}
-                  style={{ color: 'var(--color-accent)', textDecoration: 'none', fontSize: '0.85rem', marginTop: '0.5rem', display: 'inline-block' }}
+                  className="news-read-more"
                 >
                   {t('news.readMore')}
                 </Link>
@@ -97,23 +84,23 @@ export function NewsPage() {
 
       {/* Pagination */}
       {data && totalPages > 1 && (
-        <div style={{ display: 'flex', gap: '0.75rem', marginTop: '2rem', alignItems: 'center' }}>
+        <div className="news-pagination">
           <button
             onClick={() => setPage((p) => Math.max(1, p - 1))}
             disabled={page === 1}
-            className="btn btn-secondary"
+            className="btn-outline news-page-button"
           >
-            ← Anterior
+            {t('history.pagination.prev')}
           </button>
-          <span style={{ color: 'var(--color-muted)', fontSize: '0.9rem' }}>
+          <span className="news-page-count">
             {page} / {totalPages}
           </span>
           <button
             onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
             disabled={page === totalPages}
-            className="btn btn-secondary"
+            className="btn-outline news-page-button"
           >
-            Següent →
+            {t('history.pagination.next')}
           </button>
         </div>
       )}

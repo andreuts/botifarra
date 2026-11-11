@@ -45,6 +45,10 @@ export interface CallContraCommand {
   type: 'call_contra';
 }
 
+export interface PassContraCommand {
+  type: 'pass_contra';
+}
+
 export interface SendChatMessageCommand {
   type: 'chat_message';
   text: string;
@@ -104,6 +108,7 @@ export type ClientCommand =
   | LeaveRoomCommand
   | PassDeclarationCommand
   | CallContraCommand
+  | PassContraCommand
   | SendChatMessageCommand
   | SurrenderRequestCommand
   | SurrenderRespondCommand

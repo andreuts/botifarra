@@ -12,14 +12,20 @@ export interface SerializableRoomSnapshot {
   game: unknown;
   round: unknown;
   phase: 'lobby' | 'playing' | 'finished';
+  /** Pending contra decision. `null` means bidding was explicitly passed. */
+  contraDecidingTeam?: 0 | 1 | null;
 }
 
-export function serializeSnapshot(state: RoomGameState): SerializableRoomSnapshot {
+export function serializeSnapshot(
+  state: RoomGameState,
+  contraDecidingTeam?: 0 | 1 | null,
+): SerializableRoomSnapshot {
   return {
     seats: Array.from(state.seats.entries()),
     game: state.game,
     round: state.round,
     phase: state.phase,
+    ...(contraDecidingTeam !== undefined ? { contraDecidingTeam } : {}),
   };
 }
 
@@ -40,8 +46,9 @@ export async function saveGameSnapshot(
   prisma: PrismaClient,
   matchId: string,
   state: RoomGameState,
+  contraDecidingTeam?: 0 | 1 | null,
 ): Promise<void> {
-  const snapshot = serializeSnapshot(state);
+  const snapshot = serializeSnapshot(state, contraDecidingTeam);
   await prisma.match.update({
     where: { id: matchId },
     data: { lastSnapshot: snapshot as any },

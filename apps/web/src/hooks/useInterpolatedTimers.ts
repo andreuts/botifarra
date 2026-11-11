@@ -1,111 +1,169 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import type { TimerState } from '../store/gameStore.js';
+import { useEffect, useRef, useState } from 'react';
+import type { TimerSnapshot, TimerState } from '../store/gameStore.js';
 
-/**
- * Takes timer snapshots arriving ~1/s from the server and interpolates them
- * at 50 ms on the client for smooth bar/countdown animation.
- *
- * Active seat: baseTurnMs >= 0
- *   - While baseTurnMs > 0: the 15-second turn timer is counting down.
- *   - When baseTurnMs hits 0: the 1-minute round budget starts consuming.
- *
- * Inactive seats: baseTurnMs = -1  → only their static roundBudgetMs is shown.
- *
- * To avoid 1-second jitter, the snapshot is only replaced when:
- *   - The set of active seats changes (turn rotated), OR
- *   - The client-interpolated value has drifted >2 s from the server's value.
- * Otherwise the client just keeps counting down from the existing snapshot.
- */
+interface InterpolationSnapshot {
+  timers: TimerState[];
+  trickPauseRemainingMs: number | null;
+  /** Local monotonic time corresponding to serverTime. */
+  at: number;
+  serverTime: number | null;
+  timerEpoch: number | null;
+  receivedAt: number;
+}
 
-/** Fingerprint that identifies which seats are active */
+export interface InterpolatedTimerState {
+  timers: TimerState[];
+  trickPauseRemainingMs: number | null;
+}
+
+function monotonicNow(): number {
+  return typeof performance !== 'undefined' ? performance.now() : Date.now();
+}
+
 function activeKey(timers: TimerState[]): string {
   return timers
-    .filter((t) => t.baseTurnMs >= 0)
-    .map((t) => t.seat)
+    .filter((timer) => timer.baseTurnMs >= 0)
+    .map((timer) => timer.seat)
     .sort()
     .join(',');
 }
 
-/** Check if the server values differ from what the client would predict by >2s */
-function hasDrifted(
-  snap: { timers: TimerState[]; at: number },
-  server: TimerState[],
-): boolean {
-  const dt = Date.now() - snap.at;
-  for (const st of server) {
-    if (st.baseTurnMs < 0) continue;
-    const local = snap.timers.find((t) => t.seat === st.seat);
-    if (!local || local.baseTurnMs < 0) return true; // seat became active
-    // What the client thinks baseTurnMs should be now
-    const predictedBase = Math.max(0, local.baseTurnMs - dt);
-    if (Math.abs(predictedBase - st.baseTurnMs) > 2000) return true;
-  }
-  return false;
+/** Predict timer values elapsed milliseconds after a server snapshot. */
+function advance(timers: TimerState[], elapsedMs: number): TimerState[] {
+  const elapsed = Math.max(0, elapsedMs);
+  return timers.map((timer) => {
+    if (timer.baseTurnMs < 0) return timer;
+
+    const baseTurnMs = Math.max(0, timer.baseTurnMs - elapsed);
+    const budgetElapsed = Math.max(0, elapsed - timer.baseTurnMs);
+    const roundBudgetMs = Math.max(0, timer.roundBudgetMs - budgetElapsed);
+    return { ...timer, baseTurnMs, roundBudgetMs };
+  });
 }
 
-export function useInterpolatedTimers(serverTimers: TimerState[] | null): TimerState[] | null {
-  const snapshotRef = useRef<{ timers: TimerState[]; at: number } | null>(null);
-  const prevKeyRef = useRef<string>('');
+function interpolate(snapshot: InterpolationSnapshot, now: number): InterpolatedTimerState {
+  const elapsed = Math.max(0, now - snapshot.at);
+  return {
+    timers: advance(snapshot.timers, elapsed),
+    trickPauseRemainingMs: snapshot.trickPauseRemainingMs === null
+      ? null
+      : Math.max(0, snapshot.trickPauseRemainingMs - elapsed),
+  };
+}
 
-  // Seed with the first server value so the bar appears immediately on mount
-  const [local, setLocal] = useState<TimerState[] | null>(() => {
-    if (serverTimers) {
-      snapshotRef.current = { timers: serverTimers, at: Date.now() };
-      prevKeyRef.current = activeKey(serverTimers);
+/**
+ * Ordinary server updates for the same clock can only reduce remaining time.
+ * Clamp small synchronization jitter down so a countdown never jumps upward.
+ */
+function keepCountdownMonotonic(
+  nextTimers: TimerState[],
+  previousAtServerTime: TimerState[],
+): TimerState[] {
+  return nextTimers.map((next) => {
+    const previous = previousAtServerTime.find((timer) => timer.seat === next.seat);
+    if (!previous) return next;
+
+    if (next.baseTurnMs >= 0 && previous.baseTurnMs >= 0) {
+      return {
+        ...next,
+        baseTurnMs: Math.min(next.baseTurnMs, previous.baseTurnMs),
+        roundBudgetMs: Math.min(next.roundBudgetMs, previous.roundBudgetMs),
+      };
     }
-    return serverTimers;
-  });
 
-  // When the server sends a new batch, decide whether to accept the new snapshot
-  // or keep the existing one (to avoid 1-second jumps).
+    if (next.baseTurnMs < 0 && previous.baseTurnMs < 0) {
+      return { ...next, roundBudgetMs: Math.min(next.roundBudgetMs, previous.roundBudgetMs) };
+    }
+
+    return next;
+  });
+}
+
+export function useInterpolatedTimers(source: TimerSnapshot | null): InterpolatedTimerState | null {
+  const snapshotRef = useRef<InterpolationSnapshot | null>(null);
+  const serverToClientOffsetRef = useRef<number | null>(null);
+  const [local, setLocal] = useState<InterpolatedTimerState | null>(() => source
+    ? { timers: source.timers, trickPauseRemainingMs: source.trickPauseRemainingMs }
+    : null);
+
+  // Anchor each authoritative snapshot to the client's monotonic clock. The
+  // lowest observed receive/server offset approximates the one-way latency
+  // floor, so slow or jittery packets are aged before they reach the UI.
   useEffect(() => {
-    if (!serverTimers) {
+    if (!source) {
       snapshotRef.current = null;
-      prevKeyRef.current = '';
+      serverToClientOffsetRef.current = null;
       setLocal(null);
       return;
     }
 
-    const newKey = activeKey(serverTimers);
-    const snap = snapshotRef.current;
-
-    // Accept new snapshot if:
-    // 1. No existing snapshot (first load / reconnect)
-    // 2. Active seats changed (turn moved to someone else)
-    // 3. Values have drifted significantly (correction needed)
-    if (!snap || newKey !== prevKeyRef.current || hasDrifted(snap, serverTimers)) {
-      snapshotRef.current = { timers: serverTimers, at: Date.now() };
-      prevKeyRef.current = newKey;
+    const previous = snapshotRef.current;
+    if (
+      previous &&
+      previous.serverTime !== null &&
+      source.serverTime !== null &&
+      source.serverTime < previous.serverTime
+    ) {
+      return; // Ignore an out-of-order timer packet.
     }
-    // Otherwise: keep existing snapshot, client continues smooth countdown
-  }, [serverTimers]);
 
-  // Client-side interpolation at 50 ms — reads from the ref so the interval
-  // never needs to be torn down when new snapshots arrive.
+    let at = source.receivedAt;
+    if (source.serverTime !== null) {
+      const observedOffset = source.receivedAt - source.serverTime;
+      serverToClientOffsetRef.current = serverToClientOffsetRef.current === null
+        ? observedOffset
+        : Math.min(serverToClientOffsetRef.current, observedOffset);
+      at = source.serverTime + serverToClientOffsetRef.current;
+    }
+
+    const serverElapsed = previous
+      ? source.serverTime !== null && previous.serverTime !== null
+        ? Math.max(0, source.serverTime - previous.serverTime)
+        : Math.max(0, source.receivedAt - previous.receivedAt)
+      : 0;
+    const previousAtNewTime = previous ? advance(previous.timers, serverElapsed) : null;
+    const clockRestarted =
+      !previous ||
+      activeKey(source.timers) !== activeKey(previous.timers) ||
+      (source.timerEpoch !== null &&
+        previous.timerEpoch !== null &&
+        source.timerEpoch !== previous.timerEpoch);
+    const timers = previous && previousAtNewTime && !clockRestarted
+      ? keepCountdownMonotonic(source.timers, previousAtNewTime)
+      : source.timers;
+    const previousPauseAtNewTime = previous?.trickPauseRemainingMs === null || !previous
+      ? null
+      : Math.max(0, previous.trickPauseRemainingMs - serverElapsed);
+    const trickPauseRemainingMs =
+      !clockRestarted &&
+      source.trickPauseRemainingMs !== null &&
+      previousPauseAtNewTime !== null
+        ? Math.min(source.trickPauseRemainingMs, previousPauseAtNewTime)
+        : source.trickPauseRemainingMs;
+
+    const nextSnapshot: InterpolationSnapshot = {
+      timers,
+      trickPauseRemainingMs,
+      at,
+      serverTime: source.serverTime,
+      timerEpoch: source.timerEpoch,
+      receivedAt: source.receivedAt,
+    };
+    snapshotRef.current = nextSnapshot;
+    setLocal(interpolate(nextSnapshot, monotonicNow()));
+  }, [source]);
+
+  // Recalculate from the anchored snapshot instead of decrementing a local
+  // counter. This avoids interval drift and works correctly after tab sleeps.
   useEffect(() => {
-    const id = setInterval(() => {
-      const snap = snapshotRef.current;
-      if (!snap) return;
-
-      const dt = Date.now() - snap.at;
-
-      setLocal(
-        snap.timers.map((t) => {
-          if (t.baseTurnMs < 0) {
-            // Inactive seat — budget doesn't change between server snapshots
-            return t;
-          }
-          // Active seat: count down 15-s turn timer, then consume round budget
-          const newBase = Math.max(0, t.baseTurnMs - dt);
-          const budgetElapsed = Math.max(0, dt - t.baseTurnMs); // only after base expires
-          const newBudget = Math.max(0, t.roundBudgetMs - budgetElapsed);
-          return { ...t, baseTurnMs: newBase, roundBudgetMs: newBudget };
-        }),
-      );
+    const id = window.setInterval(() => {
+      const snapshot = snapshotRef.current;
+      if (!snapshot) return;
+      setLocal(interpolate(snapshot, monotonicNow()));
     }, 50);
 
-    return () => clearInterval(id);
-  }, []); // runs once; reads snapshotRef which is always current
+    return () => window.clearInterval(id);
+  }, []);
 
   return local;
 }

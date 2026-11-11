@@ -8,6 +8,7 @@ export function RegisterPage() {
   const { t } = useTranslation();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -15,6 +16,10 @@ export function RegisterPage() {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError('');
+    if (password !== confirmPassword) {
+      setError(t('auth.passwordMismatch'));
+      return;
+    }
     setLoading(true);
     try {
       await api.auth.register({ username, password });
@@ -50,12 +55,34 @@ export function RegisterPage() {
             type="password"
             autoComplete="new-password"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={(e) => {
+              setPassword(e.target.value);
+              setError('');
+            }}
             required
             minLength={6}
             aria-describedby="auth-password-hint"
           />
           <p id="auth-password-hint" className="auth-field-hint">{t('auth.passwordHint')}</p>
+        </div>
+        <div className="form-group">
+          <label htmlFor="confirm-password">{t('auth.confirmPassword')}</label>
+          <input
+            id="confirm-password"
+            type="password"
+            autoComplete="new-password"
+            value={confirmPassword}
+            onChange={(e) => {
+              setConfirmPassword(e.target.value);
+              setError('');
+            }}
+            required
+            minLength={6}
+            aria-describedby="auth-confirm-password-hint"
+          />
+          <p id="auth-confirm-password-hint" className="auth-field-hint">
+            {t('auth.confirmPasswordHint')}
+          </p>
         </div>
         {error && <p className="error-msg" role="alert">{error}</p>}
         <button className="auth-submit" type="submit" disabled={loading}>

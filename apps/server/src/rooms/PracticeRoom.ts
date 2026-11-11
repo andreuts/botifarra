@@ -57,8 +57,9 @@ export class PracticeRoom extends BotifarraRoom {
       setTimeout(() => {
         if (this.trickPauseLeader !== null) {
           this.clearTrickPause();
-          this.turnStartedAt = Date.now();
+          this.startTurnTimerClock();
           this.broadcastGameState();
+          this.broadcastTimerState();
         }
       }, PracticeRoom.BOT_VISUAL_PAUSE_MS);
     } else {
@@ -72,6 +73,39 @@ export class PracticeRoom extends BotifarraRoom {
     if (this.botPendingMove) return;
     if (!this.gameState?.round) return;
     if (this.trickPauseLeader !== null) return; // don't play during trick pause
+
+    // Bots pass on contra when their team is deciding. If the human is on that
+    // team, leave the choice to them instead of letting a bot's next card play
+    // accidentally close the decision window.
+    if (this.contraDecidingTeam !== null) {
+      const decidingTeam = this.contraDecidingTeam;
+      const humanCanDecide = [...this.state.players].some(
+        ([sessionId, player]) =>
+          !this.botSeeds.has(sessionId) && player.seat % 2 === decidingTeam,
+      );
+      if (humanCanDecide) return;
+
+      const botEntry = [...this.botSeeds]
+        .map((sessionId) => this.state.players.get(sessionId))
+        .find((player) => player && player.seat % 2 === decidingTeam);
+      if (!botEntry) return;
+
+      const seat = botEntry.seat as Seat;
+      this.botPendingMove = true;
+      setTimeout(() => {
+        this.botPendingMove = false;
+        if (this.contraDecidingTeam !== decidingTeam) return;
+        try {
+          this.resolveContraPass(seat);
+          this.broadcastGameState();
+          this.broadcastTimerState();
+          this.persistSnapshot();
+        } catch {
+          /* The decision may have changed while the bot was waiting. */
+        }
+      }, botDelay());
+      return;
+    }
 
     // Don't let bots play immediately after a trick completes — give players 2.5s to see it
     if (this.lastTrickCompletedAt > 0 && Date.now() - this.lastTrickCompletedAt < PracticeRoom.BOT_VISUAL_PAUSE_MS) return;
@@ -129,10 +163,14 @@ export class PracticeRoom extends BotifarraRoom {
       const declaration = heuristicBotDeclareTrump(round, seat);
       try {
         const { state, events } = handleDeclareTrump(this.gameState, sessionId, declaration);
+        this.resetTurnTimer([seat]);
         this.gameState = state;
         this.syncSchemaPublic();
-        for (const event of events) this.broadcast(event.type, event);
+        for (const event of events) this.broadcastEvent(event);
+        this.contraDecidingTeam = this.getContraDecidingTeamForRound(this.gameState.round);
         this.broadcastGameState();
+        this.broadcastTimerState();
+        this.persistSnapshot();
       } catch {
         /* ignore invalid move */
       }
@@ -140,10 +178,12 @@ export class PracticeRoom extends BotifarraRoom {
       const card = heuristicBotMove(round, seat);
       try {
         const { state, events, roundEnded, trickCompleted } = handlePlayCard(this.gameState, sessionId, card);
+        this.resetTurnTimer([seat]);
         this.gameState = state;
         this.syncSchemaPublic();
-        for (const event of events) this.broadcast(event.type, event);
+        for (const event of events) this.broadcastEvent(event);
         this.broadcastGameState();
+        this.broadcastTimerState();
         if (roundEnded) {
           if (this.gameState.phase === 'finished') {
             this.onGameFinished();
@@ -154,6 +194,7 @@ export class PracticeRoom extends BotifarraRoom {
           const lastTrick = this.gameState.round!.completedTricks.at(-1)!;
           this.startTrickPause(lastTrick.winner as Seat);
           this.broadcastGameState();
+          this.broadcastTimerState();
         }
       } catch {
         /* ignore invalid move */

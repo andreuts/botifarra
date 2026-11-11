@@ -1,5 +1,12 @@
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
-import type { MeResponse, UserProfileDTO, PlayerStatsDTO } from '@botifarra/shared';
+import type {
+  HandSortDirection,
+  MeResponse,
+  PlayerStatsDTO,
+  UpdateUserPreferencesRequest,
+  UpdateUserPreferencesResponse,
+  UserProfileDTO,
+} from '@botifarra/shared';
 import { computePlayerStats } from '../services/stats.js';
 
 export const userRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
@@ -18,9 +25,35 @@ export const userRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
       userId: user.id,
       username: user.username,
       createdAt: user.createdAt.toISOString(),
+      handSortDirection: user.handSortDirection as HandSortDirection,
     };
     return reply.send(response);
   });
+
+  // PATCH /api/users/me/preferences — update the authenticated player's preferences
+  app.patch<{ Body: UpdateUserPreferencesRequest }>(
+    '/me/preferences',
+    { onRequest: [(app as any).authenticate] },
+    async (request, reply) => {
+      const handSortDirection = (request.body as Partial<UpdateUserPreferencesRequest> | undefined)
+        ?.handSortDirection;
+      if (handSortDirection !== 'left-to-right' && handSortDirection !== 'right-to-left') {
+        return reply.status(400).send({ error: 'Invalid hand sort direction' });
+      }
+
+      const { sub: userId } = (request as any).user as { sub: string };
+      const user = await app.prisma.user.update({
+        where: { id: userId },
+        data: { handSortDirection },
+        select: { handSortDirection: true },
+      });
+
+      const response: UpdateUserPreferencesResponse = {
+        handSortDirection: user.handSortDirection as HandSortDirection,
+      };
+      return reply.send(response);
+    },
+  );
 
   // GET /api/users/me/stats — own player statistics (authenticated)
   app.get('/me/stats', { onRequest: [(app as any).authenticate] }, async (request, reply) => {

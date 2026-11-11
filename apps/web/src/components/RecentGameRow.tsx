@@ -10,21 +10,12 @@ export function RecentGameRow({ match, onResume }: RecentGameRowProps) {
   const { t } = useTranslation();
   const resultLabel = t(`history.outcome.${match.outcome}` as any);
   const playedAt = match.finishedAt ?? match.createdAt;
-  const isWon = match.outcome === 'won';
-  const isLost = match.outcome === 'lost';
   const isInProgress = match.outcome === 'in-progress';
 
   return (
     <li
       className={`recent-game-row recent-game-row--${match.outcome}`}
       aria-label={resultLabel}
-      style={{
-        background: isWon
-          ? 'rgba(39, 174, 96, 0.12)'
-          : isLost
-            ? 'rgba(231, 76, 60, 0.12)'
-            : 'var(--color-surface)',
-      }}
     >
       <div className="recent-game-info">
         <span className="recent-game-outcome">{resultLabel}</span>

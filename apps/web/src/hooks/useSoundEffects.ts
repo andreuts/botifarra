@@ -1,73 +1,165 @@
 import { useEffect, useRef } from 'react';
 import { useGameStore } from '../store/gameStore.js';
-import { useSound } from './useSound.js';
+import { useSound, type SoundEvent } from './useSound.js';
+import { remainingTurnTimeMs } from '../utils/timerUtils.js';
 
-/**
- * Hook that listens to game state changes and triggers appropriate sound effects.
- * Should be mounted once at the game page level.
- */
+interface GameSoundSnapshot {
+  roundNumber: number;
+  trump: string | null;
+  dealerPassed: boolean;
+  declarantSeat: number;
+  contraLevel: number;
+  currentTrickLength: number;
+  completedTrickCount: number;
+  currentPlayerSeat: number | null;
+  mySeat: number;
+  trickPauseLeader: number | null;
+}
+
+interface TimerSoundSnapshot {
+  key: string;
+  seconds: number;
+  expired: boolean;
+}
+
+const CONTRA_SOUNDS: Record<number, SoundEvent> = {
+  1: 'contra',
+  2: 'recontra',
+  3: 'sant-vicenc',
+};
+
+/** Mount once on the game page to turn shared game-state changes into SFX. */
 export function useSoundEffects() {
   const { play, unlock } = useSound();
-  const gameState = useGameStore((s) => s.gameState);
-  const gameResult = useGameStore((s) => s.gameResult);
+  const gameState = useGameStore((state) => state.gameState);
+  const gameResult = useGameStore((state) => state.gameResult);
+  const timers = useGameStore((state) => state.timers);
 
-  // Track previous values to detect changes
-  const prevTrickCount = useRef<number>(0);
-  const prevTrump = useRef<string | null | undefined>(undefined);
-  const prevCardCount = useRef<number>(0);
-  const prevGameResult = useRef(gameResult);
+  const previousState = useRef<GameSoundSnapshot | null>(null);
+  const previousGameResult = useRef(gameResult);
+  const timerSound = useRef<TimerSoundSnapshot | null>(null);
 
-  // Unlock audio on first interaction
+  // Browsers require a real user gesture before Web Audio can play.
   useEffect(() => {
-    const handler = () => { unlock(); document.removeEventListener('click', handler); };
-    document.addEventListener('click', handler, { once: true });
-    return () => document.removeEventListener('click', handler);
+    const onFirstGesture = () => {
+      unlock();
+      document.removeEventListener('pointerdown', onFirstGesture, true);
+      document.removeEventListener('keydown', onFirstGesture, true);
+    };
+    document.addEventListener('pointerdown', onFirstGesture, true);
+    document.addEventListener('keydown', onFirstGesture, true);
+    return () => {
+      document.removeEventListener('pointerdown', onFirstGesture, true);
+      document.removeEventListener('keydown', onFirstGesture, true);
+    };
   }, [unlock]);
 
-  // Detect game events from state changes
+  // Event sounds come from synchronized state, so the same cue plays for each player.
   useEffect(() => {
-    if (!gameState) return;
-
-    const currentTrump = gameState.trump;
-    const trickCards = gameState.currentTrick?.length ?? 0;
-    const completedTrickCount = gameState.completedTricks?.length ?? 0;
-
-    // Trump declaration (trump went from null to a value)
-    if (currentTrump !== null && prevTrump.current === null) {
-      play('trump-declare');
+    if (!gameState) {
+      previousState.current = null;
+      return;
     }
 
-    // Card played (trick cards increased)
-    if (trickCards > prevCardCount.current && prevCardCount.current >= 0 && prevTrump.current !== undefined) {
-      play('card-play');
+    const current: GameSoundSnapshot = {
+      roundNumber: gameState.roundNumber,
+      trump: gameState.trump,
+      dealerPassed: gameState.dealerPassed,
+      declarantSeat: gameState.declarantSeat,
+      contraLevel: gameState.contraLevel,
+      currentTrickLength: gameState.currentTrick.length,
+      completedTrickCount: gameState.completedTricks.length,
+      currentPlayerSeat: gameState.currentPlayerSeat,
+      mySeat: gameState.mySeat,
+      trickPauseLeader: gameState.trickPauseLeader ?? null,
+    };
+    const previous = previousState.current;
+
+    if (!previous) {
+      previousState.current = current;
+      // The first state is the initial deal only when a fresh match starts at round one.
+      if (current.roundNumber === 1 && current.trump === null && gameState.hand.length > 0) {
+        play('card-deal');
+      }
+      return;
     }
 
-    // Trick completed (completed trick count increased)
-    if (completedTrickCount > prevTrickCount.current && prevTrickCount.current > 0) {
-      play('trick-win');
-    }
+    const newRound =
+      current.roundNumber !== previous.roundNumber ||
+      (previous.trump !== null && current.trump === null);
 
-    // Deal (trump reset to null from a value — new round)
-    if (currentTrump === null && prevTrump.current !== null && prevTrump.current !== undefined) {
+    if (newRound) {
       play('card-deal');
+    } else {
+      if (!previous.dealerPassed && current.dealerPassed && current.trump === null) {
+        play('delegate');
+      }
+
+      if (previous.trump === null && current.trump !== null) {
+        play(current.trump === 'botifarra' ? 'botifarra' : 'trump-declare');
+      }
+
+      if (current.contraLevel > previous.contraLevel) {
+        const contraSound = CONTRA_SOUNDS[current.contraLevel];
+        if (contraSound) play(contraSound);
+      }
+
+      // Count total cards played so the fourth card still sounds when the trick resets.
+      const previousCardsPlayed = previous.completedTrickCount * 4 + previous.currentTrickLength;
+      const currentCardsPlayed = current.completedTrickCount * 4 + current.currentTrickLength;
+      if (currentCardsPlayed > previousCardsPlayed) play('card-play');
+
+      if (current.completedTrickCount > previous.completedTrickCount) play('trick-win');
     }
 
-    prevTrump.current = currentTrump;
-    prevCardCount.current = trickCards;
-    prevTrickCount.current = completedTrickCount;
+    const playerJustGotTheTurn =
+      current.currentPlayerSeat === current.mySeat &&
+      (previous.currentPlayerSeat !== current.mySeat ||
+        (previous.trickPauseLeader !== null && current.trickPauseLeader === null));
+    if (playerJustGotTheTurn) play('turn-start');
+
+    previousState.current = current;
   }, [gameState, play]);
 
-  // Game ended
+  // Give only the local player a soft tick in the final seconds of their clock.
   useEffect(() => {
-    if (gameResult && !prevGameResult.current) {
-      const mySeat = useGameStore.getState().gameState?.mySeat ?? 0;
-      const myTeam = mySeat % 2;
-      if (gameResult.winner === myTeam) {
-        play('round-win');
-      } else {
-        play('round-lose');
+    if (!gameState || !timers) return;
+
+    const myTimer = timers.find((timer) => timer.seat === gameState.mySeat);
+    if (!myTimer || myTimer.baseTurnMs < 0) return;
+
+    const remainingMs = remainingTurnTimeMs(myTimer);
+    const phaseKey =
+      gameState.currentPlayerSeat === null
+        ? `decision-${gameState.declarantSeat}-${gameState.contraLevel}-${gameState.dealerPassed}`
+        : `seat-${gameState.currentPlayerSeat}`;
+    const key = `${gameState.matchId}-${gameState.roundNumber}-${phaseKey}-${gameState.trickPauseLeader ?? 'active'}`;
+
+    if (remainingMs <= 0) {
+      if (timerSound.current?.key !== key || !timerSound.current.expired) {
+        play('timer-expired');
       }
+      timerSound.current = { key, seconds: 0, expired: true };
+      return;
     }
-    prevGameResult.current = gameResult;
+
+    const seconds = Math.ceil(remainingMs / 1000);
+    const previous = timerSound.current;
+    if (
+      seconds <= 5 &&
+      (previous?.key !== key || previous.seconds !== seconds)
+    ) {
+      play('timer-tick', { urgent: seconds <= 3 });
+    }
+    timerSound.current = { key, seconds, expired: false };
+  }, [gameState, timers, play]);
+
+  // Match result sounds are based on the local seat's team.
+  useEffect(() => {
+    if (gameResult && !previousGameResult.current) {
+      const myTeam = (useGameStore.getState().gameState?.mySeat ?? 0) % 2;
+      play(gameResult.winner === myTeam ? 'round-win' : 'round-lose');
+    }
+    previousGameResult.current = gameResult;
   }, [gameResult, play]);
 }

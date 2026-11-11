@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
@@ -15,6 +16,63 @@ const SUITS = [
   { key: 'E', suit: 'espases', image: '/cards/01-espadas.png' },
   { key: 'B', suit: 'bastos', image: '/cards/01-bastos.png' },
 ] as const;
+
+function RankedHelpTooltip({ id, label, message }: { id: string; label: string; message: string }) {
+  const [open, setOpen] = useState(false);
+  const [position, setPosition] = useState({ left: 0, top: 0 });
+  const triggerRef = useRef<HTMLButtonElement>(null);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+
+    const updatePosition = () => {
+      const rect = triggerRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const halfWidth = Math.min(150, Math.max(0, (window.innerWidth - 24) / 2));
+      const minLeft = halfWidth + 12;
+      const maxLeft = window.innerWidth - halfWidth - 12;
+      const left = Math.max(minLeft, Math.min(rect.left + rect.width / 2, maxLeft));
+      setPosition({ left, top: rect.top - 8 });
+    };
+
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', updatePosition, true);
+    return () => {
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition, true);
+    };
+  }, [open]);
+
+  return (
+    <>
+      <button
+        ref={triggerRef}
+        className="ranked-help-button"
+        type="button"
+        aria-label={label}
+        aria-describedby={open ? id : undefined}
+        onMouseEnter={() => setOpen(true)}
+        onMouseLeave={() => setOpen(false)}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setOpen(false)}
+      >
+        <span aria-hidden="true">?</span>
+      </button>
+      {open && createPortal(
+        <span
+          id={id}
+          className="ranked-help-tooltip"
+          role="tooltip"
+          style={{ left: position.left, top: position.top }}
+        >
+          {message}
+        </span>,
+        document.body,
+      )}
+    </>
+  );
+}
 
 export function HomePage() {
   const { t } = useTranslation();
@@ -138,11 +196,8 @@ export function HomePage() {
         <section className="lobby-section" aria-labelledby="lobby-play-heading">
           <div className="lobby-section-heading">
             <div className="lobby-section-title-wrap">
-              <span className="lobby-section-number" aria-hidden="true">01</span>
-              <div>
-                <p className="lobby-overline">{t('home.playOptions')}</p>
-                <h2 id="lobby-play-heading">{t('home.play')}</h2>
-              </div>
+              <p className="lobby-overline">{t('home.playOptions')}</p>
+              <h2 id="lobby-play-heading">{t('home.play')}</h2>
             </div>
             <div className="lobby-suit-line" aria-hidden="true">
               {SUITS.map((suit) => (
@@ -159,16 +214,23 @@ export function HomePage() {
               description={t('home.quickMatchSoloDesc')}
               disabled={queueState !== 'idle' && queueMode !== 'single'}
             >
-              <label className="lobby-ranked-toggle" htmlFor="ranked-solo">
-                <input
-                  id="ranked-solo"
-                  type="checkbox"
-                  checked={ranked}
-                  disabled={queueState !== 'idle'}
-                  onChange={(e) => setRanked(e.target.checked)}
+              <div className="lobby-ranked-setting">
+                <label className="lobby-ranked-toggle" htmlFor="ranked-solo">
+                  <input
+                    id="ranked-solo"
+                    type="checkbox"
+                    checked={ranked}
+                    disabled={queueState !== 'idle'}
+                    onChange={(e) => setRanked(e.target.checked)}
+                  />
+                  {t('home.ranked')}
+                </label>
+                <RankedHelpTooltip
+                  id="ranked-solo-help"
+                  label={t('home.rankedHelpLabel')}
+                  message={t('home.rankedHelp')}
                 />
-                {t('home.ranked')}
-              </label>
+              </div>
               {queueState === 'idle' ? (
                 <button className="btn-accent lobby-primary-action" onClick={() => joinQueue('single', undefined, ranked)}>
                   {t('home.quickMatchSolo')}
@@ -196,16 +258,23 @@ export function HomePage() {
               description={t('home.quickMatchPairDesc')}
               disabled={queueState !== 'idle' && queueMode !== 'pair'}
             >
-              <label className="lobby-ranked-toggle" htmlFor="ranked-pair">
-                <input
-                  id="ranked-pair"
-                  type="checkbox"
-                  checked={rankedPair}
-                  disabled={queueState !== 'idle'}
-                  onChange={(e) => setRankedPair(e.target.checked)}
+              <div className="lobby-ranked-setting">
+                <label className="lobby-ranked-toggle" htmlFor="ranked-pair">
+                  <input
+                    id="ranked-pair"
+                    type="checkbox"
+                    checked={rankedPair}
+                    disabled={queueState !== 'idle'}
+                    onChange={(e) => setRankedPair(e.target.checked)}
+                  />
+                  {t('home.ranked')}
+                </label>
+                <RankedHelpTooltip
+                  id="ranked-pair-help"
+                  label={t('home.rankedHelpLabel')}
+                  message={t('home.rankedHelp')}
                 />
-                {t('home.ranked')}
-              </label>
+              </div>
               <button className="btn-accent lobby-primary-action" onClick={() => navigate(`/friends?ranked=${rankedPair}`)}>
                 {t('home.quickMatchPair')}
               </button>
@@ -265,11 +334,8 @@ export function HomePage() {
         <section className="lobby-section lobby-activity" aria-labelledby="lobby-activity-heading">
           <div className="lobby-section-heading lobby-section-heading--activity">
             <div className="lobby-section-title-wrap">
-              <span className="lobby-section-number" aria-hidden="true">02</span>
-              <div>
-                <p className="lobby-overline">{t('nav.matchHistory')}</p>
-                <h2 id="lobby-activity-heading">{t('home.recentMatches')}</h2>
-              </div>
+              <p className="lobby-overline">{t('nav.matchHistory')}</p>
+              <h2 id="lobby-activity-heading">{t('home.recentMatches')}</h2>
             </div>
           </div>
 

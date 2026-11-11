@@ -4,6 +4,8 @@ import type {
   RegisterRequest,
   RegisterResponse,
   MeResponse,
+  UpdateUserPreferencesRequest,
+  UpdateUserPreferencesResponse,
   RecentGameDTO,
   MatchDTO,
   PlayerStatsDTO,
@@ -18,11 +20,13 @@ import type {
   NewsPostSummaryDTO,
   CreateNewsPostRequest,
   UpdateNewsPostRequest,
+  CreateBugReportRequest,
+  CreateBugReportResponse,
 } from '@botifarra/shared';
 
 const BASE = '/api';
 
-async function request<T>(path: string, options: RequestInit = {}, token?: string): Promise<T> {
+async function sendRequest(path: string, options: RequestInit = {}, token?: string): Promise<Response> {
   const headers: Record<string, string> = {
     ...(options.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -36,6 +40,11 @@ async function request<T>(path: string, options: RequestInit = {}, token?: strin
     throw new Error((body as any).error ?? `HTTP ${res.status}`);
   }
 
+  return res;
+}
+
+async function request<T>(path: string, options: RequestInit = {}, token?: string): Promise<T> {
+  const res = await sendRequest(path, options, token);
   return res.json() as Promise<T>;
 }
 
@@ -60,6 +69,14 @@ export const api = {
     me: (token: string) => request<MeResponse>('/users/me', {}, token),
   },
 
+  bugs: {
+    report: (data: CreateBugReportRequest) =>
+      request<CreateBugReportResponse>('/bugs/report', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+  },
+
   matches: {
     list: (token: string) => request<RecentGameDTO[]>('/matches', {}, token),
     get: (matchId: string, token: string) => request<MatchDTO>(`/matches/${matchId}`, {}, token),
@@ -69,10 +86,30 @@ export const api = {
 
   users: {
     myStats: (token: string) => request<PlayerStatsDTO>('/users/me/stats', {}, token),
+    updatePreferences: (data: UpdateUserPreferencesRequest, token: string) =>
+      request<UpdateUserPreferencesResponse>('/users/me/preferences', {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }, token),
   },
 
   rankings: {
-    list: (token?: string) => request<RankingEntry[]>('/rankings', {}, token),
+    list: async (
+      token: string,
+      sort: RankingSort,
+      page: number,
+      pageSize: RankingPageSize,
+    ): Promise<RankingPageResult> => {
+      const params = new URLSearchParams({ sort, page: String(page), pageSize: String(pageSize) });
+      const res = await sendRequest(`/rankings?${params.toString()}`, {}, token);
+      const entries = await res.json() as RankingEntry[];
+      const totalHeader = res.headers.get('x-total-count');
+      const parsedTotal = totalHeader === null ? NaN : Number(totalHeader);
+      return {
+        entries,
+        total: Number.isFinite(parsedTotal) ? parsedTotal : entries.length,
+      };
+    },
   },
 
   rooms: {
@@ -516,4 +553,12 @@ export interface RankingEntry {
   matchesWon: number;
   matchesLost: number;
   winRate: number;
+}
+
+export type RankingSort = 'rating' | 'wins' | 'games' | 'winRate';
+export type RankingPageSize = 20 | 50 | 100;
+
+export interface RankingPageResult {
+  entries: RankingEntry[];
+  total: number;
 }

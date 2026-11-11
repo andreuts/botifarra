@@ -25,7 +25,7 @@ describe('HandComponent', () => {
   it('shows "your turn" status when it is my turn', () => {
     render(<HandComponent gameState={mockGameState} onPlayCard={onPlayCard} />);
     // On my turn the aria-label reflects the turn key
-    const statusEl = screen.getByLabelText(/hand\.yourTurn/);
+    const statusEl = screen.getByLabelText('game.currentTurn');
     expect(statusEl).toBeInTheDocument();
   });
 

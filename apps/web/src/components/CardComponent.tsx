@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { Card } from '@botifarra/core';
 
 // ---------------------------------------------------------------------------
@@ -303,6 +304,12 @@ interface CardProps {
   playAnimate?: boolean;
   /** Custom CSS rotation for fan layout */
   rotation?: number;
+  /** Show a larger hover preview (used for hand and current-trick cards only). */
+  magnifyOnHover?: boolean;
+  /** Render this card at the preview size. */
+  magnified?: boolean;
+  /** Increment to play the rejected-move animation. */
+  rejectionAnimationVersion?: number;
 }
 
 export function CardComponent({
@@ -317,13 +324,33 @@ export function CardComponent({
   animate = false,
   playAnimate = false,
   rotation = 0,
+  magnifyOnHover = false,
+  magnified = false,
+  rejectionAnimationVersion = 0,
 }: CardProps) {
   const [imgFailed, setImgFailed] = useState(false);
-  const w = small ? 50 : compact ? 60 : 74;
-  const h = small ? 74 : compact ? 90 : 110;
+  const [rejected, setRejected] = useState(false);
+  const [hoverPosition, setHoverPosition] = useState<{ left: number; top: number } | null>(null);
+  const w = magnified ? 130 : small ? 50 : compact ? 60 : 74;
+  const h = magnified ? 195 : small ? 74 : compact ? 90 : 110;
   const cornerFs = small ? '0.6rem' : compact ? '0.7rem' : '0.82rem';
   const cornerPipSize = small ? 9 : compact ? 10 : 12;
   const color = SUIT_COLOR[card.suit];
+
+  useEffect(() => {
+    if (rejectionAnimationVersion === 0) {
+      setRejected(false);
+      return;
+    }
+
+    setRejected(false);
+    const frame = window.requestAnimationFrame(() => setRejected(true));
+    const timeout = window.setTimeout(() => setRejected(false), 480);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(timeout);
+    };
+  }, [rejectionAnimationVersion]);
 
   const borderColor = selected ? '#C8860A' : disabled ? 'rgba(200,185,165,0.4)' : '#C8BDA0';
 
@@ -346,6 +373,7 @@ export function CardComponent({
 
   return (
     <div
+      className={`card-face${rejected ? ' card-face--rejected' : ''}`}
       role={interactable ? 'button' : undefined}
       tabIndex={interactable ? 0 : undefined}
       aria-label={ariaLabel}
@@ -360,6 +388,7 @@ export function CardComponent({
       }}
       style={{
         position: 'relative',
+        zIndex: hoverPosition ? 2 : undefined,
         width: w,
         height: h,
         background: faceDown
@@ -376,7 +405,7 @@ export function CardComponent({
           : `rotate(${rotation}deg) translateY(${selected ? -14 : 0}px)`,
         userSelect: 'none',
         flexShrink: 0,
-        overflow: 'hidden',
+        overflow: 'visible',
         ...animStyle,
         outline: 'none',
       }}
@@ -389,12 +418,29 @@ export function CardComponent({
         (e.currentTarget as HTMLElement).style.boxShadow = shadow;
       }}
       onMouseEnter={(e) => {
+        if (magnifyOnHover && typeof window !== 'undefined') {
+          const rect = e.currentTarget.getBoundingClientRect();
+          const previewWidth = 130;
+          const previewHeight = 195;
+          const margin = 8;
+          const maxLeft = Math.max(margin, window.innerWidth - previewWidth - margin);
+          const left = Math.max(
+            margin,
+            Math.min(rect.left + (rect.width - previewWidth) / 2, maxLeft),
+          );
+          const maxTop = Math.max(margin, window.innerHeight - previewHeight - margin);
+          let top = rect.top - previewHeight - 12;
+          if (top < margin) top = rect.bottom + 12;
+          top = Math.max(margin, Math.min(top, maxTop));
+          setHoverPosition({ left, top });
+        }
         if (!interactable || disabled) return;
         (e.currentTarget as HTMLElement).style.transform = compact && selected
           ? `rotate(${rotation}deg) translateY(-22px) scale(1.5)`
           : `rotate(${rotation}deg) translateY(${selected ? -14 : -7}px)`;
       }}
       onMouseLeave={(e) => {
+        if (magnifyOnHover) setHoverPosition(null);
         if (!interactable || disabled) return;
         (e.currentTarget as HTMLElement).style.transform = compact && selected
           ? `rotate(${rotation}deg) translateY(-20px) scale(1.5)`
@@ -496,6 +542,17 @@ export function CardComponent({
           </div>
         </>
       )}
+      {magnifyOnHover && hoverPosition && typeof document !== 'undefined' &&
+        createPortal(
+          <div
+            className="card-hover-preview"
+            aria-hidden="true"
+            style={{ left: hoverPosition.left, top: hoverPosition.top }}
+          >
+            <CardComponent card={card} magnified />
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

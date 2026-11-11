@@ -38,25 +38,26 @@ export function MatchHistoryPage() {
   }
 
   return (
-    <div className="page">
-      <header
-        style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}
-      >
-        <h1 style={{ margin: 0 }}>{t('history.heading')}</h1>
+    <div className="section-page history-page">
+      <header className="section-page-header">
+        <div className="section-page-title">
+          <h1>{t('history.heading')}</h1>
+        </div>
+        <img className="section-page-card" src="/cards/01-espadas.png" alt="" />
       </header>
 
       {/* Player statistics panel */}
       {stats && <PlayerStatsSummary stats={stats} />}
 
-      {matchesLoading && <p>{t('history.loading')}</p>}
-      {matchesError && <p style={{ color: 'var(--color-danger)' }}>{t('history.error')}</p>}
+      {matchesLoading && <p className="section-page-message">{t('history.loading')}</p>}
+      {matchesError && <p className="section-page-message is-error">{t('history.error')}</p>}
 
       {matches && matches.length === 0 && (
-        <p style={{ color: 'var(--color-muted)' }}>{t('history.empty')}</p>
+        <p className="section-page-message">{t('history.empty')}</p>
       )}
 
       {matches && matches.length > 0 && (
-        <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+        <ul className="history-match-list">
           {matches.map((m) => (
             <RecentGameRow key={m.matchId} match={m} onResume={handleResume} />
           ))}

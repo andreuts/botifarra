@@ -34,11 +34,9 @@ export const EMOJI_DISPLAY: Record<string, string> = {
 };
 
 /**
- * Tracks seat reservation sessionIds that have already been attempted.
- * consumeSeatReservation is a one-time token: the server marks the seat as consumed
- * on first attempt. React Strict Mode's double-mount would retry with the same token
- * and get "seat reservation expired." A module-level Set persists across React's
- * unmount/remount cycle.
+ * Prevents duplicate consumption of a one-time reservation, including React
+ * Strict Mode's repeated effect setup. Failed attempts are removed so they can
+ * be retried while the reservation remains valid.
  */
 const attemptedReservations = new Set<string>();
 
@@ -70,8 +68,8 @@ export function useGameRoom(
         attemptedReservations.add(seatReservation.sessionId);
       }
 
-      const client = new Client(COLYSEUS_URL);
       try {
+        const client = new Client(COLYSEUS_URL);
         let room: Room;
 
         if (seatReservation) {
@@ -92,12 +90,24 @@ export function useGameRoom(
         room.onMessage('game_state', (msg: { state: PlayerGameStateDTO }) => {
           setGameState(msg.state);
           // Only seed timers from game_state on initial load (before timer_update stream starts)
-          if (msg.state.timers && !timerStreamActive.current) setTimers(msg.state.timers as any);
+          if (msg.state.timers && !timerStreamActive.current) {
+            setTimers(
+              msg.state.timers,
+              msg.state.timerServerTime,
+              msg.state.timerEpoch,
+              msg.state.trickPauseRemainingMs,
+            );
+          }
         });
 
-        room.onMessage('timer_update', (msg: { timers: { seat: 0|1|2|3; baseTurnMs: number; roundBudgetMs: number }[] }) => {
+        room.onMessage('timer_update', (msg: {
+          timers: { seat: 0|1|2|3; baseTurnMs: number; roundBudgetMs: number }[];
+          serverTime?: number;
+          timerEpoch?: number;
+          trickPauseRemainingMs?: number | null;
+        }) => {
           timerStreamActive.current = true;
-          setTimers(msg.timers);
+          setTimers(msg.timers, msg.serverTime, msg.timerEpoch, msg.trickPauseRemainingMs);
         });
 
         room.onMessage('observer_game_state', (msg: { state: ObserverGameStateDTO }) => {
@@ -196,6 +206,9 @@ export function useGameRoom(
           setError(t('toast.roomError', { code, message }));
         });
       } catch (err) {
+        // A failed connection attempt must not permanently consume this
+        // module-level guard; the user may retry while the reservation is valid.
+        if (seatReservation) attemptedReservations.delete(seatReservation.sessionId);
         const msg = err instanceof Error ? err.message : t('toast.connectionFailed');
         setError(msg);
       }
@@ -228,6 +241,10 @@ export function useGameRoom(
 
   const sendPassDeclaration = useCallback(() => {
     roomRef.current?.send('pass_declaration', {});
+  }, []);
+
+  const sendPassContra = useCallback(() => {
+    roomRef.current?.send('pass_contra', {});
   }, []);
 
   const sendCallContra = useCallback(() => {
@@ -279,6 +296,7 @@ export function useGameRoom(
     sendDeclareTrump,
     sendPlayCard,
     sendPassDeclaration,
+    sendPassContra,
     sendCallContra,
     sendChatMessage,
     sendSurrenderRequest,

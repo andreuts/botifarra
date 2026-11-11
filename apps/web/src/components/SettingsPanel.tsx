@@ -10,8 +10,16 @@ interface SettingsPanelProps {
 
 export function SettingsPanel({ open, onClose, onOpenAbout }: SettingsPanelProps) {
   const { t } = useTranslation();
-  const { soundEnabled, soundVolume, language, setSoundEnabled, setSoundVolume, setLanguage } =
-    useSettingsStore();
+  const {
+    soundEnabled,
+    soundVolume,
+    language,
+    bugReportWidgetEnabled,
+    setSoundEnabled,
+    setSoundVolume,
+    setLanguage,
+    setBugReportWidgetEnabled,
+  } = useSettingsStore();
   const [localVolume, setLocalVolume] = useState(soundVolume);
 
   useEffect(() => {
@@ -112,6 +120,20 @@ export function SettingsPanel({ open, onClose, onOpenAbout }: SettingsPanelProps
               <option value="ca">Català</option>
               <option value="en">English</option>
             </select>
+          </div>
+
+          {/* Floating beta feedback widget */}
+          <div className="settings-row">
+            <label htmlFor="bug-report-toggle">{t('settings.bugReportWidget')}</label>
+            <button
+              id="bug-report-toggle"
+              role="switch"
+              aria-checked={bugReportWidgetEnabled}
+              className={`toggle-switch ${bugReportWidgetEnabled ? 'toggle-on' : ''}`}
+              onClick={() => setBugReportWidgetEnabled(!bugReportWidgetEnabled)}
+            >
+              <span className="toggle-knob" />
+            </button>
           </div>
 
           {/* About link */}

@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useNavigate, Link, useSearchParams } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { api } from '../api/client.js';
 import { useAuthStore } from '../store/authStore.js';
 import { useMatchmakingQueue, type SeatReservationData } from '../hooks/useMatchmakingQueue.js';
 import type { FriendDTO, FriendRequestDTO, PairInviteDTO } from '@botifarra/shared';
+import { ConfirmDialog } from '../components/ConfirmDialog.js';
 
 export function FriendsPage() {
   const { t } = useTranslation();
@@ -20,6 +21,7 @@ export function FriendsPage() {
   const [searchUsername, setSearchUsername] = useState('');
   const [actionError, setActionError] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
+  const [friendToRemove, setFriendToRemove] = useState<{ userId: string; username: string } | null>(null);
 
   const { data: friendsData, isLoading } = useQuery({
     queryKey: ['friends'],
@@ -131,30 +133,20 @@ export function FriendsPage() {
   );
 
   return (
-    <div style={{ maxWidth: 700, margin: '0 auto', padding: '2rem' }}>
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-        <h1 style={{ fontSize: '1.5rem' }}>{t('friends.heading')}</h1>
+    <div className="section-page friends-page">
+      <header className="section-page-header">
+        <div className="section-page-title">
+          <h1>{t('friends.heading')}</h1>
+        </div>
+        <img className="section-page-card" src="/cards/01-copas.png" alt="" />
       </header>
 
       {/* Queue status banner — shown when waiting for match after pair invite */}
       {queueState !== 'idle' && (
-        <section style={{
-          background: 'linear-gradient(135deg, rgba(46, 204, 113, 0.15) 0%, rgba(52, 152, 219, 0.15) 100%)',
-          border: '2px solid var(--color-success)',
-          borderRadius: 'var(--radius)',
-          padding: '1rem',
-          marginBottom: '1.5rem',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          gap: '1rem',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <span style={{
-              display: 'inline-block', width: 10, height: 10, borderRadius: '50%',
-              background: 'var(--color-success)', animation: 'pulse 1s infinite', flexShrink: 0,
-            }} />
-            <span style={{ color: 'var(--color-success)', fontWeight: 600, fontSize: '0.9rem' }}>
+        <section className="friends-notice friends-notice--queue">
+          <div className="friends-notice-row">
+            <span className="friends-status-dot" aria-hidden="true" />
+            <span className="friends-notice-message">
               {queueState === 'matched'
                 ? t('home.matchFound')
                 : t('friends.searchingWithPartner', { count: queueSize })}
@@ -162,8 +154,7 @@ export function FriendsPage() {
           </div>
           {queueState === 'queued' && (
             <button
-              className="btn-outline"
-              style={{ padding: '0.3rem 0.75rem', fontSize: '0.8rem' }}
+              className="btn-outline friends-small-button"
               onClick={() => void leaveQueue()}
             >
               {t('friends.cancelQueue')}
@@ -174,32 +165,26 @@ export function FriendsPage() {
 
       {/* Error display */}
       {actionError && (
-        <p style={{ color: 'var(--color-danger)', fontSize: '0.85rem', marginBottom: '1rem' }}>
+        <p className="friends-error" role="alert">
           {actionError}
         </p>
       )}
 
       {/* Pair invite notifications */}
       {incomingPairInvites.length > 0 && (
-        <section style={{
-          background: 'linear-gradient(135deg, rgba(52, 152, 219, 0.15) 0%, rgba(155, 89, 182, 0.15) 100%)',
-          border: '2px solid var(--color-accent)',
-          borderRadius: 'var(--radius)',
-          padding: '1rem',
-          marginBottom: '1.5rem',
-        }}>
-          <h3 style={{ fontSize: '0.95rem', marginBottom: '0.75rem' }}>{t('friends.pairInvites')}</h3>
+        <section className="friends-notice friends-notice--invites">
+          <h2 className="friends-section-title">{t('friends.pairInvites')}</h2>
           {incomingPairInvites.map((inv) => (
-            <div key={inv.inviteId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '0.5rem' }}>
-              <span style={{ fontSize: '0.9rem' }}>
+            <div key={inv.inviteId} className="friends-row friends-pair-invite">
+              <span className="friends-row-copy">
                 <strong>{inv.fromUsername}</strong> {t('friends.wantsToQueueWithYou')}
-                {inv.ranked && <em style={{ marginLeft: '0.4rem', color: 'var(--color-gold)' }}>({t('home.ranked')})</em>}
+                {inv.ranked && <em className="friends-ranked">({t('home.ranked')})</em>}
               </span>
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <button className="btn-success" style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem' }} onClick={() => handlePairInviteRespond(inv.inviteId, 'accept')}>
+              <div className="friends-actions">
+                <button className="btn-success friends-small-button" onClick={() => handlePairInviteRespond(inv.inviteId, 'accept')}>
                   {t('friends.accept')}
                 </button>
-                <button className="btn-outline" style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem' }} onClick={() => handlePairInviteRespond(inv.inviteId, 'reject')}>
+                <button className="btn-outline friends-small-button" onClick={() => handlePairInviteRespond(inv.inviteId, 'reject')}>
                   {t('friends.reject')}
                 </button>
               </div>
@@ -209,20 +194,15 @@ export function FriendsPage() {
       )}
 
       {/* Send friend request */}
-      <section style={{
-        background: 'var(--color-surface)',
-        borderRadius: 'var(--radius)',
-        padding: '1.25rem',
-        marginBottom: '1.5rem',
-      }}>
-        <h2 style={{ fontSize: '1rem', marginBottom: '0.75rem' }}>{t('friends.addFriend')}</h2>
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
+      <section className="friends-panel friends-request-panel">
+        <h2 className="friends-section-title">{t('friends.addFriend')}</h2>
+        <div className="friends-request-form">
           <input
             type="text"
             value={searchUsername}
             onChange={(e) => setSearchUsername(e.target.value)}
             placeholder={t('friends.usernamePlaceholder')}
-            style={{ flex: 1 }}
+            className="friends-username-input"
             onKeyDown={(e) => e.key === 'Enter' && handleSendRequest()}
           />
           <button onClick={handleSendRequest} disabled={actionLoading || !searchUsername.trim()}>
@@ -233,21 +213,16 @@ export function FriendsPage() {
 
       {/* Incoming requests */}
       {incoming.length > 0 && (
-        <section style={{
-          background: 'var(--color-surface)',
-          borderRadius: 'var(--radius)',
-          padding: '1.25rem',
-          marginBottom: '1.5rem',
-        }}>
-          <h2 style={{ fontSize: '1rem', marginBottom: '0.75rem' }}>{t('friends.incomingRequests')}</h2>
+        <section className="friends-panel">
+          <h2 className="friends-section-title">{t('friends.incomingRequests')}</h2>
           {incoming.map((req) => (
-            <div key={req.friendshipId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: '1px solid var(--color-border)' }}>
-              <span><strong>{req.fromUsername}</strong></span>
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <button className="btn-success" style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem' }} onClick={() => handleRespond(req.friendshipId, 'accept')}>
+            <div key={req.friendshipId} className="friends-row">
+              <span className="friends-row-copy"><strong>{req.fromUsername}</strong></span>
+              <div className="friends-actions">
+                <button className="btn-success friends-small-button" onClick={() => handleRespond(req.friendshipId, 'accept')}>
                   {t('friends.accept')}
                 </button>
-                <button className="btn-outline" style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem' }} onClick={() => handleRespond(req.friendshipId, 'reject')}>
+                <button className="btn-outline friends-small-button" onClick={() => handleRespond(req.friendshipId, 'reject')}>
                   {t('friends.reject')}
                 </button>
               </div>
@@ -258,80 +233,50 @@ export function FriendsPage() {
 
       {/* Outgoing requests */}
       {outgoing.length > 0 && (
-        <section style={{
-          background: 'var(--color-surface)',
-          borderRadius: 'var(--radius)',
-          padding: '1.25rem',
-          marginBottom: '1.5rem',
-        }}>
-          <h2 style={{ fontSize: '1rem', marginBottom: '0.75rem' }}>{t('friends.outgoingRequests')}</h2>
+        <section className="friends-panel">
+          <h2 className="friends-section-title">{t('friends.outgoingRequests')}</h2>
           {outgoing.map((req) => (
-            <div key={req.friendshipId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: '1px solid var(--color-border)' }}>
-              <span>{t('friends.sentTo')} <strong>{req.toUsername}</strong></span>
-              <span style={{ color: 'var(--color-muted)', fontSize: '0.8rem' }}>{t('friends.pending')}</span>
+            <div key={req.friendshipId} className="friends-row">
+              <span className="friends-row-copy">{t('friends.sentTo')} <strong>{req.toUsername}</strong></span>
+              <span className="friends-pending">{t('friends.pending')}</span>
             </div>
           ))}
         </section>
       )}
 
       {/* Friends list */}
-      <section style={{
-        background: 'var(--color-surface)',
-        borderRadius: 'var(--radius)',
-        padding: '1.25rem',
-      }}>
-        <h2 style={{ fontSize: '1rem', marginBottom: '0.75rem' }}>{t('friends.yourFriends')}</h2>
-        {isLoading && <p style={{ color: 'var(--color-muted)' }}>{t('friends.loading')}</p>}
+      <section className="friends-panel friends-list-panel">
+        <h2 className="friends-section-title">{t('friends.yourFriends')}</h2>
+        {isLoading && <p className="section-page-message">{t('friends.loading')}</p>}
         {!isLoading && friends.length === 0 && (
-          <p style={{ color: 'var(--color-muted)', fontSize: '0.9rem' }}>{t('friends.noFriends')}</p>
+          <p className="section-page-message">{t('friends.noFriends')}</p>
         )}
         {friends.map((friend) => (
-          <div key={friend.userId} style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            padding: '0.75rem 0', borderBottom: '1px solid var(--color-border)',
-          }}>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+          <div key={friend.userId} className="friends-row friends-list-row">
+            <div className="friends-identity">
+              <div className="friends-identity-line">
                 <strong>{friend.username}</strong>
                 {friend.rankPosition !== undefined && (
-                  <span style={{
-                    fontSize: '0.72rem',
-                    fontWeight: 600,
-                    color: 'var(--color-gold)',
-                    background: 'rgba(201,168,76,0.12)',
-                    padding: '0.1rem 0.4rem',
-                    borderRadius: 'var(--radius)',
-                    letterSpacing: '0.03em',
-                  }}>
+                  <span className="friends-rank-badge">
                     #{friend.rankPosition}
                   </span>
                 )}
                 {friend.individualRating !== undefined && (
-                  <span style={{
-                    fontSize: '0.72rem',
-                    color: 'var(--color-muted)',
-                  }}>
+                  <span className="friends-rating">
                     {friend.individualRating} pts
                   </span>
                 )}
                 {friend.inGame && (
-                  <span style={{
-                    background: 'rgba(46, 204, 113, 0.15)',
-                    color: 'var(--color-success)',
-                    padding: '0.15rem 0.5rem',
-                    borderRadius: 'var(--radius)',
-                    fontSize: '0.75rem',
-                  }}>
+                  <span className="friends-status-badge">
                     {t('friends.inGame')}
                   </span>
                 )}
               </div>
             </div>
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <div className="friends-actions friends-actions--friend">
               {friend.inGame && friend.activeRoomId && (
                 <button
-                  className="btn-accent"
-                  style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem' }}
+                  className="btn-accent friends-small-button"
                   onClick={() => navigate(`/match/${friend.activeRoomId}?mode=botifarra&observe=true`)}
                 >
                   {t('friends.spectate')}
@@ -339,7 +284,7 @@ export function FriendsPage() {
               )}
               {!friend.inGame && (
                 <button
-                  style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem' }}
+                  className="friends-small-button"
                   disabled={queueState !== 'idle'}
                   title={queueState !== 'idle' ? t('friends.alreadyQueued') : undefined}
                   onClick={() => handleSendPairInvite(friend.userId)}
@@ -348,9 +293,8 @@ export function FriendsPage() {
                 </button>
               )}
               <button
-                className="btn-outline"
-                style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', color: 'var(--color-danger)' }}
-                onClick={() => handleRemoveFriend(friend.userId)}
+                className="btn-outline friends-small-button friends-remove-button"
+                onClick={() => setFriendToRemove({ userId: friend.userId, username: friend.username })}
               >
                 {t('friends.remove')}
               </button>
@@ -361,21 +305,31 @@ export function FriendsPage() {
 
       {/* Outgoing pair invites */}
       {outgoingPairInvites.length > 0 && (
-        <section style={{
-          background: 'var(--color-surface)',
-          borderRadius: 'var(--radius)',
-          padding: '1.25rem',
-          marginTop: '1.5rem',
-        }}>
-          <h2 style={{ fontSize: '1rem', marginBottom: '0.75rem' }}>{t('friends.sentPairInvites')}</h2>
+        <section className="friends-panel">
+          <h2 className="friends-section-title">{t('friends.sentPairInvites')}</h2>
           {outgoingPairInvites.map((inv) => (
-            <div key={inv.inviteId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem 0' }}>
-              <span>{t('friends.waitingFor')} <strong>{inv.toUsername}</strong></span>
-              <span style={{ color: 'var(--color-muted)', fontSize: '0.8rem' }}>{t('friends.pending')}</span>
+            <div key={inv.inviteId} className="friends-row">
+              <span className="friends-row-copy">{t('friends.waitingFor')} <strong>{inv.toUsername}</strong></span>
+              <span className="friends-pending">{t('friends.pending')}</span>
             </div>
           ))}
         </section>
       )}
+
+      <ConfirmDialog
+        open={friendToRemove !== null}
+        title={t('friends.removeConfirmTitle')}
+        message={t('friends.removeConfirm', { username: friendToRemove?.username ?? '' })}
+        confirmLabel={t('friends.remove')}
+        cancelLabel={t('friends.cancel')}
+        dangerous
+        onCancel={() => setFriendToRemove(null)}
+        onConfirm={() => {
+          const friend = friendToRemove;
+          setFriendToRemove(null);
+          if (friend) void handleRemoveFriend(friend.userId);
+        }}
+      />
     </div>
   );
 }

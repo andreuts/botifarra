@@ -1,11 +1,10 @@
-import { useEffect, useState, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 
 interface ContinueTrickButtonProps {
   /** Whether this player is the leader who can click to continue */
   isLeader: boolean;
-  /** When the pause started (ms since epoch) */
-  pauseStartedAt: number;
+  /** Synchronized remaining pause time. */
+  pauseRemainingMs: number;
   /** Total pause duration (ms) */
   pauseDuration: number;
   /** Called when the leader clicks to continue */
@@ -21,29 +20,14 @@ const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
 export function ContinueTrickButton({
   isLeader,
-  pauseStartedAt,
+  pauseRemainingMs,
   pauseDuration,
   onContinue,
   leaderName,
 }: ContinueTrickButtonProps) {
   const { t } = useTranslation();
-  const [progress, setProgress] = useState(0); // 0 to 1
-  const rafRef = useRef<number>(0);
-
-  useEffect(() => {
-    function tick() {
-      const elapsed = Date.now() - pauseStartedAt;
-      const p = Math.min(1, elapsed / pauseDuration);
-      setProgress(p);
-      if (p < 1) {
-        rafRef.current = requestAnimationFrame(tick);
-      }
-    }
-    rafRef.current = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(rafRef.current);
-  }, [pauseStartedAt, pauseDuration]);
-
-  const remaining = Math.max(0, Math.ceil((pauseDuration - (Date.now() - pauseStartedAt)) / 1000));
+  const progress = 1 - Math.min(1, Math.max(0, pauseRemainingMs / pauseDuration));
+  const remaining = Math.max(0, Math.ceil(pauseRemainingMs / 1000));
   const dashOffset = CIRCUMFERENCE * (1 - progress);
 
   if (isLeader) {

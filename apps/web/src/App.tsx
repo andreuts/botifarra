@@ -16,6 +16,7 @@ import { NewsDetailPage } from './pages/NewsDetailPage.js';
 import { NewsAdminListPage } from './pages/NewsAdminListPage.js';
 import { NewsEditorPage } from './pages/NewsEditorPage.js';
 import { AppShell } from './components/AppShell.js';
+import { useSoundEffects } from './hooks/useSoundEffects.js';
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const user = useAuthStore((s) => s.user);
@@ -24,6 +25,8 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 }
 
 export function App() {
+  useSoundEffects();
+
   return (
     <AppShell>
       <Routes>

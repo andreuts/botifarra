@@ -109,9 +109,13 @@ export interface SurrenderResolvedEvent {
 
 export interface TimerUpdateEvent {
   type: 'timer_update';
+  /** Server monotonic timestamp used to age this snapshot on the client. */
+  serverTime: number;
+  timerEpoch: number;
+  trickPauseRemainingMs: number | null;
   timers: {
     seat: Seat;
-    baseTurnMs: number; // remaining base 15s countdown (-1 if not their turn)
+    baseTurnMs: number; // remaining base 30s countdown (-1 if not their turn)
     roundBudgetMs: number; // remaining 1-min round budget
   }[];
 }

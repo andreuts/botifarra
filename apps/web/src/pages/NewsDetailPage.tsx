@@ -14,49 +14,35 @@ export function NewsDetailPage() {
   });
 
   return (
-    <div className="page">
-      <header style={{ marginBottom: '2rem' }}>
-        <Link
-          to="/news"
-          style={{ textDecoration: 'none', color: 'var(--color-accent)', fontSize: '0.9rem' }}
-        >
-          {t('news.backToNews')}
-        </Link>
+    <div className="section-page news-page news-detail-page">
+      <header className="section-page-header">
+        <div className="section-page-title">
+          <Link to="/news" className="section-page-back">
+            {t('news.backToNews')}
+          </Link>
+          <h2>{t('news.heading')}</h2>
+        </div>
+        <img className="section-page-card" src="/cards/01-bastos.png" alt="" />
       </header>
 
-      {isLoading && <p style={{ color: 'var(--color-muted)' }}>{t('news.loading')}</p>}
-      {error && <p style={{ color: 'var(--color-danger)' }}>{t('news.error')}</p>}
+      {isLoading && <p className="section-page-message">{t('news.loading')}</p>}
+      {error && <p className="section-page-message is-error">{t('news.error')}</p>}
 
       {!isLoading && !error && !data && (
-        <p style={{ color: 'var(--color-muted)' }}>{t('news.notFound')}</p>
+        <p className="section-page-message">{t('news.notFound')}</p>
       )}
 
       {data && (
-        <article>
+        <article className="news-detail-panel">
           {data.featuredImageUrl && (
             <img
               src={data.featuredImageUrl}
               alt=""
-              style={{
-                width: '100%',
-                maxHeight: 320,
-                objectFit: 'cover',
-                borderRadius: 'var(--radius)',
-                marginBottom: '1.5rem',
-              }}
+              className="news-detail-cover"
             />
           )}
-          <h1 style={{ marginBottom: '0.5rem' }}>{data.title}</h1>
-          <div
-            style={{
-              fontSize: '0.85rem',
-              color: 'var(--color-muted)',
-              display: 'flex',
-              gap: '1rem',
-              flexWrap: 'wrap',
-              marginBottom: '2rem',
-            }}
-          >
+          <h1 className="news-detail-title">{data.title}</h1>
+          <div className="news-detail-meta">
             {data.publishedAt && (
               <span>
                 {t('news.publishedAt', {

@@ -10,37 +10,23 @@ export function PlayerStatsSummary({ stats }: PlayerStatsSummaryProps) {
   const { t } = useTranslation();
 
   return (
-    <section
-      style={{
-        background: 'var(--color-surface)',
-        borderRadius: 'var(--radius)',
-        padding: '1.25rem',
-        marginBottom: '2rem',
-      }}
-    >
-      <h2 style={{ fontSize: '1rem', marginBottom: '1rem' }}>
+    <section className="stats-panel">
+      <h2 className="stats-panel-title">
         {t('history.stats.heading')}
       </h2>
 
       {/* Summary numbers */}
-      <div
-        style={{
-          display: 'flex',
-          gap: '1.5rem',
-          flexWrap: 'wrap',
-          marginBottom: '1.25rem',
-        }}
-      >
+      <div className="stats-grid">
         <StatCard label={t('history.stats.totalGames')} value={stats.totalGames} />
         <StatCard
           label={t('history.stats.wins')}
           value={stats.wins}
-          color="var(--color-success, #27ae60)"
+          tone="positive"
         />
         <StatCard
           label={t('history.stats.losses')}
           value={stats.losses}
-          color="var(--color-danger, #e74c3c)"
+          tone="negative"
         />
         <StatCard
           label={t('history.stats.winRate')}
@@ -57,12 +43,12 @@ export function PlayerStatsSummary({ stats }: PlayerStatsSummaryProps) {
               ? `+${stats.averageEloChange.toFixed(1)}`
               : stats.averageEloChange.toFixed(1)
           }
-          color={stats.averageEloChange >= 0 ? 'var(--color-success, #27ae60)' : 'var(--color-danger, #e74c3c)'}
+          tone={stats.averageEloChange >= 0 ? 'positive' : 'negative'}
         />
       </div>
 
       {/* ELO graphs */}
-      <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', marginBottom: '1.25rem' }}>
+      <div className="stats-graphs">
         <EloGraph
           data={stats.eloHistory}
           label={t('history.stats.eloOverall')}
@@ -74,7 +60,7 @@ export function PlayerStatsSummary({ stats }: PlayerStatsSummaryProps) {
       </div>
 
       {/* Top players lists */}
-      <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap' }}>
+      <div className="stats-top-lists">
         <TopPlayerList
           title={t('history.stats.topPlayedWith')}
           players={stats.topPlayedWith}
@@ -91,34 +77,20 @@ export function PlayerStatsSummary({ stats }: PlayerStatsSummaryProps) {
 function StatCard({
   label,
   value,
-  color,
+  tone,
 }: {
   label: string;
   value: string | number;
-  color?: string;
+  tone?: 'positive' | 'negative';
 }) {
   return (
-    <div
-      style={{
-        background: 'var(--color-bg, #0f0f1a)',
-        borderRadius: 8,
-        padding: '0.6rem 1rem',
-        minWidth: 80,
-        textAlign: 'center',
-      }}
-    >
-      <div
-        style={{
-          fontSize: '1.35rem',
-          fontWeight: 700,
-          color: color ?? 'var(--color-text)',
-        }}
-      >
+    <div className={`stats-card${tone ? ` stats-card--${tone}` : ''}`}>
+      <strong className="stats-card-value">
         {value}
-      </div>
-      <div style={{ fontSize: '0.7rem', color: 'var(--color-muted)', marginTop: 2 }}>
+      </strong>
+      <span className="stats-card-label">
         {label}
-      </div>
+      </span>
     </div>
   );
 }
@@ -133,20 +105,20 @@ function TopPlayerList({
   const { t } = useTranslation();
 
   return (
-    <div>
-      <h3 style={{ fontSize: '0.85rem', marginBottom: '0.5rem', color: 'var(--color-muted)' }}>
+    <div className="stats-top-list">
+      <h3 className="stats-top-list-title">
         {title}
       </h3>
       {players.length === 0 ? (
-        <p style={{ fontSize: '0.8rem', color: 'var(--color-muted)' }}>
+        <p className="stats-no-data">
           {t('history.stats.noData')}
         </p>
       ) : (
-        <ol style={{ paddingLeft: '1rem', margin: 0 }}>
+        <ol className="stats-player-list">
           {players.map((p) => (
-            <li key={p.userId} style={{ fontSize: '0.82rem', marginBottom: '0.25rem' }}>
+            <li key={p.userId}>
               <strong>{p.username}</strong>{' '}
-              <span style={{ color: 'var(--color-muted)' }}>
+              <span>
                 {p.gamesPlayed}{' '}
                 {t('history.stats.games', { count: p.gamesPlayed })}{' '}
                 — {(p.winRateVsOpponent * 100).toFixed(0)}% {t('history.stats.wr')}
