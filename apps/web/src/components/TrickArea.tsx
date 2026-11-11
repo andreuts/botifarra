@@ -6,8 +6,8 @@ import { TRICK_ANIMATION_DURATION_MS } from '@botifarra/shared';
 import { CardComponent, EmptyCardSlot } from './CardComponent.js';
 import { getContraDecidingTeam } from '../gamePhase.js';
 import {
-  MAX_CARD_TIME_MS,
-  MAX_DECLARATION_TIME_MS,
+  CARD_TURN_MS,
+  DECLARATION_TURN_MS,
   CONTRA_TIMEOUT_MS,
   remainingTurnTimeMs,
 } from '../utils/timerUtils.js';
@@ -106,8 +106,8 @@ export function TrickArea({
   const maxTimerMs = contraTeam !== null
     ? CONTRA_TIMEOUT_MS
     : gameState.trump === null
-      ? MAX_DECLARATION_TIME_MS
-      : MAX_CARD_TIME_MS;
+      ? DECLARATION_TURN_MS
+      : CARD_TURN_MS;
   const trickPauseLeader = gameState.trickPauseLeader ?? null;
   const activeSeat = trickPauseLeader ?? currentPlayerSeat;
   // Prefer live timers from store (updated every second via timer_update);

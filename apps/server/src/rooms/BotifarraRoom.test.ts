@@ -33,7 +33,6 @@ describe('BotifarraRoom contra decisions', () => {
     room.contraDecidingTeam = 0;
     room.trickPauseLeader = null;
     room.turnStartedAt = performance.now() - 1000;
-    room.roundBudgets = { 0: 60_000, 1: 60_000, 2: 60_000, 3: 60_000 };
     room.broadcast = vi.fn();
 
     room.broadcastTimerState();
@@ -46,7 +45,7 @@ describe('BotifarraRoom contra decisions', () => {
     expect(timers.find((timer) => timer.seat === 3)?.baseTurnMs).toBe(-1);
   });
 
-  it('lets the deciding team pass without consuming its round budget', () => {
+  it('starts a fresh clock when the deciding team passes', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-01-01T00:00:00.000Z'));
     const room = Object.create(BotifarraRoom.prototype) as any;
@@ -61,8 +60,8 @@ describe('BotifarraRoom contra decisions', () => {
     };
     room.contraDecidingTeam = 0;
     room.trickPauseLeader = null;
-    room.turnStartedAt = performance.now() - 35_000;
-    room.roundBudgets = { 0: 60_000, 1: 60_000, 2: 60_000, 3: 60_000 };
+    room.turnStartedAt = performance.now() - 1000;
+    room.timerEpoch = 0;
     room.seatForClient = vi.fn().mockReturnValue(2);
     room.broadcastGameState = vi.fn();
     room.broadcastTimerState = vi.fn();
@@ -71,13 +70,10 @@ describe('BotifarraRoom contra decisions', () => {
     room.handleCommand({ send: vi.fn() }, 'pass_contra', {});
 
     expect(room.contraDecidingTeam).toBeNull();
-    expect(room.roundBudgets[0]).toBe(60_000);
-    expect(room.roundBudgets[2]).toBe(60_000);
-    expect(room.roundBudgets[1]).toBe(60_000);
-    expect(room.roundBudgets[3]).toBe(60_000);
+    expect(room.timerEpoch).toBe(1);
   });
 
-  it('charges declaration overtime to the declarer', () => {
+  it('starts a fresh clock after trump is declared', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-01-01T00:00:00.000Z'));
 
@@ -96,8 +92,8 @@ describe('BotifarraRoom contra decisions', () => {
     room.state = { players: new Map([[sessionId, { seat: declarantSeat }]]) };
     room.contraDecidingTeam = null;
     room.trickPauseLeader = null;
-    room.turnStartedAt = performance.now() - 35_000;
-    room.roundBudgets = { 0: 60_000, 1: 60_000, 2: 60_000, 3: 60_000 };
+    room.turnStartedAt = performance.now();
+    room.timerEpoch = 0;
     room.syncSchemaPublic = vi.fn();
     room.broadcastEvent = vi.fn();
     room.broadcastGameState = vi.fn();
@@ -108,7 +104,7 @@ describe('BotifarraRoom contra decisions', () => {
       declaration: 'oros',
     });
 
-    expect(room.roundBudgets[declarantSeat]).toBe(55_000);
+    expect(room.timerEpoch).toBe(1);
     expect(room.contraDecidingTeam).toBe(declarantSeat % 2 === 0 ? 1 : 0);
   });
 
@@ -117,7 +113,6 @@ describe('BotifarraRoom contra decisions', () => {
     const room = Object.create(BotifarraRoom.prototype) as any;
     room.gameState = { phase: 'playing', game: { scores: [0, 0] } };
     room.targetScore = 101;
-    room.roundBudgets = { 0: 60_000, 1: 60_000, 2: 60_000, 3: 60_000 };
     room.broadcast = vi.fn();
     room.syncSchemaPublic = vi.fn();
     room.startNewRoundPublic = vi.fn();
@@ -139,7 +134,6 @@ describe('BotifarraRoom contra decisions', () => {
       seats: new Map(),
     };
     room.targetScore = 101;
-    room.roundBudgets = { 0: 60_000, 1: 60_000, 2: 60_000, 3: 60_000 };
     room.broadcast = vi.fn();
     room.disconnect = vi.fn();
     room.syncSchemaPublic = vi.fn();

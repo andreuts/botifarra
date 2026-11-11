@@ -115,8 +115,7 @@ export interface TimerUpdateEvent {
   trickPauseRemainingMs: number | null;
   timers: {
     seat: Seat;
-    baseTurnMs: number; // remaining base 30s countdown (-1 if not their turn)
-    roundBudgetMs: number; // remaining 1-min round budget
+    baseTurnMs: number; // remaining decision time (-1 if not their turn)
   }[];
 }
 

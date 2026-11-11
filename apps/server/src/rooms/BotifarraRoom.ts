@@ -133,15 +133,13 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
 
   // -- Decision timers --
   private static readonly DECLARATION_TURN_MS = 30_000; // 30 seconds to choose trump
-  private static readonly CARD_TURN_MS = 10_000; // 10 seconds to play a card
-  private static readonly CONTRA_TIMEOUT_MS = 15_000; // 15 seconds per contra decision
-  private static readonly ROUND_BUDGET_MS = 60_000; // 1 minute per player per round
+  private static readonly CARD_TURN_MS = 15_000; // 15 seconds to play a card
+  private static readonly CONTRA_TIMEOUT_MS = 30_000; // 30 seconds per contra decision
   private static readonly TIMEOUT_PENALTY_POINTS = 36;
   private roundTimeoutHandled = false;
   private pendingRoundTransition: ReturnType<typeof setTimeout> | null = null;
   protected turnStartedAt: number = 0;
   private timerEpoch = 0;
-  private roundBudgets: Record<Seat, number> = { 0: 60_000, 1: 60_000, 2: 60_000, 3: 60_000 };
   private lastTimerBroadcast: number = 0;
   /** Which team (0 or 1) currently has to decide contra/recontro/sant vicenç. Null outside contra phase. */
   protected contraDecidingTeam: 0 | 1 | null = null;
@@ -411,8 +409,7 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
             client.sessionId,
             declaration,
           );
-          const declarantSeat = this.gameState.round!.declarantSeat;
-          this.resetTurnTimer([declarantSeat]);
+          this.resetTurnTimer();
           this.gameState = state;
           this.syncSchemaPublic();
           for (const event of events) this.broadcastEvent(event);
@@ -487,7 +484,7 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
         case 'pass_declaration': {
           const passingSeat = this.gameState.round?.declarantSeat ?? null;
           const { state, events } = handlePassDeclaration(this.gameState, client.sessionId);
-          if (passingSeat !== null) this.resetTurnTimer([passingSeat]);
+          if (passingSeat !== null) this.resetTurnTimer();
           this.gameState = state;
           this.syncSchemaPublic();
           for (const event of events) this.broadcastEvent(event);
@@ -516,7 +513,7 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
             throw new Error('Your team is not deciding contra');
           }
           const { state, events } = handleCallContra(this.gameState, client.sessionId);
-          this.resetTurnTimer(this.getActiveTimerSeats());
+          this.resetTurnTimer();
           this.gameState = state;
           this.syncSchemaPublic();
           for (const event of events) this.broadcastEvent(event);
@@ -592,8 +589,7 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
     this.gameState = startRound(this.gameState);
     this.syncSchemaPublic();
 
-    // Reset turn timers for the new round (applies to all game types)
-    this.roundBudgets = { 0: BotifarraRoom.ROUND_BUDGET_MS, 1: BotifarraRoom.ROUND_BUDGET_MS, 2: BotifarraRoom.ROUND_BUDGET_MS, 3: BotifarraRoom.ROUND_BUDGET_MS };
+    // Start the fixed clock for the first decision of the new round.
     this.startTurnTimerClock();
     this.lastTimerBroadcast = 0;
     this.contraDecidingTeam = null;
@@ -674,7 +670,6 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
       const elapsed = timerServerTime - this.turnStartedAt;
       const activeSeats = new Set(this.getActiveTimerSeats(round));
       const decisionBaseMs = this.getCurrentDecisionBaseMs();
-      const usesRoundBudget = this.contraDecidingTeam === null;
       statePayload['timerServerTime'] = timerServerTime;
       statePayload['timerEpoch'] = this.timerEpoch;
       statePayload['trickPauseRemainingMs'] = this.trickPauseLeader === null
@@ -682,16 +677,12 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
         : Math.max(0, BotifarraRoom.TRICK_PAUSE_MS - (timerServerTime - this.trickPauseStartedAt));
       statePayload['timers'] = ([0, 1, 2, 3] as Seat[]).map((s) => {
         const isSeatActive = activeSeats.has(s);
-        if (isSeatActive && this.turnStartedAt > 0) {
-          const baseRemaining = Math.max(0, decisionBaseMs - elapsed);
-          const budgetConsumed = usesRoundBudget ? Math.max(0, elapsed - decisionBaseMs) : 0;
-          return {
-            seat: s,
-            baseTurnMs: baseRemaining,
-            roundBudgetMs: usesRoundBudget ? Math.max(0, this.roundBudgets[s] - budgetConsumed) : 0,
-          };
-        }
-        return { seat: s, baseTurnMs: -1, roundBudgetMs: this.roundBudgets[s] };
+        return {
+          seat: s,
+          baseTurnMs: isSeatActive && this.turnStartedAt > 0
+            ? Math.max(0, decisionBaseMs - elapsed)
+            : -1,
+        };
       });
     }
 
@@ -931,9 +922,6 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
       scoringTeam,
     });
 
-    // Consume the player's remaining budget
-    this.roundBudgets[timedOutSeat] = 0;
-
     // Check if game should end
     if (this.gameState.game.scores[scoringTeam] >= this.targetScore) {
       this.gameState.phase = 'finished';
@@ -1008,7 +996,6 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
       const timers = ([0, 1, 2, 3] as Seat[]).map((seat) => ({
         seat,
         baseTurnMs: -1,
-        roundBudgetMs: this.roundBudgets[seat],
       }));
       const trickPauseRemainingMs = Math.max(0, BotifarraRoom.TRICK_PAUSE_MS - (now - this.trickPauseStartedAt));
       this.broadcast('timer_update', {
@@ -1023,21 +1010,13 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
     // A pending contra decision takes precedence over the next card player's turn.
     const activeSeats = new Set(this.getActiveTimerSeats(this.gameState.round));
     const decisionBaseMs = this.getCurrentDecisionBaseMs();
-    const usesRoundBudget = this.contraDecidingTeam === null;
-
     const timers = ([0, 1, 2, 3] as Seat[]).map((seat) => {
       const isSeatActive = activeSeats.has(seat);
 
-      if (isSeatActive) {
-        const baseRemaining = Math.max(0, decisionBaseMs - elapsed);
-        const budgetConsumed = usesRoundBudget ? Math.max(0, elapsed - decisionBaseMs) : 0;
-        return {
-          seat,
-          baseTurnMs: baseRemaining,
-          roundBudgetMs: usesRoundBudget ? Math.max(0, this.roundBudgets[seat] - budgetConsumed) : 0,
-        };
-      }
-      return { seat, baseTurnMs: -1, roundBudgetMs: this.roundBudgets[seat] };
+      return {
+        seat,
+        baseTurnMs: isSeatActive ? Math.max(0, decisionBaseMs - elapsed) : -1,
+      };
     });
 
     this.broadcast('timer_update', {
@@ -1070,7 +1049,7 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
     if (this.contraDecidingTeam === null || seat % 2 !== this.contraDecidingTeam) {
       throw new Error('Your team is not deciding contra');
     }
-    this.resetTurnTimer(this.getActiveTimerSeats());
+    this.resetTurnTimer();
     this.contraDecidingTeam = null;
   }
 
@@ -1092,22 +1071,9 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
     return declarantTeam === 0 ? 1 : 0;
   }
 
-  /** Start the next decision clock and charge overtime to its previous actor(s). */
-  protected resetTurnTimer(previousSeats: Seat[] = this.getActiveTimerSeats()) {
-    const now = performance.now();
-    const elapsed = now - this.turnStartedAt;
-    // Contra uses its own fixed 15-second deadline; declaration and card play
-    // draw overtime from each active player's per-round budget.
-    if (this.contraDecidingTeam === null) {
-      const decisionBaseMs = this.getCurrentDecisionBaseMs();
-      if (elapsed > decisionBaseMs) {
-        const overTime = elapsed - decisionBaseMs;
-        for (const seat of previousSeats) {
-          this.roundBudgets[seat] = Math.max(0, this.roundBudgets[seat] - overTime);
-        }
-      }
-    }
-    this.startTurnTimerClock(now);
+  /** Start the next fixed decision clock. */
+  protected resetTurnTimer() {
+    this.startTurnTimerClock();
   }
 
   /** Start a new authoritative decision clock and identify its timer epoch. */
@@ -1307,16 +1273,9 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
             return;
           }
         } else {
-          const decisionBaseMs = this.getCurrentDecisionBaseMs();
-          if (elapsed > decisionBaseMs) {
-            const overTime = elapsed - decisionBaseMs;
-            const expiredSeats = activeSeats.filter(
-              (seat) => this.roundBudgets[seat] - overTime <= 0,
-            );
-            if (expiredSeats.length === activeSeats.length) {
-              this.handleRankedTimeout(expiredSeats[0]!);
-              return;
-            }
+          if (elapsed >= this.getCurrentDecisionBaseMs()) {
+            this.handleRankedTimeout(activeSeats[0]!);
+            return;
           }
         }
       }

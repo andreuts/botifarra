@@ -35,9 +35,7 @@ function advance(timers: TimerState[], elapsedMs: number): TimerState[] {
     if (timer.baseTurnMs < 0) return timer;
 
     const baseTurnMs = Math.max(0, timer.baseTurnMs - elapsed);
-    const budgetElapsed = Math.max(0, elapsed - timer.baseTurnMs);
-    const roundBudgetMs = Math.max(0, timer.roundBudgetMs - budgetElapsed);
-    return { ...timer, baseTurnMs, roundBudgetMs };
+    return { ...timer, baseTurnMs };
   });
 }
 
@@ -67,12 +65,7 @@ function keepCountdownMonotonic(
       return {
         ...next,
         baseTurnMs: Math.min(next.baseTurnMs, previous.baseTurnMs),
-        roundBudgetMs: Math.min(next.roundBudgetMs, previous.roundBudgetMs),
       };
-    }
-
-    if (next.baseTurnMs < 0 && previous.baseTurnMs < 0) {
-      return { ...next, roundBudgetMs: Math.min(next.roundBudgetMs, previous.roundBudgetMs) };
     }
 
     return next;

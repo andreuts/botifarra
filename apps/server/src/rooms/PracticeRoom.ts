@@ -133,7 +133,7 @@ export class PracticeRoom extends BotifarraRoom {
       const declaration = heuristicBotDeclareTrump(round, seat);
       try {
         const { state, events } = handleDeclareTrump(this.gameState, sessionId, declaration);
-        this.resetTurnTimer([seat]);
+        this.resetTurnTimer();
         this.gameState = state;
         this.syncSchemaPublic();
         for (const event of events) this.broadcastEvent(event);
@@ -148,7 +148,7 @@ export class PracticeRoom extends BotifarraRoom {
       const card = heuristicBotMove(round, seat);
       try {
         const { state, events, roundEnded, trickCompleted } = handlePlayCard(this.gameState, sessionId, card);
-        this.resetTurnTimer([seat]);
+        this.resetTurnTimer();
         this.gameState = state;
         this.syncSchemaPublic();
         const deferGameEnd = roundEnded && this.gameState.phase === 'finished';

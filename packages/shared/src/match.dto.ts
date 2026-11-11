@@ -61,7 +61,6 @@ export interface PlayerGameStateDTO {
   timers?: {
     seat: Seat;
     baseTurnMs: number;
-    roundBudgetMs: number;
   }[];
   /** Server monotonic timestamp and clock epoch matching the timer snapshot above. */
   timerServerTime?: number;

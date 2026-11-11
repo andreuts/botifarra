@@ -1,7 +1,5 @@
 import type { TimerState } from '../store/gameStore.js';
-import { CARD_TURN_MS, ROUND_BUDGET_MS } from '../utils/timerUtils.js';
-
-const BASE_TURN_MS = CARD_TURN_MS;
+import { CARD_TURN_MS } from '../utils/timerUtils.js';
 
 function formatMs(ms: number): string {
   const s = Math.ceil(ms / 1000);
@@ -18,9 +16,15 @@ interface TurnTimersPanelProps {
   timers: TimerState[];
   playerNames: Record<0 | 1 | 2 | 3, string>;
   mySeat: 0 | 1 | 2 | 3;
+  maxTurnMs?: number;
 }
 
-export function TurnTimersPanel({ timers, playerNames, mySeat }: TurnTimersPanelProps) {
+export function TurnTimersPanel({
+  timers,
+  playerNames,
+  mySeat,
+  maxTurnMs = CARD_TURN_MS,
+}: TurnTimersPanelProps) {
   // Order: show mySeat first, then the rest in seat order
   const order: (0 | 1 | 2 | 3)[] = [mySeat, ...([0, 1, 2, 3] as (0 | 1 | 2 | 3)[]).filter((s) => s !== mySeat)];
 
@@ -41,9 +45,7 @@ export function TurnTimersPanel({ timers, playerNames, mySeat }: TurnTimersPanel
         if (!t) return null;
 
         const isActive = t.baseTurnMs >= 0;
-        const budgetRatio = t.roundBudgetMs / ROUND_BUDGET_MS;
-        const budgetColor = timerColor(budgetRatio);
-        const baseRatio = isActive ? t.baseTurnMs / BASE_TURN_MS : 1;
+        const baseRatio = isActive ? t.baseTurnMs / maxTurnMs : 1;
         const baseColor = timerColor(baseRatio);
         const isMe = seat === mySeat;
 
@@ -52,7 +54,7 @@ export function TurnTimersPanel({ timers, playerNames, mySeat }: TurnTimersPanel
             key={seat}
             style={{
               display: 'grid',
-              gridTemplateColumns: '1fr auto auto',
+              gridTemplateColumns: '1fr auto',
               alignItems: 'center',
               gap: '0.5rem',
               opacity: isActive ? 1 : 0.65,
@@ -87,7 +89,7 @@ export function TurnTimersPanel({ timers, playerNames, mySeat }: TurnTimersPanel
               </span>
             </div>
 
-            {/* 10s card-play bar (active player only) */}
+            {/* Fixed decision clock (active player only) */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', width: 80 }}>
               {isActive ? (
                 <>
@@ -119,31 +121,6 @@ export function TurnTimersPanel({ timers, playerNames, mySeat }: TurnTimersPanel
               )}
             </div>
 
-            {/* 1-min round budget bar */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', width: 80 }}>
-              <div
-                style={{
-                  flex: 1,
-                  height: 5,
-                  borderRadius: 3,
-                  background: 'var(--color-border)',
-                  overflow: 'hidden',
-                }}
-              >
-                <div
-                  style={{
-                    width: `${Math.min(100, Math.round(budgetRatio * 100))}%`,
-                    height: '100%',
-                    background: budgetColor,
-                    transition: 'width 0.08s linear, background 0.3s',
-                    borderRadius: 3,
-                  }}
-                />
-              </div>
-              <span style={{ fontSize: '0.65rem', color: budgetColor, fontVariantNumeric: 'tabular-nums', minWidth: 22, textAlign: 'right' }}>
-                {formatMs(t.roundBudgetMs)}
-              </span>
-            </div>
           </div>
         );
       })}

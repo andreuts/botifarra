@@ -139,7 +139,7 @@ export function useGameRoom(
         });
 
         room.onMessage('timer_update', (msg: {
-          timers: { seat: 0|1|2|3; baseTurnMs: number; roundBudgetMs: number }[];
+          timers: { seat: 0|1|2|3; baseTurnMs: number }[];
           serverTime?: number;
           timerEpoch?: number;
           trickPauseRemainingMs?: number | null;

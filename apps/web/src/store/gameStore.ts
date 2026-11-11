@@ -11,7 +11,6 @@ export interface GameResult {
 export interface TimerState {
   seat: 0 | 1 | 2 | 3;
   baseTurnMs: number;    // remaining phase-specific base timer; -1 when not this seat's turn
-  roundBudgetMs: number; // remaining 60s per-player round budget (zero during contra)
 }
 
 export interface TimerSnapshot {

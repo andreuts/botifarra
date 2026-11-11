@@ -4,7 +4,7 @@ import type { PlayerGameStateDTO } from '@botifarra/shared';
 import { getContraDecidingTeam } from '../gamePhase.js';
 import {
   CONTRA_TIMEOUT_MS,
-  MAX_DECLARATION_TIME_MS,
+  DECLARATION_TURN_MS,
   remainingTurnTimeMs,
 } from '../utils/timerUtils.js';
 
@@ -97,7 +97,7 @@ export function DeclareTrumpPanel({
   const cdTotal = iAmTimedSeat
     ? contraTeam !== null
       ? CONTRA_TIMEOUT_MS
-      : MAX_DECLARATION_TIME_MS
+      : DECLARATION_TURN_MS
     : null;
   const cdRatio = cdMs !== null && cdTotal ? Math.min(1, Math.max(0, cdMs / cdTotal)) : null;
   const cdSecs = cdMs !== null ? Math.max(0, Math.ceil(cdMs / 1000)) : null;
