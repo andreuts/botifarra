@@ -30,6 +30,7 @@ interface TrickAreaProps {
 
 const COMPACT_TABLE_QUERY = '(orientation: landscape) and (max-height: 760px)';
 const TINY_TABLE_QUERY = '(orientation: landscape) and (max-height: 620px)';
+const COMPACT_PORTRAIT_QUERY = '(orientation: portrait) and (max-width: 700px)';
 
 function useCompactLandscape() {
   return useSyncExternalStore(
@@ -53,6 +54,19 @@ function useTinyLandscape() {
       return () => mediaQuery.removeEventListener('change', onChange);
     },
     () => typeof window !== 'undefined' && !!window.matchMedia?.(TINY_TABLE_QUERY).matches,
+    () => false,
+  );
+}
+
+function useCompactPortrait() {
+  return useSyncExternalStore(
+    (onChange) => {
+      if (typeof window === 'undefined' || !window.matchMedia) return () => {};
+      const mediaQuery = window.matchMedia(COMPACT_PORTRAIT_QUERY);
+      mediaQuery.addEventListener('change', onChange);
+      return () => mediaQuery.removeEventListener('change', onChange);
+    },
+    () => typeof window !== 'undefined' && !!window.matchMedia?.(COMPACT_PORTRAIT_QUERY).matches,
     () => false,
   );
 }
@@ -129,6 +143,8 @@ export function TrickArea({
   const { t } = useTranslation();
   const compactLandscape = useCompactLandscape();
   const tinyLandscape = useTinyLandscape();
+  const compactPortrait = useCompactPortrait();
+  const compactTable = compactLandscape || compactPortrait;
   const { currentTrick, playerNames, currentPlayerSeat, declarantSeat, completedTricks } = gameState;
   const contraTeam = getContraDecidingTeam(gameState);
   const maxTimerMs = contraTeam !== null
@@ -208,11 +224,8 @@ export function TrickArea({
     return visibleTrick.find((tc) => tc.seat === seat) ?? null;
   }
 
-  function Slot({ seat, position }: { seat: Seat; position: string }) {
+  function renderSlot(seat: Seat, position: string) {
     const card = cardFor(seat);
-    const trickCard = trickCardFor(seat);
-    const isMovingTrickCard = animatedTrick !== null && trickCard !== null;
-    const offset = trickOffsets[seat];
     const name = seat === mySeat ? t('trick.you') : (playerNames[seat] ?? t('trick.seatFallback', { seat }));
     const isActive = contraTeam !== null ? contraTeam === seat % 2 : activeSeat === seat;
     const isDeclarant = declarantSeat !== undefined && seat === declarantSeat;
@@ -248,8 +261,10 @@ export function TrickArea({
           )}
         </div>
         <span className={`seat-badge ${teamClass}${isActive ? ' active' : ''}`}>
+          <img className="seat-avatar" src="/player-placeholder.svg" alt="" draggable={false} />
           {/* Active indicator dot — always mounted, opacity toggled to avoid layout shift */}
           <span
+            className="seat-active-mark"
             aria-hidden="true"
             style={{
               width: 6,
@@ -263,8 +278,29 @@ export function TrickArea({
               transition: 'opacity 0.2s, margin-right 0.2s',
             }}
           />
-          {name}
+          <span className="seat-name">{name}</span>
         </span>
+      </div>
+    );
+  }
+
+  function renderPlayedCard(seat: Seat, position: string) {
+    const card = cardFor(seat);
+    const trickCard = trickCardFor(seat);
+    const isMovingTrickCard = animatedTrick !== null && trickCard !== null;
+    const offset = trickOffsets[seat];
+    const name = seat === mySeat ? t('trick.you') : (playerNames[seat] ?? t('trick.seatFallback', { seat }));
+    const isActive = contraTeam !== null ? contraTeam === seat % 2 : activeSeat === seat;
+    const seatDescription = card
+      ? name
+      : isActive && contraTeam !== null
+        ? t('game.playerContraDecision', { name })
+        : isActive
+          ? t('trick.waitingToPlay', { name })
+          : name;
+
+    return (
+      <div className={`trick-card-seat ${position}`} aria-label={seatDescription}>
         <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 4 }}>
           {card ? (
             <div
@@ -277,10 +313,10 @@ export function TrickArea({
                   : undefined,
               }}
             >
-              <CardComponent card={card} small={compactLandscape} tiny={tinyLandscape} magnifyOnHover />
+              <CardComponent card={card} small={compactTable} tiny={tinyLandscape} magnifyOnHover />
             </div>
-          ) : <EmptyCardSlot label="" small={compactLandscape} tiny={tinyLandscape} />}
-          <TimerBar seat={seat} timers={timers} maxTimeMs={maxTimerMs} compact={compactLandscape} tiny={tinyLandscape} />
+          ) : <EmptyCardSlot label="" small={compactTable} tiny={tinyLandscape} />}
+          <TimerBar seat={seat} timers={timers} maxTimeMs={maxTimerMs} compact={compactTable} tiny={tinyLandscape} />
         </div>
       </div>
     );
@@ -293,10 +329,16 @@ export function TrickArea({
           style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'center', width: '100%' }}
         >
         <div className="trick-grid" role="region" aria-label={t('trick.currentTrick')}>
-          <Slot seat={partner} position="top" />
-          <Slot seat={leftOpp} position="left" />
-          <Slot seat={rightOpp} position="right" />
-          <Slot seat={mySeat} position="bottom" />
+          {renderSlot(partner, 'top')}
+          {renderSlot(leftOpp, 'left')}
+          {renderSlot(rightOpp, 'right')}
+          {renderSlot(mySeat, 'bottom')}
+          <div className="trick-card-layout">
+            {renderPlayedCard(partner, 'top')}
+            {renderPlayedCard(leftOpp, 'left')}
+            {renderPlayedCard(rightOpp, 'right')}
+            {renderPlayedCard(mySeat, 'bottom')}
+          </div>
           {selectedLastTrickTeam !== null && (
             <div
               key={selectedLastTrickTeam}

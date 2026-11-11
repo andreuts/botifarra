@@ -31,7 +31,8 @@ import type {
 // Helpers
 // ---------------------------------------------------------------------------
 
-const ADMIN_SECRET = process.env['ADMIN_SECRET'] ?? 'admin-dev-secret';
+const ADMIN_SECRET = process.env['ADMIN_SECRET']?.trim() ||
+  (process.env['NODE_ENV'] === 'production' ? undefined : 'admin-dev-secret');
 
 /** Directory where uploaded images are stored. */
 const UPLOADS_DIR = resolve(process.env['UPLOADS_DIR'] ?? join(process.cwd(), 'uploads'));
@@ -41,7 +42,7 @@ const UPLOADS_URL_PREFIX = process.env['UPLOADS_URL_PREFIX'] ?? '/uploads';
 
 async function requireAdmin(request: FastifyRequest, reply: FastifyReply) {
   const secret = request.headers['x-admin-secret'];
-  if (secret !== ADMIN_SECRET) {
+  if (!ADMIN_SECRET || secret !== ADMIN_SECRET) {
     return reply.status(403).send({ error: 'Forbidden — invalid admin secret' });
   }
 }

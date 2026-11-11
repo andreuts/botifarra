@@ -131,6 +131,7 @@ export class MatchmakingQueue {
     ranked = false,
     rating = 0,
   ): void {
+    if (player1.userId === player2.userId) throw new Error('Cannot queue with yourself');
     if (this.isQueued(player1.userId)) throw new Error(`${player1.username} is already in queue`);
     if (this.isQueued(player2.userId)) throw new Error(`${player2.username} is already in queue`);
     this.pairs.push({ type: 'pair', players: [player1, player2], ranked, rating, joinedAt: new Date() });
@@ -245,7 +246,7 @@ export class MatchmakingQueue {
               const pair2 = pairs[j]!;
               this.pairs.splice(this.pairs.indexOf(pair2), 1);
               this.pairs.splice(this.pairs.indexOf(pair1), 1);
-              this.createMatch(this.arrangeTwoPairs(pair1, pair2), ranked);
+              this.createMatch(this.arrangeTwoPairs(pair1, pair2), ranked, [pair1, pair2]);
               return;
             }
           }
@@ -254,7 +255,7 @@ export class MatchmakingQueue {
         const [pair1, pair2] = [pairs[0]!, pairs[1]!];
         this.pairs.splice(this.pairs.indexOf(pair2), 1);
         this.pairs.splice(this.pairs.indexOf(pair1), 1);
-        this.createMatch(this.arrangeTwoPairs(pair1, pair2), ranked);
+        this.createMatch(this.arrangeTwoPairs(pair1, pair2), ranked, [pair1, pair2]);
         return;
       }
     }
@@ -271,7 +272,11 @@ export class MatchmakingQueue {
           this.pairs.splice(this.pairs.indexOf(pair), 1);
           this.singles.splice(this.singles.indexOf(s1), 1);
           this.singles.splice(this.singles.indexOf(s2), 1);
-          this.createMatch(this.arrangePairAndSingles(pair, [s1, s2] as [SingleEntry, SingleEntry]), ranked);
+          this.createMatch(
+            this.arrangePairAndSingles(pair, [s1, s2] as [SingleEntry, SingleEntry]),
+            ranked,
+            [pair, s1, s2],
+          );
           return;
         }
       } else {
@@ -280,7 +285,7 @@ export class MatchmakingQueue {
         this.pairs.splice(this.pairs.indexOf(pair), 1);
         this.singles.splice(this.singles.indexOf(solos[1]), 1);
         this.singles.splice(this.singles.indexOf(solos[0]), 1);
-        this.createMatch(this.arrangePairAndSingles(pair, solos), ranked);
+        this.createMatch(this.arrangePairAndSingles(pair, solos), ranked, [pair, ...solos]);
         return;
       }
     }
@@ -297,7 +302,7 @@ export class MatchmakingQueue {
             for (const s of group) {
               this.singles.splice(this.singles.indexOf(s), 1);
             }
-            this.createMatch(this.arrangeFourSingles(group), ranked);
+            this.createMatch(this.arrangeFourSingles(group), ranked, group);
             return;
           }
         }
@@ -309,6 +314,7 @@ export class MatchmakingQueue {
         this.createMatch(
           this.arrangeFourSingles(solos as [SingleEntry, SingleEntry, SingleEntry, SingleEntry]),
           ranked,
+          solos,
         );
         return;
       }
@@ -361,7 +367,7 @@ export class MatchmakingQueue {
 
   // ---- Match creation -----------------------------------------------------
 
-  private createMatch(players: MatchPlayer[], ranked: boolean): void {
+  private createMatch(players: MatchPlayer[], ranked: boolean, retryEntries: QueueEntry[]): void {
     const matchId = generateMatchId();
 
     void this.onMatchCreated(players, matchId, ranked)
@@ -373,17 +379,33 @@ export class MatchmakingQueue {
       })
       .catch((err: unknown) => {
         console.error('[MatchmakingQueue] Failed to create match:', err);
-        // Re-queue the players so they can try again
-        for (const p of players) {
-          if (!this.isQueued(p.userId)) {
-            this.singles.push({
-              type: 'single',
-              userId: p.userId,
-              username: p.username,
-              joinedAt: new Date(),
-              ranked: false,
-              rating: 1500,
-            });
+        // Restore the original matchmaking entries so pairs stay together and
+        // ranked players remain in the ranked pool after a transient failure.
+        for (const entry of retryEntries) {
+          const joinedAt = new Date();
+          if (entry.type === 'single') {
+            if (!this.isQueued(entry.userId)) {
+              this.singles.push({ ...entry, joinedAt });
+            }
+            continue;
+          }
+
+          const unqueuedPlayers = entry.players.filter((p) => !this.isQueued(p.userId));
+          if (unqueuedPlayers.length === 2) {
+            this.pairs.push({ ...entry, joinedAt });
+          } else {
+            // If a player independently rejoined while this match was being
+            // created, restore only the remaining teammate as a solo entry.
+            for (const p of unqueuedPlayers) {
+              this.singles.push({
+                type: 'single',
+                userId: p.userId,
+                username: p.username,
+                joinedAt,
+                ranked: entry.ranked,
+                rating: entry.rating,
+              });
+            }
           }
         }
       });

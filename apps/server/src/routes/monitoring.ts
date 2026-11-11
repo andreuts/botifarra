@@ -17,11 +17,12 @@ declare module 'fastify' {
   }
 }
 
-const ADMIN_SECRET = process.env['ADMIN_SECRET'] ?? 'admin-dev-secret';
+const ADMIN_SECRET = process.env['ADMIN_SECRET']?.trim() ||
+  (process.env['NODE_ENV'] === 'production' ? undefined : 'admin-dev-secret');
 
 async function requireAdmin(request: FastifyRequest, reply: FastifyReply) {
   const secret = request.headers['x-admin-secret'];
-  if (secret !== ADMIN_SECRET) {
+  if (!ADMIN_SECRET || secret !== ADMIN_SECRET) {
     return reply.status(403).send({ error: 'Forbidden — invalid admin secret' });
   }
 }

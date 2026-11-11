@@ -12,6 +12,8 @@ import { GameStatusPanel } from '../components/GameStatusPanel.js';
 import { DeclareTrumpPanel } from '../components/DeclareTrumpPanel.js';
 import { getContraDecidingTeam } from '../gamePhase.js';
 import { ConfirmDialog } from '../components/ConfirmDialog.js';
+import { api } from '../api/client.js';
+import type { ActiveGameMode } from '../store/gameStore.js';
 import type { CompletedTrick, Seat } from '@botifarra/core';
 import {
   TRICK_PAUSE_DURATION_MS,
@@ -22,6 +24,8 @@ import type { SeatReservationData } from '../hooks/useMatchmakingQueue.js';
 export function GamePage() {
   const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
   const [leavingWaitingRoom, setLeavingWaitingRoom] = useState(false);
+  const [endingGame, setEndingGame] = useState(false);
+  const [endGameError, setEndGameError] = useState<string | null>(null);
   const { matchId } = useParams<{ matchId: string }>();
   const [searchParams] = useSearchParams();
   const location = useLocation();
@@ -45,8 +49,10 @@ export function GamePage() {
     dismissToast,
     reset,
     setError,
-    setActiveGameRoomId,
+    setActiveGame,
+    activeGame,
     activeGameRoomId,
+    roomId: connectedRoomId,
   } = useGameStore();
 
   // Interpolate authoritative server timer snapshots against monotonic client time.
@@ -128,7 +134,9 @@ export function GamePage() {
 
   // Seat reservation passed from matchmaking via route state.
   // Only use it for fresh joins — if we're reconnecting to an active game, force joinById instead.
-  const isReconnecting = activeGameRoomId === matchId;
+  const isReconnecting =
+    searchParams.get('resume') === '1' ||
+    (activeGame?.roomId ?? activeGameRoomId) === matchId;
   const routeState = location.state as {
     reservation?: SeatReservationData;
     inviteCode?: string;
@@ -152,7 +160,7 @@ export function GamePage() {
 
   function returnToLobby() {
     setLeaveConfirmOpen(false);
-    setActiveGameRoomId(null);
+    leaveRoom();
     reset();
     navigate('/');
   }
@@ -182,29 +190,52 @@ export function GamePage() {
   }
 
   function requestReturnToLobby() {
-    if (isPracticeMode && !gameResult) {
+    if (gameState && !gameResult) {
+      setEndGameError(null);
       setLeaveConfirmOpen(true);
       return;
     }
     returnToLobby();
   }
 
+  async function endBotGame() {
+    if (!user?.accessToken || !gameState?.matchId || endingGame) return;
+    setEndingGame(true);
+    setEndGameError(null);
+    try {
+      await api.matches.abandon(gameState.matchId, user.accessToken);
+      setLeaveConfirmOpen(false);
+      setActiveGame(null);
+      leaveRoom();
+      reset();
+      navigate('/');
+    } catch {
+      setEndGameError(t('game.endGameFailed'));
+    } finally {
+      setEndingGame(false);
+    }
+  }
+
   const leaveConfirmDialog = (
     <ConfirmDialog
       open={leaveConfirmOpen}
-      title={t('game.leavePracticeTitle')}
-      message={t('game.leavePracticeMessage')}
-      confirmLabel={t('game.leavePracticeConfirm')}
-      cancelLabel={t('game.leavePracticeCancel')}
-      dangerous
+      title={t('game.leaveGameTitle')}
+      message={t('game.leaveGameMessage')}
+      confirmLabel={t('game.leaveGameConfirm')}
+      cancelLabel={t('game.leaveGameCancel')}
+      confirmDisabled={endingGame}
+      errorMessage={endGameError ?? undefined}
+      extraAction={isPracticeMode && !gameResult
+        ? { label: endingGame ? t('common.loading') : t('game.endBotGame'), onClick: () => void endBotGame(), dangerous: true }
+        : undefined}
       onCancel={() => setLeaveConfirmOpen(false)}
       onConfirm={returnToLobby}
     />
   );
 
-  const practiceGameInProgress = isPracticeMode && !!gameState && !gameResult;
+  const gameInProgress = !!gameState && !gameResult;
   useEffect(() => {
-    if (!practiceGameInProgress) return;
+    if (!gameInProgress) return;
 
     const warnBeforeLeaving = (event: BeforeUnloadEvent) => {
       event.preventDefault();
@@ -212,7 +243,7 @@ export function GamePage() {
     };
     window.addEventListener('beforeunload', warnBeforeLeaving);
     return () => window.removeEventListener('beforeunload', warnBeforeLeaving);
-  }, [practiceGameInProgress]);
+  }, [gameInProgress]);
 
   useEffect(() => {
     if (!user) {
@@ -225,19 +256,23 @@ export function GamePage() {
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Save active game roomId for rejoin functionality
+  // Persist the durable match ID separately from the transient Colyseus room ID.
   useEffect(() => {
-    if (connected && matchId && mode === 'botifarra') {
-      setActiveGameRoomId(matchId);
-    }
-  }, [connected, matchId, mode, setActiveGameRoomId]);
+    if (!connected || !connectedRoomId || !gameState || !matchId || gameResult) return;
+    setActiveGame({
+      roomId: connectedRoomId,
+      matchId: gameState.matchId,
+      mode: mode as ActiveGameMode,
+      canAbandon: isPracticeMode,
+    });
+  }, [connected, connectedRoomId, gameState?.matchId, gameResult, isPracticeMode, matchId, mode, setActiveGame]);
 
   // Clear active game when it ends
   useEffect(() => {
     if (gameResult) {
-      setActiveGameRoomId(null);
+      setActiveGame(null);
     }
-  }, [gameResult, setActiveGameRoomId]);
+  }, [gameResult, setActiveGame]);
 
   // Auto-dismiss toasts
   useEffect(() => {
@@ -370,10 +405,6 @@ export function GamePage() {
 
   const isDeclaringPhase = gameState.trump === null;
   const isContraPhase = getContraDecidingTeam(gameState) !== null;
-  const isMyTurn =
-    getContraDecidingTeam(gameState) === null &&
-    (gameState.currentPlayerSeat === mySeat ||
-      (isDeclaringPhase && gameState.declarantSeat === mySeat));
 
   return (
     <div className={`game-room${toasts.length > 0 ? ' has-toast' : ''}`}>
@@ -452,7 +483,7 @@ export function GamePage() {
 
       <div className="game-board-shell">
         <Scoreboard gameState={gameState} />
-        <GameStatusPanel gameState={gameState} isMyTurn={isMyTurn} />
+        <GameStatusPanel gameState={gameState} />
 
         {/* Keep the table mounted in one stable stage through bidding and card play. */}
         <div className="game-play-stage">

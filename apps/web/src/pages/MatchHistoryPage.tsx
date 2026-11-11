@@ -30,8 +30,8 @@ export function MatchHistoryPage() {
 
   async function handleResume(matchId: string) {
     try {
-      const { roomId } = await api.matches.resume(matchId, token);
-      navigate(`/match/${roomId}?mode=botifarra`);
+      const { roomId, mode } = await api.matches.resume(matchId, token);
+      navigate(`/match/${roomId}?mode=${mode ?? 'botifarra'}&resume=1`);
     } catch (err) {
       console.error('Failed to resume match', err);
     }

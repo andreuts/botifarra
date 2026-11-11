@@ -77,6 +77,22 @@ export interface BotifarraRoomOptions {
   seatAssignments?: Record<string, number>;
   /** Serialized snapshot to restore (resume flow) */
   initialSnapshot?: SerializableRoomSnapshot;
+  /** Persistent match mode used for resume and end-game permissions. */
+  matchMode?: 'PUBLIC' | 'PRIVATE' | 'PRACTICE' | 'RANKED';
+  /** Persist this room as a resumable match. Defaults to false for transient rooms. */
+  persistMatch?: boolean;
+}
+
+const livePracticeRooms = new Map<string, BotifarraRoom>();
+
+/** End an active bot-practice game from the lobby when its player chooses to abandon it. */
+export function abandonLivePracticeMatch(
+  matchId: string,
+  userId: string,
+): Promise<'abandoned' | 'not-active' | 'not-live'> {
+  const room = livePracticeRooms.get(matchId);
+  if (!room) return Promise.resolve('not-live');
+  return room.abandonForUser(userId).then((abandoned) => abandoned ? 'abandoned' : 'not-active');
 }
 
 export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions> {
@@ -89,6 +105,9 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
   protected humanPlayersExpected: number = 4;
   protected botSeeds = new Set<string>();
   protected ranked: boolean = false;
+  private matchMode: NonNullable<BotifarraRoomOptions['matchMode']> = 'PUBLIC';
+  private persistMatch = true;
+  private allowPlayerAbandon = false;
 
   /** Pre-assigned seats from matchmaking (userId → seat). Empty for ad-hoc rooms. */
   private seatAssignments: Record<string, number> = {};
@@ -133,6 +152,7 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
   private gameStartedAt: number = 0;
   private endReason: string | null = null;
   private gameFinished = false;
+  private gameFinalizationPromise: Promise<void> = Promise.resolve();
 
   // -- Decision timers --
   private static readonly DECLARATION_TURN_MS = 30_000; // 30 seconds to choose trump
@@ -141,7 +161,9 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
   private static readonly TIMEOUT_PENALTY_POINTS = 36;
   private roundTimeoutHandled = false;
   private pendingRoundTransition: ReturnType<typeof setTimeout> | null = null;
+  private roundTransitionDeadline: number | null = null;
   protected turnStartedAt: number = 0;
+  private snapshotSaveQueue: Promise<void> = Promise.resolve();
   private timerEpoch = 0;
   private lastTimerBroadcast: number = 0;
   /** Which team (0 or 1) currently has to decide contra/recontro/sant vicenç. Null outside contra phase. */
@@ -167,6 +189,9 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
     this.lobbyFillTimeoutMs = options.lobbyTimeoutMs ?? BotifarraRoom.LOBBY_FILL_TIMEOUT_MS;
     this.seatAssignments = options.seatAssignments ?? {};
     this.ranked = options.ranked ?? false;
+    this.matchMode = options.matchMode ?? (this.ranked ? 'RANKED' : 'PUBLIC');
+    this.persistMatch = options.persistMatch ?? false;
+    this.allowPlayerAbandon = this.matchMode === 'PRACTICE';
     // Use the original match creation time if provided (resume flow),
     // so the 4-hour timeout is measured from when the match was FIRST created,
     // not from when this room instance was spun up.
@@ -216,6 +241,28 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
             this.state.players.set(info.sessionId, player);
           }
         }
+        if (this.gameState.phase === 'playing' && this.gameState.round) {
+          const pauseLeader = options.initialSnapshot.trickPauseLeader;
+          const pauseRemaining = options.initialSnapshot.trickPauseRemainingMs;
+          if (pauseLeader != null && typeof pauseRemaining === 'number' && pauseRemaining > 0) {
+            this.startTrickPause(
+              pauseLeader,
+              Math.min(BotifarraRoom.TRICK_PAUSE_MS, pauseRemaining),
+            );
+          } else {
+            const decisionDuration = this.getCurrentDecisionBaseMs();
+            const remaining = typeof options.initialSnapshot.turnRemainingMs === 'number'
+              ? Math.max(0, Math.min(decisionDuration, options.initialSnapshot.turnRemainingMs))
+              : decisionDuration;
+            this.startTurnTimerClock(performance.now() - (decisionDuration - remaining));
+          }
+          if (this.gameState.round.completedTricks.length === 12) {
+            const transitionRemaining = options.initialSnapshot.roundTransitionRemainingMs;
+            this.scheduleRoundTransition(
+              typeof transitionRemaining === 'number' ? Math.max(0, transitionRemaining) : 0,
+            );
+          }
+        }
       } catch (err) {
         console.error('[BotifarraRoom] Failed to restore snapshot, starting fresh:', err);
         this.gameState = createRoomState(this.targetScore);
@@ -224,6 +271,8 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
       this.gameState = createRoomState(this.targetScore);
     }
 
+    if (this.matchMode === 'PRACTICE') livePracticeRooms.set(this.matchId, this);
+
     this.onMessage('*', (client, type, message) => {
       this.handleCommand(client, type as string, message);
     });
@@ -231,7 +280,7 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
     this.setSimulationInterval(() => this.tick(), 1000);
   }
 
-  override onJoin(
+  override async onJoin(
     client: Client,
     options: BotifarraRoomOptions & { userId?: string; username?: string; observe?: boolean },
   ) {
@@ -292,6 +341,11 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
       player.seat = seat;
       player.connected = true;
       this.state.players.set(client.sessionId, player);
+
+      // Public matchmaking pre-creates these records. Private and bot-practice
+      // rooms are created lazily, so make the match and participant durable
+      // before the first round snapshot is written.
+      await this.ensureMatchPlayer(userId, seat);
 
       // Broadcast join event
       this.broadcast('player_connected', { seat, username });
@@ -387,11 +441,55 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
   override onDispose() {
     this.cancelPendingRoundTransition();
     this.clearTrickPause();
+    if (livePracticeRooms.get(this.matchId) === this) livePracticeRooms.delete(this.matchId);
     // Clear active game tracking for all players
     for (const [, info] of this.gameState.seats) {
       clearUserActiveGame(info.userId);
     }
     this.gameState.seats.clear();
+  }
+
+  /** Server-side guard and transition for the explicit "end bot game" action. */
+  async abandonForUser(userId: string): Promise<boolean> {
+    if (
+      !this.allowPlayerAbandon ||
+      this.gameFinished ||
+      this.gameState.phase !== 'playing' ||
+      findSeatForUser(this.gameState, userId) === null
+    ) {
+      return false;
+    }
+
+    this.endReason = 'abandoned';
+    this.gameState.phase = 'finished';
+    this.state.phase = 'finished';
+    this.onGameFinished();
+    await this.gameFinalizationPromise;
+    return true;
+  }
+
+  private async ensureMatchPlayer(userId: string, seat: Seat) {
+    if (!this.persistMatch || !_prisma) return;
+    try {
+      await _prisma.match.upsert({
+        where: { id: this.matchId },
+        create: {
+          id: this.matchId,
+          status: 'WAITING',
+          mode: this.matchMode,
+          ranked: this.ranked,
+          targetScore: this.targetScore,
+        },
+        update: {},
+      });
+      await _prisma.matchPlayer.upsert({
+        where: { matchId_userId: { matchId: this.matchId, userId } },
+        create: { matchId: this.matchId, userId, seat },
+        update: { seat },
+      });
+    } catch (err) {
+      console.error('[BotifarraRoom] Failed to persist match participant:', err);
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -489,8 +587,6 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
             if (this.gameState.phase === 'finished') {
               setTimeout(() => this.onGameFinished(), FINAL_TRICK_READ_AND_ANIMATION_MS);
             } else {
-              // Save snapshot after each round while still in-progress
-              this.persistSnapshot();
               // Show the completed last trick for 5s, then start the new round after 15s total
               this.scheduleRoundTransition(15_000);
             }
@@ -513,6 +609,7 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
           this.broadcastGameState();
           this.broadcastTimerState();
           this.lastTimerBroadcast = performance.now();
+          this.persistSnapshot();
           break;
         }
         case 'pass_contra': {
@@ -592,19 +689,31 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
 
   /** Fire-and-forget snapshot save. Only persists while game is in-progress. */
   protected persistSnapshot() {
-    if (!_prisma || this.gameState.phase !== 'playing') return;
+    if (!this.persistMatch || !_prisma || this.gameState.phase !== 'playing') return;
     const prisma = _prisma;
     const matchId = this.matchId;
     const state = this.gameState;
-    void saveGameSnapshot(
-      prisma,
-      matchId,
-      state,
-      this.contraDecidingTeam,
-      [...this.contraPassVotes],
-    ).catch((err) => {
-      console.error('[BotifarraRoom] Snapshot save error:', err);
-    });
+    const contraDecidingTeam = this.contraDecidingTeam;
+    const contraPassVotes = [...this.contraPassVotes];
+    const clockState = {
+        turnRemainingMs: this.turnStartedAt > 0
+          ? Math.max(0, this.getCurrentDecisionBaseMs() - (performance.now() - this.turnStartedAt))
+          : this.getCurrentDecisionBaseMs(),
+        trickPauseLeader: this.trickPauseLeader,
+        trickPauseRemainingMs: this.trickPauseLeader === null
+          ? null
+          : Math.max(0, BotifarraRoom.TRICK_PAUSE_MS - (performance.now() - this.trickPauseStartedAt)),
+        roundTransitionRemainingMs: this.roundTransitionDeadline === null
+          ? null
+          : Math.max(0, this.roundTransitionDeadline - performance.now()),
+      };
+    // Preserve action order so a slower earlier write cannot overwrite a newer
+    // state with an old snapshot or reactivate a match after it has finished.
+    this.snapshotSaveQueue = this.snapshotSaveQueue
+      .then(() => saveGameSnapshot(prisma, matchId, state, contraDecidingTeam, contraPassVotes, clockState))
+      .catch((err) => {
+        console.error('[BotifarraRoom] Snapshot save error:', err);
+      });
   }
 
   // ---------------------------------------------------------------------------
@@ -635,6 +744,7 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
     // Immediately broadcast fresh timer state so client interpolator starts cleanly
     this.broadcastTimerState();
     this.lastTimerBroadcast = performance.now();
+    this.persistSnapshot();
   }
 
   /** Build map of seat → username from the Colyseus schema or room state */
@@ -738,18 +848,19 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
     }
 
     // Persist match result asynchronously
-    if (_prisma) {
+    if (_prisma && this.persistMatch) {
       const prisma = _prisma;
       const matchId = this.matchId;
       const ranked = this.ranked;
       const endReason = this.endReason;
-      const abandoned = endReason === 'surrender';
-      void (async () => {
+      const abandoned = endReason === 'surrender' || endReason === 'abandoned';
+      this.gameFinalizationPromise = (async () => {
         try {
+          await this.snapshotSaveQueue;
           await finalizeMatch(prisma, matchId, scores[0], scores[1], winner, endReason, abandoned);
-          await updateUserStats(prisma, matchId, winner);
+          if (endReason !== 'abandoned') await updateUserStats(prisma, matchId, winner);
           // Only update ratings for ranked games
-          if (ranked) {
+          if (ranked && endReason !== 'abandoned') {
             await updateRatings(prisma, matchId, winner);
           }
         } catch (err) {
@@ -966,15 +1077,18 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
     }
   }
 
-  private scheduleRoundTransition(delayMs: number) {
+  protected scheduleRoundTransition(delayMs: number) {
     this.cancelPendingRoundTransition();
     if (this.gameFinished || this.gameState.phase === 'finished') return;
 
+    this.roundTransitionDeadline = performance.now() + delayMs;
     this.pendingRoundTransition = setTimeout(() => {
       this.pendingRoundTransition = null;
+      this.roundTransitionDeadline = null;
       if (this.gameFinished || this.gameState.phase === 'finished') return;
       this.startNewRoundPublic();
     }, delayMs);
+    this.persistSnapshot();
   }
 
   private cancelPendingRoundTransition() {
@@ -982,6 +1096,7 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
       clearTimeout(this.pendingRoundTransition);
       this.pendingRoundTransition = null;
     }
+    this.roundTransitionDeadline = null;
   }
 
   // ---------------------------------------------------------------------------
@@ -993,9 +1108,10 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
     return p ? (p.seat as Seat) : null;
   }
 
-  protected startTrickPause(leader: Seat) {
+  protected startTrickPause(leader: Seat, remainingMs = BotifarraRoom.TRICK_PAUSE_MS) {
     this.trickPauseLeader = leader;
-    this.trickPauseStartedAt = performance.now();
+    const boundedRemaining = Math.max(0, Math.min(BotifarraRoom.TRICK_PAUSE_MS, remainingMs));
+    this.trickPauseStartedAt = performance.now() - (BotifarraRoom.TRICK_PAUSE_MS - boundedRemaining);
     // Automatically advance when the review interval ends.
     if (this.trickPauseTimeout) clearTimeout(this.trickPauseTimeout);
     this.trickPauseTimeout = setTimeout(() => {
@@ -1006,7 +1122,7 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
         this.broadcastTimerState();
         this.lastTimerBroadcast = performance.now();
       }
-    }, BotifarraRoom.TRICK_PAUSE_MS);
+    }, boundedRemaining);
   }
 
   protected clearTrickPause() {

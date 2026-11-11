@@ -1,41 +1,28 @@
 import { createContext, useContext, useEffect, useState, type PropsWithChildren } from 'react';
 import { api } from '../api/client.js';
+import { useAuthStore } from '../store/authStore.js';
 
 const OnlinePresenceContext = createContext<number | null>(null);
 const HEARTBEAT_INTERVAL_MS = 20_000;
-const CLIENT_ID_STORAGE_KEY = 'botifarra-online-client-id';
-
-function getClientId() {
-  try {
-    const existing = window.localStorage.getItem(CLIENT_ID_STORAGE_KEY);
-    if (existing) return existing;
-  } catch {
-    // Continue with an in-memory id when browser storage is unavailable.
-  }
-
-  const clientId = window.crypto?.randomUUID?.()
-    ?? `botifarra-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  try {
-    window.localStorage.setItem(CLIENT_ID_STORAGE_KEY, clientId);
-  } catch {
-    // The id remains usable for this page session.
-  }
-  return clientId;
-}
 
 export function OnlinePresenceProvider({ children }: PropsWithChildren) {
+  const token = useAuthStore((state) => state.user?.accessToken ?? '');
   const [onlineUsers, setOnlineUsers] = useState<number | null>(null);
 
   useEffect(() => {
+    if (!token) {
+      setOnlineUsers(null);
+      return;
+    }
+
     let active = true;
     let heartbeatInFlight = false;
-    const clientId = getClientId();
 
     const sendHeartbeat = async () => {
       if (heartbeatInFlight) return;
       heartbeatInFlight = true;
       try {
-        const response = await api.presence.heartbeat(clientId);
+        const response = await api.presence.heartbeat(token);
         if (active && Number.isSafeInteger(response.onlineUsers)) {
           setOnlineUsers(response.onlineUsers);
         }
@@ -52,7 +39,7 @@ export function OnlinePresenceProvider({ children }: PropsWithChildren) {
       active = false;
       window.clearInterval(timer);
     };
-  }, []);
+  }, [token]);
 
   return (
     <OnlinePresenceContext.Provider value={onlineUsers}>

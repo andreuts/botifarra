@@ -8,12 +8,10 @@ declare module 'fastify' {
 }
 
 export const presenceRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
-  app.post('/heartbeat', async (request, reply) => {
-    const clientId = (request.body as { clientId?: unknown } | null)?.clientId;
-    if (typeof clientId !== 'string' || clientId.length < 16 || clientId.length > 64) {
-      return reply.status(400).send({ error: 'A valid clientId is required' });
-    }
+  app.post('/heartbeat', { onRequest: [(app as any).authenticate] }, async (request, reply) => {
+    const { sub: userId } = (request as any).user as { sub: string };
+    if (!userId) return reply.status(401).send({ error: 'Authentication required' });
 
-    return reply.send({ onlineUsers: app.onlinePresence.heartbeat(clientId) });
+    return reply.send({ onlineUsers: app.onlinePresence.heartbeat(userId) });
   });
 };

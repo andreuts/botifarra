@@ -121,11 +121,15 @@ export const privateRoomRoutes: FastifyPluginAsync = async (app: FastifyInstance
                 fillBots: true,
                 humanPlayers: 2,
                 seatAssignments: { [entry.hostUserId]: 0 },
+                matchMode: 'PRACTICE',
+                persistMatch: true,
                 lobbyTimeoutMs: Math.max(1, entry.createdAt + INVITE_TTL_MS - Date.now()),
               }
             : {
                 matchId: `private_${upperCode}`,
                 targetScore: 101,
+                matchMode: 'PRIVATE',
+                persistMatch: true,
               };
 
           entry.creatingRoom = (async () => {

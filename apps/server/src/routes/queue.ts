@@ -23,10 +23,15 @@ export const queueRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
       return reply.status(409).send({ error: 'Already in queue' });
     }
 
-    const body = request.body as
-      | { mode?: string; ranked?: boolean; partnerId?: string; partnerUsername?: string }
-      | undefined;
-    const mode = body?.mode === 'pair' ? 'pair' : 'single';
+    const body = request.body as { mode?: unknown; ranked?: unknown } | undefined;
+    if (body?.mode === 'pair') {
+      return reply.status(400).send({
+        error: 'Pair matchmaking requires an accepted pair invite',
+      });
+    }
+    if (body?.mode !== undefined && body.mode !== 'single') {
+      return reply.status(400).send({ error: 'mode must be "single" or "pair"' });
+    }
     const ranked = body?.ranked === true;
 
     // Fetch rating for ranked matchmaking
@@ -37,29 +42,7 @@ export const queueRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     }
 
     try {
-      if (mode === 'pair') {
-        const partnerId = body?.partnerId;
-        const partnerUsername = body?.partnerUsername;
-        if (!partnerId || !partnerUsername) {
-          return reply
-            .status(400)
-            .send({ error: 'partnerId and partnerUsername are required for pair queue' });
-        }
-        // Average rating for pair
-        let pairRating = rating;
-        if (ranked) {
-          const partnerStats = await app.prisma.userStats.findUnique({ where: { userId: partnerId } });
-          pairRating = ((partnerStats?.individualRating ?? 1000) + rating) / 2;
-        }
-        app.matchmakingQueue.enqueuePair(
-          { userId, username },
-          { userId: partnerId, username: partnerUsername },
-          ranked,
-          pairRating,
-        );
-      } else {
-        app.matchmakingQueue.enqueueSingle(userId, username, ranked, rating);
-      }
+      app.matchmakingQueue.enqueueSingle(userId, username, ranked, rating);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to join queue';
       return reply.status(409).send({ error: msg });
@@ -67,7 +50,7 @@ export const queueRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
 
     return reply.status(202).send({
       message: 'Joined queue',
-      mode,
+      mode: 'single',
       ranked,
       queueSize: app.matchmakingQueue.sizeForMode(ranked),
     });

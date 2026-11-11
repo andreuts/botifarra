@@ -65,8 +65,12 @@ export async function buildApp(opts: AppOptions = {}) {
     credentials: true,
   });
 
+  const jwtSecret = opts.jwtSecret ?? process.env['JWT_SECRET']?.trim();
+  if (process.env['NODE_ENV'] === 'production' && !jwtSecret) {
+    throw new Error('JWT_SECRET must be set in production');
+  }
   await app.register(jwt, {
-    secret: opts.jwtSecret ?? process.env['JWT_SECRET'] ?? 'change-me-in-production',
+    secret: jwtSecret ?? 'change-me-in-production',
   });
 
   if (opts.prisma) {

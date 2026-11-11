@@ -154,9 +154,9 @@ export const pairInviteRoutes: FastifyPluginAsync = async (app: FastifyInstance)
       return reply.send({ message: 'Pair invite rejected' });
     }
 
-    // Accept — add both to the matchmaking queue as a pair
-    invite.status = 'accepted';
-
+    // Accept — add both to the matchmaking queue as a pair. Keep the invite
+    // pending until enqueue succeeds so a conflict or database failure can be
+    // retried instead of leaving an invisible accepted invite behind.
     // Compute average rating for ranked pair matchmaking
     let pairRating = 0;
     if (invite.ranked) {
@@ -179,7 +179,7 @@ export const pairInviteRoutes: FastifyPluginAsync = async (app: FastifyInstance)
       return reply.status(409).send({ error: msg });
     }
 
-    // Clean up the invite
+    // Queueing succeeded, so the invite can now be removed.
     pairInvites.delete(invite.inviteId);
 
     return reply.send({

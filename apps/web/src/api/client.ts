@@ -29,6 +29,13 @@ import type {
 const BASE = '/api';
 type RoomInviteMode = 'private' | 'practice-duo';
 
+export class ApiError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
 async function sendRequest(path: string, options: RequestInit = {}, token?: string): Promise<Response> {
   const headers: Record<string, string> = {
     ...(options.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
@@ -40,7 +47,7 @@ async function sendRequest(path: string, options: RequestInit = {}, token?: stri
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error((body as any).error ?? `HTTP ${res.status}`);
+    throw new ApiError((body as any).error ?? `HTTP ${res.status}`, res.status);
   }
 
   return res;
@@ -84,15 +91,18 @@ export const api = {
     list: (token: string) => request<RecentGameDTO[]>('/matches', {}, token),
     get: (matchId: string, token: string) => request<MatchDTO>(`/matches/${matchId}`, {}, token),
     resume: (matchId: string, token: string) =>
-      request<{ roomId: string }>(`/matches/${matchId}/resume`, { method: 'POST' }, token),
+      request<{ roomId: string; mode?: 'botifarra' | 'practice' | 'practice-duo' }>(
+        `/matches/${matchId}/resume`, { method: 'POST' }, token,
+      ),
+    abandon: (matchId: string, token: string) =>
+      request<{ abandoned: boolean }>(`/matches/${matchId}/abandon`, { method: 'POST' }, token),
   },
 
   presence: {
-    heartbeat: (clientId: string) =>
+    heartbeat: (token: string) =>
       request<{ onlineUsers: number }>('/presence/heartbeat', {
         method: 'POST',
-        body: JSON.stringify({ clientId }),
-      }),
+      }, token),
   },
 
   users: {

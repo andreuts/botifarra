@@ -27,11 +27,11 @@ export class PracticeRoom extends BotifarraRoom {
   private botPendingMove = false; // prevent double-scheduling
 
   override onCreate(options: BotifarraRoomOptions) {
-    super.onCreate(options);
+    super.onCreate({ ...options, matchMode: 'PRACTICE', persistMatch: true });
 
     // Solo practice starts with three bots already in place. Invited pair
     // practice waits for both humans, then BotifarraRoom fills the two seats left.
-    const botsToPreload = this.fillBots ? 0 : 3;
+    const botsToPreload = this.fillBots || options.initialSnapshot ? 0 : 3;
     for (let i = 0; i < botsToPreload; i++) {
       const fakeSid = `bot-${i}-${this.roomId}`;
       this.botSeeds.add(fakeSid);
@@ -167,9 +167,10 @@ export class PracticeRoom extends BotifarraRoom {
           if (this.gameState.phase === 'finished') {
             setTimeout(() => this.onGameFinished(), FINAL_TRICK_READ_AND_ANIMATION_MS);
           } else {
-            setTimeout(() => this.startNewRoundPublic(), 15_000);
+            this.scheduleRoundTransition(15_000);
           }
         }
+        this.persistSnapshot();
       } catch {
         /* ignore invalid move */
       }

@@ -7,6 +7,9 @@ interface ConfirmDialogProps {
   confirmLabel: string;
   cancelLabel: string;
   dangerous?: boolean;
+  confirmDisabled?: boolean;
+  extraAction?: { label: string; onClick: () => void; dangerous?: boolean };
+  errorMessage?: string;
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -18,6 +21,9 @@ export function ConfirmDialog({
   confirmLabel,
   cancelLabel,
   dangerous = false,
+  confirmDisabled = false,
+  extraAction,
+  errorMessage,
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
@@ -81,13 +87,24 @@ export function ConfirmDialog({
       >
         <h2 id={titleId} className="confirm-dialog-title">{title}</h2>
         <p id={messageId} className="confirm-dialog-message">{message}</p>
+        {errorMessage && <p className="confirm-dialog-error" role="alert">{errorMessage}</p>}
         <div className="confirm-dialog-actions">
           <button ref={cancelRef} className="confirm-dialog-cancel" onClick={onCancel}>
             {cancelLabel}
           </button>
+          {extraAction && (
+            <button
+              className={`confirm-dialog-extra${extraAction.dangerous ? ' is-dangerous' : ''}`}
+              onClick={extraAction.onClick}
+              disabled={confirmDisabled}
+            >
+              {extraAction.label}
+            </button>
+          )}
           <button
             className={`confirm-dialog-confirm${dangerous ? ' is-dangerous' : ''}`}
             onClick={onConfirm}
+            disabled={confirmDisabled}
           >
             {confirmLabel}
           </button>

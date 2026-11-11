@@ -1460,19 +1460,6 @@ body::before {
   color: #273a2d;
 }
 
-.resume-banner-mark {
-  display: grid;
-  flex: 0 0 auto;
-  place-items: center;
-  width: 42px;
-  height: 42px;
-  border: 1px solid #b49b5d;
-  border-radius: 50%;
-  background: #e7d7b4;
-  color: #6e653c;
-  font-size: 1.5rem;
-}
-
 .resume-banner-copy {
   flex: 1;
   min-width: 190px;
@@ -1487,6 +1474,13 @@ body::before {
   color: #596455;
   font-size: 0.83rem;
   line-height: 1.45;
+}
+
+.resume-banner-error {
+  margin-top: 0.35rem;
+  color: #9d3030;
+  font-size: 0.78rem;
+  font-weight: 700;
 }
 
 .resume-banner-actions {
@@ -3061,13 +3055,16 @@ body::before {
 
 .confirm-dialog-actions {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
+  align-items: center;
   gap: 0.6rem;
   margin-top: 1.3rem;
 }
 
 .confirm-dialog-cancel,
-.confirm-dialog-confirm {
+.confirm-dialog-confirm,
+.confirm-dialog-extra {
   min-height: 42px;
   padding: 0.55rem 0.85rem;
   border: 1px solid transparent;
@@ -3094,6 +3091,23 @@ body::before {
 
 .confirm-dialog-confirm:hover {
   background: linear-gradient(180deg, #467750, #2d593a);
+}
+
+.confirm-dialog-extra {
+  border-color: #b95042;
+  background: linear-gradient(180deg, #c74d3d, #9e342b);
+  color: #fff8ed;
+}
+
+.confirm-dialog-extra:hover:not(:disabled) {
+  background: linear-gradient(180deg, #d25a49, #ad3a30);
+}
+
+.confirm-dialog-error {
+  margin-top: 0.7rem;
+  color: #a12f2f;
+  font-size: 0.82rem;
+  font-weight: 700;
 }
 
 .town-picker-overlay {
@@ -3909,10 +3923,6 @@ body::before {
   .resume-banner {
     align-items: flex-start !important;
     flex-wrap: wrap;
-  }
-
-  .resume-banner-mark {
-    display: none !important;
   }
 
   .resume-banner-copy {
@@ -6352,6 +6362,420 @@ body::before {
   }
 }
 
+
+/* Game table layout: score and round at the top, players around the felt,
+   played cards in the center, and the hand anchored below. */
+.game-room {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: max(0.6rem, env(safe-area-inset-top)) max(0.8rem, env(safe-area-inset-right)) max(0.7rem, env(safe-area-inset-bottom)) max(0.8rem, env(safe-area-inset-left));
+}
+
+.game-room-topbar {
+  padding-right: 3.2rem;
+}
+
+.game-board-shell {
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+}
+
+.game-board-shell .game-table-panel > .trick-area {
+  align-items: stretch !important;
+  gap: 0.45rem !important;
+  min-height: 0;
+}
+
+.game-board-shell .game-table-panel .trick-grid {
+  position: relative;
+  display: block;
+  flex: 1 1 auto;
+  width: 100%;
+  height: auto;
+  min-height: 0;
+  overflow: visible;
+  border: 1px solid rgba(224, 205, 155, 0.2);
+  border-radius: 50% / 52%;
+  background: radial-gradient(ellipse at center, rgba(47, 85, 54, 0.38), rgba(12, 34, 23, 0.08) 73%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.025);
+}
+
+.game-board-shell .trick-seat {
+  position: absolute !important;
+  z-index: 2;
+  display: flex !important;
+  width: max-content;
+  max-width: min(35%, 15rem);
+  gap: 0 !important;
+  transform: none;
+}
+
+.game-board-shell .trick-seat.top {
+  top: -2%;
+  left: 50%;
+  align-items: center !important;
+  transform: translateX(-50%);
+}
+
+.game-board-shell .trick-seat.left {
+  top: 50%;
+  left: clamp(0.2rem, 1.5vw, 1.25rem);
+  align-items: flex-start !important;
+  transform: translateY(-50%);
+}
+
+.game-board-shell .trick-seat.right {
+  top: 50%;
+  right: clamp(0.2rem, 1.5vw, 1.25rem);
+  align-items: flex-end !important;
+  transform: translateY(-50%);
+}
+
+.game-board-shell .trick-seat.bottom {
+  bottom: 0;
+  left: 50%;
+  align-items: center !important;
+  transform: translateX(-50%);
+}
+
+.game-board-shell .trick-seat-roles {
+  position: absolute;
+  z-index: 2;
+  top: -8px;
+  right: -8px;
+  width: 16px;
+  height: 16px;
+  min-height: 16px;
+}
+
+.game-board-shell .seat-badge {
+  box-sizing: border-box;
+  max-width: 100%;
+  min-height: 42px;
+  gap: 0.35rem;
+  padding: 0.2rem 0.7rem 0.2rem 0.25rem;
+  background: rgba(9, 22, 15, 0.88);
+  font-size: clamp(0.68rem, 1vw, 0.86rem);
+}
+
+.game-board-shell .seat-avatar {
+  display: block;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.game-board-shell .seat-active-mark {
+  flex: 0 0 6px;
+}
+
+.game-board-shell .seat-name {
+  overflow: hidden;
+  max-width: clamp(3.2rem, 9vw, 11rem);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.game-board-shell .trick-card-layout {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  pointer-events: none;
+}
+
+.game-board-shell .trick-card-seat {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.game-board-shell .trick-card-seat > div {
+  pointer-events: auto;
+}
+
+.game-board-shell .trick-card-seat.top {
+  top: calc(50% - 7.25rem);
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.game-board-shell .trick-card-seat.left {
+  top: 50%;
+  left: calc(50% - 6rem);
+  transform: translate(-50%, -50%);
+}
+
+.game-board-shell .trick-card-seat.right {
+  top: 50%;
+  left: calc(50% + 6rem);
+  transform: translate(-50%, -50%);
+}
+
+.game-board-shell .trick-card-seat.bottom {
+  top: calc(50% + 7.25rem);
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.game-status-contra-full {
+  display: inline;
+}
+
+.game-status-contra-compact {
+  display: none !important;
+}
+
+@media (orientation: landscape) and (max-height: 760px) {
+  .game-board-shell .trick-card-seat.top {
+    top: calc(50% - 5.2rem);
+  }
+
+  .game-board-shell .trick-card-seat.bottom {
+    top: calc(50% + 5.2rem);
+  }
+
+  .game-board-shell .trick-card-seat.left {
+    left: calc(50% - 4rem);
+  }
+
+  .game-board-shell .trick-card-seat.right {
+    left: calc(50% + 4rem);
+  }
+
+  .game-board-shell .seat-avatar {
+    width: 28px;
+    height: 28px;
+    flex-basis: 28px;
+  }
+
+  .game-board-shell .seat-badge {
+    min-height: 34px;
+    padding: 0.12rem 0.55rem 0.12rem 0.2rem;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 620px) {
+  .game-board-shell .game-table-panel .trick-grid {
+    border-radius: 15px;
+  }
+
+  .game-board-shell .trick-card-seat.top {
+    top: calc(50% - 3.5rem);
+  }
+
+  .game-board-shell .trick-card-seat.bottom {
+    top: calc(50% + 3.5rem);
+  }
+
+  .game-board-shell .trick-card-seat.left {
+    left: calc(50% - 3.1rem);
+  }
+
+  .game-board-shell .trick-card-seat.right {
+    left: calc(50% + 3.1rem);
+  }
+
+  .game-board-shell .trick-seat.top {
+    top: 3%;
+  }
+
+  .game-board-shell .trick-seat.bottom {
+    bottom: 3%;
+  }
+
+  .game-board-shell .seat-avatar {
+    width: 22px;
+    height: 22px;
+    flex-basis: 22px;
+  }
+
+  .game-board-shell .seat-badge {
+    min-height: 28px;
+    gap: 0.2rem;
+    font-size: 0.58rem;
+  }
+}
+
+@media (orientation: portrait) and (max-width: 700px) {
+  .game-room {
+    gap: 0.45rem;
+    padding: max(0.55rem, env(safe-area-inset-top)) max(0.55rem, env(safe-area-inset-right)) max(0.65rem, env(safe-area-inset-bottom)) max(0.55rem, env(safe-area-inset-left));
+  }
+
+  .game-room-topbar {
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    padding: 0.45rem 2.8rem 0.45rem 0.5rem;
+  }
+
+  .game-room-status {
+    flex: 1 1 100%;
+    justify-content: flex-start;
+    gap: 0.35rem;
+  }
+
+  .game-board-shell {
+    gap: 0.4rem;
+    padding: 0.45rem;
+    border-width: 4px;
+    border-radius: 12px;
+  }
+
+  .game-scoreboard {
+    grid-template-columns: minmax(0, 1fr) 76px minmax(0, 1fr);
+    gap: 0.2rem;
+    padding: 0.35rem 0.45rem;
+  }
+
+  .game-score-team {
+    min-width: 0;
+  }
+
+  .game-score-value {
+    font-size: clamp(1.25rem, 7vw, 1.7rem);
+  }
+
+  .game-score-names {
+    max-width: 100%;
+    overflow: hidden;
+    font-size: 0.61rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .game-score-round {
+    min-height: 40px;
+    padding: 0 0.25rem;
+  }
+
+  .game-round-number {
+    font-size: 0.98rem;
+  }
+
+  .game-trick-progress {
+    font-size: 0.57rem;
+  }
+
+  .game-status-strip {
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.8fr) minmax(0, 1.2fr);
+  }
+
+  .game-status-item {
+    gap: 0.35rem;
+    padding: 0.35rem 0.4rem;
+  }
+
+  .game-status-card {
+    width: 25px;
+    height: 34px;
+  }
+
+  .game-status-dealer-mark {
+    width: 19px;
+    height: 19px;
+  }
+
+  .game-status-label {
+    font-size: 0.48rem;
+    letter-spacing: 0.04em;
+  }
+
+  .game-status-copy strong {
+    font-size: 0.69rem;
+  }
+
+  .game-status-detail {
+    font-size: 0.54rem;
+  }
+
+  .game-status-contra-badge {
+    padding: 0.05rem 0.2rem;
+    font-size: 0.43rem;
+  }
+
+  .game-status-item--trump .game-status-trump-value {
+    flex-wrap: wrap;
+    gap: 0.18rem;
+  }
+
+  .game-status-item--trump .game-status-copy strong {
+    white-space: normal;
+  }
+
+  .game-board-shell .trick-seat.top {
+    top: 2%;
+  }
+
+  .game-board-shell .trick-seat.bottom {
+    bottom: 2%;
+  }
+
+  .game-board-shell .trick-seat.left {
+    left: 0;
+  }
+
+  .game-board-shell .trick-seat.right {
+    right: 0;
+  }
+
+  .game-board-shell .trick-card-seat.top {
+    top: calc(50% - 5.1rem);
+  }
+
+  .game-board-shell .trick-card-seat.bottom {
+    top: calc(50% + 5.1rem);
+  }
+
+  .game-board-shell .trick-card-seat.left {
+    left: calc(50% - 3.75rem);
+  }
+
+  .game-board-shell .trick-card-seat.right {
+    left: calc(50% + 3.75rem);
+  }
+}
+
+@media (orientation: portrait) and (max-width: 390px) {
+  .game-board-shell .seat-avatar {
+    width: 25px;
+    height: 25px;
+    flex-basis: 25px;
+  }
+
+  .game-board-shell .seat-badge {
+    min-height: 30px;
+    gap: 0.2rem;
+    padding: 0.1rem 0.35rem 0.1rem 0.16rem;
+    font-size: 0.58rem;
+  }
+
+  .game-board-shell .seat-name {
+    max-width: 3.2rem;
+  }
+
+  .game-board-shell .trick-card-seat.top {
+    top: calc(50% - 4.7rem);
+  }
+
+  .game-board-shell .trick-card-seat.bottom {
+    top: calc(50% + 4.7rem);
+  }
+
+  .game-board-shell .trick-card-seat.left {
+    left: calc(50% - 3.2rem);
+  }
+
+  .game-board-shell .trick-card-seat.right {
+    left: calc(50% + 3.2rem);
+  }
+}
+
 /* Dialogs are independent of the table layout and scroll within short viewports. */
 .settings-overlay,
 .confirm-dialog-overlay,
@@ -6703,5 +7127,343 @@ body::before {
   .game-board-shell .game-table-panel .trick-grid {
     height: auto;
     min-height: 300px;
+  }
+}
+
+/* Keep player markers and cards in their layout positions on short screens. */
+.game-board-shell .trick-seat.left {
+  transform: translateY(-50%);
+}
+
+.game-board-shell .trick-seat.right {
+  transform: translateY(-50%);
+}
+
+.game-board-shell .trick-seat .seat-badge {
+  position: static;
+  inset: auto;
+  transform: none;
+}
+
+/* Joined score and round header, with the trump pill directly underneath. */
+.game-board-shell > .game-scoreboard {
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: clamp(1rem, 3vw, 3rem);
+  min-height: 64px;
+  padding: 0;
+  border: 0 !important;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: #f5ead2;
+}
+
+.game-board-shell .game-score-team {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-self: end;
+  gap: 0.6rem;
+  width: min(100%, 17.5rem);
+  min-height: 54px;
+  padding: 0.35rem 0.8rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  color: #f6f2e8;
+  text-align: left;
+}
+
+.game-board-shell .game-score-team--0 {
+  border-color: rgba(45, 185, 220, 0.7);
+  background: linear-gradient(105deg, rgba(0, 95, 124, 0.92), rgba(4, 56, 77, 0.92));
+}
+
+.game-board-shell .game-score-team--1 {
+  justify-self: start;
+  border-color: rgba(225, 87, 66, 0.72);
+  background: linear-gradient(105deg, rgba(104, 39, 31, 0.92), rgba(57, 25, 24, 0.92));
+}
+
+.game-board-shell .game-score-team-icon {
+  display: block;
+  width: 27px;
+  height: 27px;
+  flex: 0 0 auto;
+  fill: currentColor;
+}
+
+.game-board-shell .game-score-team-copy {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  gap: 0.08rem;
+}
+
+.game-board-shell .game-score-team-label {
+  overflow: hidden;
+  color: #f6f2e8;
+  font-size: clamp(0.68rem, 1vw, 0.88rem);
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.game-board-shell .game-score-names {
+  color: rgba(246, 242, 232, 0.72);
+  font-size: 0.62rem;
+}
+
+.game-board-shell .game-score-numeric {
+  display: flex;
+  align-items: baseline;
+  flex: 0 0 auto;
+  gap: 0.1rem;
+}
+
+.game-board-shell .game-score-value {
+  color: #fff8e9 !important;
+  font-family: 'Fraunces', Georgia, serif;
+  font-size: clamp(1.6rem, 2.6vw, 2.2rem);
+  line-height: 1;
+}
+
+.game-board-shell .game-score-target {
+  color: rgba(246, 242, 232, 0.76);
+  font-size: 0.68rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.game-board-shell .game-score-round {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 13rem;
+  min-height: 66px;
+  padding: 0 0.6rem;
+  border: 0;
+  color: #f5ead2;
+}
+
+.game-score-round-heading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+}
+
+.game-round-laurel {
+  display: block;
+  width: 28px;
+  height: 42px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: #dfc16e;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.6;
+}
+
+.game-round-laurel.is-reversed {
+  transform: scaleX(-1);
+}
+
+.game-score-round-copy {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 0.35rem;
+}
+
+.game-board-shell .game-score-label {
+  color: #f1e5c9;
+  font-size: 0.82rem;
+  letter-spacing: 0.04em;
+}
+
+.game-board-shell .game-round-number {
+  color: #fff6dc;
+  font-size: 1.12rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.game-score-objective {
+  color: #e9dcbd;
+  font-size: 0.72rem;
+  line-height: 1.25;
+}
+
+.game-board-shell .game-trick-progress {
+  margin-top: 0.05rem;
+  color: rgba(233, 220, 189, 0.75);
+  font-size: 0.55rem;
+}
+
+.game-board-shell > .game-status-strip {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: clamp(0.45rem, 1.5vw, 1.2rem);
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: #f5ead2;
+}
+
+.game-board-shell .game-status-item--trump {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: fit-content;
+  min-height: 42px;
+  padding: 0.25rem 0.85rem;
+  border: 1px solid rgba(223, 193, 110, 0.75);
+  border-radius: 999px;
+  background: rgba(8, 25, 17, 0.84);
+  box-shadow: 0 0 0 1px rgba(223, 193, 110, 0.09), 0 4px 12px rgba(0, 0, 0, 0.18);
+}
+
+.game-board-shell .game-status-item--trump .game-status-card {
+  width: 29px;
+  height: 36px;
+}
+
+.game-board-shell .game-status-item--trump .game-status-copy {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.38rem;
+}
+
+.game-board-shell .game-status-item--trump .game-status-label {
+  color: #ead9a8;
+  font-size: 0.7rem;
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+
+.game-board-shell .game-status-item--trump .game-status-copy strong {
+  color: #fff8e9;
+  font-size: 0.88rem;
+}
+
+@media (orientation: portrait) and (max-width: 700px) {
+  .game-board-shell > .game-scoreboard {
+    grid-template-areas: 'team0 round team1';
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    gap: 0.15rem;
+  }
+
+  .game-board-shell > .game-scoreboard > .game-score-team--0 {
+    grid-area: team0;
+  }
+
+  .game-board-shell > .game-scoreboard > .game-score-round {
+    grid-area: round;
+    min-width: 7.5rem;
+    min-height: 54px;
+    padding: 0;
+  }
+
+  .game-board-shell > .game-scoreboard > .game-score-team--1 {
+    grid-area: team1;
+  }
+
+  .game-board-shell .game-score-team {
+    justify-self: stretch;
+    gap: 0.25rem;
+    min-height: 42px;
+    padding: 0.25rem 0.3rem;
+    border-radius: 999px;
+  }
+
+  .game-board-shell .game-score-team-icon {
+    width: 18px;
+    height: 18px;
+  }
+
+  .game-board-shell .game-score-team-label {
+    font-size: 0.56rem;
+  }
+
+  .game-board-shell .game-score-value {
+    font-size: 1.2rem;
+  }
+
+  .game-board-shell .game-score-round-heading {
+    gap: 0.2rem;
+  }
+
+  .game-board-shell .game-score-round {
+    min-height: 54px;
+  }
+
+  .game-board-shell .game-round-laurel {
+    width: 18px;
+    height: 32px;
+  }
+
+  .game-board-shell .game-score-round-copy {
+    gap: 0.2rem;
+  }
+
+  .game-board-shell .game-score-label {
+    font-size: 0.72rem;
+  }
+
+  .game-board-shell .game-round-number {
+    font-size: 1rem;
+  }
+
+  .game-board-shell .game-score-objective {
+    font-size: 0.62rem;
+  }
+
+  .game-board-shell > .game-status-strip {
+    justify-content: center;
+    padding-right: 0;
+    min-height: 44px;
+  }
+
+  .game-board-shell .game-status-item--trump {
+    min-height: 38px;
+    padding: 0.2rem 0.65rem;
+  }
+
+  .game-board-shell .game-status-item--trump .game-status-copy strong {
+    font-size: 0.78rem;
+  }
+}
+
+@media (max-width: 360px) {
+  .game-board-shell > .game-scoreboard > .game-score-round {
+    min-width: 5.8rem;
+  }
+
+  .game-board-shell .game-round-laurel {
+    width: 14px;
+    height: 26px;
+  }
+
+  .game-board-shell .game-score-team-label {
+    font-size: 0.6rem;
+  }
+
+  .game-board-shell .game-score-team {
+    gap: 0.2rem;
+    padding-right: 0.25rem;
+    padding-left: 0.25rem;
+  }
+
+  .game-board-shell .game-score-team-icon {
+    display: none;
+  }
+
+  .game-board-shell .game-score-value {
+    font-size: 1.12rem;
   }
 }

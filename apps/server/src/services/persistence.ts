@@ -16,12 +16,27 @@ export interface SerializableRoomSnapshot {
   contraDecidingTeam?: 0 | 1 | null;
   /** Players who confirmed passing during the pending contra decision. */
   contraPassVotes?: Seat[];
+  /** Remaining phase clock when the room was saved. */
+  turnRemainingMs?: number;
+  /** Trick reveal pause state, if the latest card completed a trick. */
+  trickPauseLeader?: Seat | null;
+  trickPauseRemainingMs?: number | null;
+  /** Remaining wait before the next round starts after a completed round. */
+  roundTransitionRemainingMs?: number | null;
+}
+
+export interface SnapshotClockState {
+  turnRemainingMs?: number;
+  trickPauseLeader?: Seat | null;
+  trickPauseRemainingMs?: number | null;
+  roundTransitionRemainingMs?: number | null;
 }
 
 export function serializeSnapshot(
   state: RoomGameState,
   contraDecidingTeam?: 0 | 1 | null,
   contraPassVotes?: Seat[],
+  clockState?: SnapshotClockState,
 ): SerializableRoomSnapshot {
   return {
     seats: Array.from(state.seats.entries()),
@@ -30,6 +45,14 @@ export function serializeSnapshot(
     phase: state.phase,
     ...(contraDecidingTeam !== undefined ? { contraDecidingTeam } : {}),
     ...(contraPassVotes !== undefined ? { contraPassVotes } : {}),
+    ...(clockState?.turnRemainingMs !== undefined ? { turnRemainingMs: clockState.turnRemainingMs } : {}),
+    ...(clockState?.trickPauseLeader !== undefined ? { trickPauseLeader: clockState.trickPauseLeader } : {}),
+    ...(clockState?.trickPauseRemainingMs !== undefined
+      ? { trickPauseRemainingMs: clockState.trickPauseRemainingMs }
+      : {}),
+    ...(clockState?.roundTransitionRemainingMs !== undefined
+      ? { roundTransitionRemainingMs: clockState.roundTransitionRemainingMs }
+      : {}),
   };
 }
 
@@ -52,11 +75,17 @@ export async function saveGameSnapshot(
   state: RoomGameState,
   contraDecidingTeam?: 0 | 1 | null,
   contraPassVotes?: Seat[],
+  clockState?: SnapshotClockState,
 ): Promise<void> {
-  const snapshot = serializeSnapshot(state, contraDecidingTeam, contraPassVotes);
+  const snapshot = serializeSnapshot(state, contraDecidingTeam, contraPassVotes, clockState);
   await prisma.match.update({
     where: { id: matchId },
-    data: { lastSnapshot: snapshot as any },
+    data: {
+      lastSnapshot: snapshot as any,
+      status: 'IN_PROGRESS',
+      score0: state.game.scores[0],
+      score1: state.game.scores[1],
+    },
   });
 }
 

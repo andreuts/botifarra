@@ -3,11 +3,12 @@ import { createPortal } from 'react-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { api } from '../api/client.js';
+import { api, ApiError } from '../api/client.js';
 import { useAuthStore } from '../store/authStore.js';
 import { useMatchmakingQueue } from '../hooks/useMatchmakingQueue.js';
 import { useGameStore } from '../store/gameStore.js';
 import { LobbyCard } from '../components/LobbyCard.js';
+import { ConfirmDialog } from '../components/ConfirmDialog.js';
 import { useOnlineUserCount } from '../hooks/useOnlinePresence.js';
 
 const SUITS = [
@@ -119,7 +120,10 @@ export function HomePage() {
   const navigate = useNavigate();
   const onlineUsers = useOnlineUserCount();
   const token = user?.accessToken ?? '';
-  const { activeGameRoomId, setActiveGameRoomId } = useGameStore();
+  const { activeGame, activeGameRoomId, setActiveGame } = useGameStore();
+  const resumableGame = activeGame ?? (activeGameRoomId
+    ? { roomId: activeGameRoomId, matchId: activeGameRoomId, mode: 'botifarra' as const, canAbandon: false }
+    : null);
   const queryClient = useQueryClient();
   const {
     state: queueState,
@@ -139,6 +143,11 @@ export function HomePage() {
   const [roomLoading, setRoomLoading] = useState(false);
   const [soloPlayMode, setSoloPlayMode] = useState<PlayMode>('online');
   const [pairPlayMode, setPairPlayMode] = useState<PlayMode>('online');
+  const [resumeLoading, setResumeLoading] = useState(false);
+  const [resumeError, setResumeError] = useState('');
+  const [abandonDialogOpen, setAbandonDialogOpen] = useState(false);
+  const [abandonLoading, setAbandonLoading] = useState(false);
+  const [abandonError, setAbandonError] = useState('');
 
   const playModeOptions: Array<{ value: PlayMode; label: string }> = [
     { value: 'online', label: t('home.modeOnline') },
@@ -146,19 +155,45 @@ export function HomePage() {
     { value: 'ranked', label: t('home.modeRanked') },
   ];
 
-  async function handleResume(matchId: string) {
+  async function handleResume() {
+    if (!resumableGame || resumeLoading) return;
+    setResumeLoading(true);
+    setResumeError('');
     try {
-      const { roomId } = await api.matches.resume(matchId, token);
-      navigate(`/match/${roomId}?mode=botifarra`);
+      const { roomId, mode } = await api.matches.resume(resumableGame.matchId, token);
+      navigate(`/match/${roomId}?mode=${mode ?? resumableGame.mode}&resume=1`);
     } catch (err) {
-      // If the match has expired (410) or is no longer in-progress (409),
-      // refresh the match list so the stale "Resume" button disappears.
-      const msg = err instanceof Error ? err.message : '';
-      if (msg.includes('expired') || msg.includes('not in-progress') || msg.includes('not-in-progress')) {
-        setActiveGameRoomId(null);
+      if (err instanceof ApiError && [403, 404, 409, 410, 422].includes(err.status)) {
+        setActiveGame(null);
         void queryClient.invalidateQueries({ queryKey: ['matches'] });
+      } else {
+        setResumeError(t('home.resumeFailed'));
       }
       console.error('Failed to resume match', err);
+    } finally {
+      setResumeLoading(false);
+    }
+  }
+
+  async function handleAbandon() {
+    if (!resumableGame?.canAbandon || abandonLoading) return;
+    setAbandonLoading(true);
+    setAbandonError('');
+    try {
+      await api.matches.abandon(resumableGame.matchId, token);
+      setActiveGame(null);
+      setAbandonDialogOpen(false);
+    } catch (err) {
+      if (err instanceof ApiError && [403, 404, 409, 410, 422].includes(err.status)) {
+        setActiveGame(null);
+        setAbandonDialogOpen(false);
+        void queryClient.invalidateQueries({ queryKey: ['matches'] });
+      } else {
+        setAbandonError(t('home.abandonFailed'));
+      }
+      console.error('Failed to abandon match', err);
+    } finally {
+      setAbandonLoading(false);
     }
   }
 
@@ -213,25 +248,28 @@ export function HomePage() {
 
   return (
     <div className="lobby-page">
-      {activeGameRoomId && (
+      {resumableGame && (
         <section className="resume-banner" aria-label={t('home.gameInProgress')}>
-          <div className="resume-banner-mark" aria-hidden="true">↻</div>
           <div className="resume-banner-copy">
             <p className="lobby-overline">{t('home.gameInProgress')}</p>
             <p className="resume-banner-hint">{t('home.gameInProgressHint')}</p>
+            {resumeError && <p className="resume-banner-error" role="alert">{resumeError}</p>}
           </div>
           <div className="resume-banner-actions">
-            <button className="btn-accent" onClick={() => handleResume(activeGameRoomId!)}>
-              {t('home.rejoinGame')}
+            <button className="btn-accent" onClick={() => void handleResume()} disabled={resumeLoading}>
+              {resumeLoading ? t('home.loading') : t('home.rejoinGame')}
             </button>
-            <button
-              className="btn-outline"
-              onClick={() => {
-                if (confirm(t('home.abandonConfirm'))) setActiveGameRoomId(null);
-              }}
-            >
-              {t('home.abandon')}
-            </button>
+            {resumableGame.canAbandon && (
+              <button
+                className="btn-outline"
+                onClick={() => {
+                  setAbandonError('');
+                  setAbandonDialogOpen(true);
+                }}
+              >
+                {t('home.abandon')}
+              </button>
+            )}
           </div>
         </section>
       )}
@@ -445,8 +483,19 @@ export function HomePage() {
           </div>
 
         </section>
-
       </main>
+      <ConfirmDialog
+        open={abandonDialogOpen}
+        title={t('home.abandonTitle')}
+        message={t('home.abandonConfirm')}
+        confirmLabel={abandonLoading ? t('home.loading') : t('home.abandon')}
+        cancelLabel={t('game.leaveGameCancel')}
+        dangerous
+        confirmDisabled={abandonLoading}
+        errorMessage={abandonError || undefined}
+        onCancel={() => setAbandonDialogOpen(false)}
+        onConfirm={() => void handleAbandon()}
+      />
     </div>
   );
 }
