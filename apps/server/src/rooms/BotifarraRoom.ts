@@ -395,16 +395,22 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
           break;
         }
         case 'play_card': {
-          if (this.trickPauseLeader !== null) break; // can't play during trick pause
+          if (this.trickPauseLeader !== null) {
+            client.send('error', {
+              code: 'COMMAND_ERROR',
+              message: 'Cannot play a card while the trick is paused',
+            });
+            break;
+          }
           const { card } = payload as { card: { suit: string; rank: number } };
-          this.resetTurnTimer();
-          // Contra phase is over once the first card is played
-          this.contraDecidingTeam = null;
           const { state, events, roundEnded, trickCompleted } = handlePlayCard(
             this.gameState,
             client.sessionId,
             card,
           );
+          // Only consume time and end the contra window after a valid play.
+          this.resetTurnTimer();
+          this.contraDecidingTeam = null;
           this.gameState = state;
           this.syncSchemaPublic();
           for (const event of events) {
@@ -438,11 +444,15 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
           break;
         }
         case 'pass_declaration': {
+          const passingSeat = this.gameState.round?.declarantSeat ?? null;
           const { state, events } = handlePassDeclaration(this.gameState, client.sessionId);
+          if (passingSeat !== null) this.resetTurnTimer(passingSeat);
           this.gameState = state;
           this.syncSchemaPublic();
           for (const event of events) this.broadcastEvent(event, client);
           this.broadcastGameState();
+          this.broadcastTimerState();
+          this.lastTimerBroadcast = Date.now();
           break;
         }
         case 'call_contra': {
@@ -690,8 +700,12 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
   }
 
   private broadcastEvent(event: { type: string }, sender: Client) {
-    // All events except card_played go to everyone
-    // card_played is already public (no hidden info in the event itself)
+    // game_state events returned by the game-logic helpers contain the
+    // acting player's private hand. Game state is sent separately, per seat,
+    // by broadcastGameState() immediately after command handling.
+    if (event.type === 'game_state') return;
+
+    // Private snapshots were filtered above; the remaining events are public.
     this.broadcast(event.type, event);
   }
 
@@ -946,17 +960,17 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
     this.broadcast('timer_update', { timers });
   }
 
-  /** Reset turn start when a play is made (called after each card play) */
-  private resetTurnTimer() {
+  /** Start the next decision clock and charge overtime to the previous actor. */
+  private resetTurnTimer(
+    previousSeat: Seat | null =
+      this.state.currentPlayerSeat >= 0 ? (this.state.currentPlayerSeat as Seat) : null,
+  ) {
     const now = Date.now();
     const elapsed = now - this.turnStartedAt;
     // If the player used some of their budget, deduct it
-    if (elapsed > BotifarraRoom.BASE_TURN_MS) {
-      const prevSeat = this.state.currentPlayerSeat as Seat;
-      if (prevSeat >= 0 && prevSeat <= 3) {
-        const overTime = elapsed - BotifarraRoom.BASE_TURN_MS;
-        this.roundBudgets[prevSeat] = Math.max(0, this.roundBudgets[prevSeat] - overTime);
-      }
+    if (elapsed > BotifarraRoom.BASE_TURN_MS && previousSeat !== null) {
+      const overTime = elapsed - BotifarraRoom.BASE_TURN_MS;
+      this.roundBudgets[previousSeat] = Math.max(0, this.roundBudgets[previousSeat] - overTime);
     }
     this.turnStartedAt = now;
   }
@@ -1144,10 +1158,12 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
 
       const elapsed = now - this.turnStartedAt;
       const roundPhase = getRoundPhase(this.gameState.round);
-      const currentSeat = currentPlayerSeat(this.gameState.round); // null during declaring/contra
+      const currentSeat = roundPhase === 'declaring'
+        ? this.gameState.round.declarantSeat
+        : currentPlayerSeat(this.gameState.round);
 
-      // Enforce timeout only during card-play phase
-      if (roundPhase === 'playing' && currentSeat !== null) {
+      // Enforce the visible decision timer during declaration and card play.
+      if ((roundPhase === 'declaring' || roundPhase === 'playing') && currentSeat !== null) {
         const baseExceeded = elapsed > BotifarraRoom.BASE_TURN_MS;
         if (baseExceeded) {
           const overTime = elapsed - BotifarraRoom.BASE_TURN_MS;

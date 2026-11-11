@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router';
+import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../store/authStore.js';
 import { useGameStore } from '../store/gameStore.js';
 import { useGameRoom } from '../hooks/useGameRoom.js';
@@ -16,6 +17,7 @@ export function GamePage() {
   const { matchId } = useParams<{ matchId: string }>();
   const [searchParams] = useSearchParams();
   const location = useLocation();
+  const { t } = useTranslation();
   const mode = searchParams.get('mode') === 'practice' ? 'practice' : 'botifarra';
   const navigate = useNavigate();
   const { user } = useAuthStore();
@@ -42,8 +44,15 @@ export function GamePage() {
     ? (location.state as { reservation?: SeatReservationData } | null)?.reservation
     : undefined;
 
-  const { connect, sendDeclareTrump, sendPlayCard, sendPassDeclaration, sendCallContra, sendContinueTrick } =
-    useGameRoom(matchId, mode, seatReservation);
+  const {
+    connect,
+    sendDeclareTrump,
+    sendPlayCard,
+    sendPassDeclaration,
+    sendCallContra,
+    sendContinueTrick,
+    commandErrorVersion,
+  } = useGameRoom(matchId, mode, seatReservation);
 
   useEffect(() => {
     if (!user) {
@@ -82,9 +91,9 @@ export function GamePage() {
   // ---------------------------------------------------------------------------
   if (error) {
     return (
-      <div className="page">
+      <div className="page game-screen">
         <div className="card" style={{ textAlign: 'center' }}>
-          <h2 style={{ color: 'var(--color-danger)', marginBottom: '1rem' }}>Connection Error</h2>
+          <h2 style={{ color: 'var(--color-danger)', marginBottom: '1rem' }}>{t('game.connectionError')}</h2>
           <p style={{ color: 'var(--color-muted)', marginBottom: '1.5rem' }}>{error}</p>
           <button
             onClick={() => {
@@ -92,7 +101,7 @@ export function GamePage() {
               navigate('/');
             }}
           >
-            Back to Lobby
+            {t('game.backToLobby')}
           </button>
         </div>
       </div>
@@ -102,9 +111,9 @@ export function GamePage() {
   // ---------------------------------------------------------------------------
   // Loading state
   // ---------------------------------------------------------------------------
-  if (!connected || !gameState) {
+  if ((!connected && !gameResult) || !gameState) {
     return (
-      <div className="page">
+      <div className="page game-screen">
         <div style={{ textAlign: 'center' }}>
           <div
             style={{
@@ -118,7 +127,7 @@ export function GamePage() {
             }}
           />
           <p style={{ color: 'var(--color-muted)' }}>
-            {connected ? 'Waiting for players…' : 'Connecting to game…'}
+            {connected ? t('game.waitingForPlayers') : t('game.connecting')}
           </p>
         </div>
       </div>
@@ -147,10 +156,12 @@ export function GamePage() {
 
   return (
     <div
+      className="game-room"
       style={{
-        maxWidth: 700,
+        maxWidth: 1040,
+        width: '100%',
         margin: '0 auto',
-        padding: '0.75rem',
+        padding: '0.9rem 1rem 1.5rem',
         display: 'flex',
         flexDirection: 'column',
         gap: '0.75rem',
@@ -206,7 +217,7 @@ export function GamePage() {
                 animation: 'slideDown 0.6s ease-out',
               }}
             >
-              {gameResult.winner === myTeam ? '¡Victoria!' : 'Derrota'}
+              {t(gameResult.winner === myTeam ? 'game.victory' : 'game.defeat')}
             </div>
 
             {/* Icon */}
@@ -239,7 +250,7 @@ export function GamePage() {
                   letterSpacing: '0.1em',
                 }}
               >
-                Puntuació Final
+                {t('game.finalScore')}
               </div>
               <div
                 style={{
@@ -258,7 +269,7 @@ export function GamePage() {
                       textTransform: 'uppercase',
                     }}
                   >
-                    {myTeam === 0 ? 'Tu Equipo' : 'Oponentes'}
+                    {myTeam === 0 ? t('game.yourTeam') : t('game.opponents')}
                   </div>
                   <div
                     style={{
@@ -299,7 +310,7 @@ export function GamePage() {
                       textTransform: 'uppercase',
                     }}
                   >
-                    {myTeam === 1 ? 'Tu Equipo' : 'Oponentes'}
+                    {myTeam === 1 ? t('game.yourTeam') : t('game.opponents')}
                   </div>
                   <div
                     style={{
@@ -355,14 +366,14 @@ export function GamePage() {
                 e.currentTarget.style.boxShadow = '0 4px 15px rgba(0,0,0,0.3)';
               }}
             >
-              Volver al Lobby
+              {t('game.backToLobby')}
             </button>
           </div>
         </div>
       )}
 
       {/* Top bar */}
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <header className="game-room-topbar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <button
           className="btn-outline"
           onClick={() => {
@@ -371,7 +382,7 @@ export function GamePage() {
           }}
           style={{ padding: '0.3rem 0.8rem', fontSize: '0.8rem' }}
         >
-          ← Lobby
+          {t('game.backToLobby')}
         </button>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.75rem' }}>
           {mode === 'practice' && (
@@ -383,7 +394,7 @@ export function GamePage() {
                 color: 'var(--color-warning)',
               }}
             >
-              Practice
+              {t('game.practice')}
             </span>
           )}
           {mode === 'botifarra' && gameState && (
@@ -398,11 +409,11 @@ export function GamePage() {
                 fontWeight: gameState.ranked ? 600 : 400,
               }}
             >
-              {gameState.ranked ? '★ Ranked' : 'Normal'}
+              {gameState.ranked ? t('game.ranked') : 'Normal'}
             </span>
           )}
           <span style={{ color: connected ? 'var(--color-success)' : 'var(--color-danger)' }}>
-            {connected ? '● Online' : '○ Offline'}
+            {connected ? t('game.online') : t('game.offline')}
           </span>
         </div>
       </header>
@@ -425,6 +436,7 @@ export function GamePage() {
       {/* Trick area */}
       {isPlayingPhase && (
         <div
+          className="game-table-panel"
           style={{
             background: 'var(--color-surface)',
             borderRadius: 'var(--radius-lg)',
@@ -450,6 +462,7 @@ export function GamePage() {
 
       {/* Turn indicator */}
       <div
+        className="game-turn-status"
         style={{
           background: isMyTurn ? 'rgba(46, 204, 113, 0.1)' : 'var(--color-surface)',
           border: isMyTurn ? '1px solid var(--color-success)' : '1px solid transparent',
@@ -468,14 +481,19 @@ export function GamePage() {
         }}
       >
         {isMyTurn
-          ? '✨ Your turn — play a card'
+          ? t('game.yourTurn')
           : gameState.currentPlayerSeat !== null
-            ? `Waiting for ${names[gameState.currentPlayerSeat]}…`
-            : 'Waiting…'}
+            ? t('game.waitingFor', {
+                name:
+                  names[gameState.currentPlayerSeat] ??
+                  t('trick.seatFallback', { seat: gameState.currentPlayerSeat }),
+              })
+            : t('game.waiting')}
       </div>
 
       {/* Hand */}
       <div
+        className="game-hand-panel"
         style={{
           background: 'var(--color-surface)',
           borderRadius: 'var(--radius-lg)',
@@ -483,7 +501,11 @@ export function GamePage() {
           marginTop: 'auto',
         }}
       >
-        <HandComponent gameState={gameState} onPlayCard={(card) => sendPlayCard(card)} />
+        <HandComponent
+          gameState={gameState}
+          onPlayCard={(card) => sendPlayCard(card)}
+          commandErrorVersion={commandErrorVersion}
+        />
       </div>
     </div>
   );

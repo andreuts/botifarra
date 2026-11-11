@@ -3,6 +3,12 @@
     "title": "Botifarra Online"
   },
   "auth": {
+    "eyebrow": "Botifarra · joc de cartes català",
+    "brandLine": "Tradició, cartes i una bona partida.",
+    "loginIntro": "Inicia la sessió per tornar a la taula.",
+    "registerIntro": "Crea el teu compte i seu a jugar.",
+    "usernameHint": "Com a mínim 3 caràcters.",
+    "passwordHint": "Com a mínim 6 caràcters.",
     "username": "Usuari",
     "password": "Contrasenya",
     "signIn": "Inicia sessió",
@@ -27,6 +33,10 @@
   },
   "home": {
     "play": "Jugar",
+    "heroEyebrow": "Botifarra · joc de cartes català",
+    "heroTitle": "La taula està parada.",
+    "heroIntro": "Reuneix la colla, reparteix les cartes i juga una mà.",
+    "playOptions": "Tria com vols jugar",
     "quickMatchSolo": "Partida ràpida (Sol)",
     "quickMatchSoloDesc": "Busca una partida contra un altre jugador ara mateix.",
     "quickMatchPair": "Partida ràpida (Parella)",
@@ -61,6 +71,7 @@
     "waitingForPlayers": "Esperant jugadors…",
     "connecting": "Connectant a la partida…",
     "connectionError": "Error de connexió",
+    "connectionLost": "S'ha perdut la connexió amb la partida. Torna al lobby.",
     "yourTurn": "✨ El teu torn — juga una carta",
     "waitingFor": "Esperant {{name}}…",
     "waiting": "Esperant…",

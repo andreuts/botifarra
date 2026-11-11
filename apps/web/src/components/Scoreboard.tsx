@@ -19,6 +19,7 @@ export function Scoreboard({ gameState }: ScoreboardProps) {
 
   return (
     <div
+      className="game-scoreboard"
       role="region"
       aria-label={t('scoreboard.aria')}
       style={{

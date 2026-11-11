@@ -28,6 +28,7 @@ export function AppShell({ children }: AppShellProps) {
         <nav className="app-nav" aria-label={t('nav.home')}>
           <div className="app-nav-inner">
             <Link to="/" className="app-nav-brand">
+              <span className="app-nav-mark" aria-hidden="true">B</span>
               {t('app.title')}
             </Link>
             <div className="app-nav-links">

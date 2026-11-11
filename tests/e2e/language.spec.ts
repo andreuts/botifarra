@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 
 test.describe('Language selector', () => {
   test.beforeEach(async ({ page }) => {
@@ -6,9 +6,15 @@ test.describe('Language selector', () => {
     await page.goto('/login');
     await page.evaluate(() => {
       localStorage.removeItem('botifarra-settings');
+      localStorage.setItem('i18nextLng', 'ca');
       localStorage.setItem(
         'botifarra-auth',
-        JSON.stringify({ state: { user: { username: 'languser', accessToken: 'fake' } }, version: 0 }),
+        JSON.stringify({
+          state: {
+            user: { userId: 'languser-id', username: 'languser', accessToken: 'fake' },
+          },
+          version: 0,
+        }),
       );
     });
     await page.goto('/');
@@ -44,10 +50,17 @@ test.describe('Language selector', () => {
   });
 
   test('stale "es" language falls back to Catalan on load', async ({ page }) => {
+    const errors: string[] = [];
+    page.on('console', (msg) => {
+      if (msg.type() === 'error') errors.push(msg.text());
+    });
     await page.evaluate(() => {
       localStorage.setItem(
         'botifarra-settings',
-        JSON.stringify({ state: { language: 'es', soundEnabled: true, soundVolume: 0.7 }, version: 0 }),
+        JSON.stringify({
+          state: { language: 'es', soundEnabled: true, soundVolume: 0.7 },
+          version: 0,
+        }),
       );
     });
     await page.reload();
@@ -55,11 +68,6 @@ test.describe('Language selector', () => {
     // Nav history link should be in Catalan (fallback)
     await expect(page.locator('nav a[href="/history"]')).toHaveText('Historial de partides');
 
-    // No console errors
-    const errors: string[] = [];
-    page.on('console', (msg) => {
-      if (msg.type() === 'error') errors.push(msg.text());
-    });
     expect(errors).toHaveLength(0);
   });
 });

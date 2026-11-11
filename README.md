@@ -166,10 +166,10 @@ botifarra/
 
 ### Testing
 
-| Tool       | Purpose                   |
-| ---------- | ------------------------- |
-| Vitest     | Unit + integration tests  |
-| Playwright | End-to-end tests (future) |
+| Tool       | Purpose                                       |
+| ---------- | --------------------------------------------- |
+| Vitest     | Unit + integration tests                      |
+| Playwright | Browser flows and live practice-room gameplay |
 
 ---
 
@@ -287,9 +287,14 @@ pnpm --filter @botifarra/core test
 # Watch mode
 pnpm --filter @botifarra/core test:watch
 
+# Browser end-to-end flows and a complete practice round
+pnpm test:e2e
+
 # Coverage
 pnpm --filter @botifarra/core test:coverage
 ```
+
+The Playwright suite starts the web app and an isolated Colyseus room server. REST responses use deterministic fixtures, so the browser flows do not need seeded users or a database. The practice-game scenario uses the real room and bot logic.
 
 ---
 

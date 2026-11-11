@@ -38,15 +38,17 @@ function sortHand(cards: Card[]): Card[] {
 interface HandProps {
   gameState: PlayerGameStateDTO;
   onPlayCard: (card: Card) => void;
+  commandErrorVersion?: number;
 }
 
-export function HandComponent({ gameState, onPlayCard }: HandProps) {
+export function HandComponent({ gameState, onPlayCard, commandErrorVersion = 0 }: HandProps) {
   const { t } = useTranslation();
   const isMobile = useIsMobile();
   const [selected, setSelected] = useState<Card | null>(null);
   const [dealKey, setDealKey] = useState(0);
   const [pendingPlay, setPendingPlay] = useState(false);
   const prevHandLen = useRef(gameState.hand.length);
+  const prevCommandErrorVersion = useRef(commandErrorVersion);
   const liveRef = useRef<HTMLDivElement>(null);
 
   const isMyTurn = !pendingPlay && gameState.currentPlayerSeat === gameState.mySeat && gameState.hand.length > 0;
@@ -63,6 +65,14 @@ export function HandComponent({ gameState, onPlayCard }: HandProps) {
     }
     prevHandLen.current = gameState.hand.length;
   }, [gameState.hand.length]);
+
+  // A rejected/stale submission does not change the hand, so unlock it on the
+  // server's command-error response as well as on a successful hand update.
+  useEffect(() => {
+    if (commandErrorVersion === prevCommandErrorVersion.current) return;
+    prevCommandErrorVersion.current = commandErrorVersion;
+    setPendingPlay(false);
+  }, [commandErrorVersion]);
 
   // Compute legal moves
   const legal =

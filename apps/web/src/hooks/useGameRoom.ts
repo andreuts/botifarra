@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { Client, type Room } from 'colyseus.js';
 import { useTranslation } from 'react-i18next';
 import { useGameStore } from '../store/gameStore.js';
@@ -7,10 +7,18 @@ import type { TrumpDeclaration } from '@botifarra/core';
 import type { SeatReservationData } from './useMatchmakingQueue.js';
 import type { ChatMessage } from '../components/ChatPanel.js';
 
+const hostname = window.location.hostname;
+const isLoopbackHost =
+  hostname === 'localhost' ||
+  hostname === '127.0.0.1' ||
+  hostname === '::1' ||
+  hostname === '[::1]';
+const loopbackAddress = hostname.includes(':') ? '[::1]' : hostname;
+
 const COLYSEUS_URL =
   import.meta.env['VITE_COLYSEUS_URL'] ??
-  (window.location.hostname === 'localhost'
-    ? 'ws://localhost:3000'
+  (isLoopbackHost
+    ? `ws://${loopbackAddress}:3000`
     : `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}`);
 
 export const EMOJI_DISPLAY: Record<string, string> = {
@@ -44,6 +52,8 @@ export function useGameRoom(
 ) {
   const roomRef = useRef<Room | null>(null);
   const timerStreamActive = useRef(false);
+  const intentionalLeaveRef = useRef(false);
+  const [commandErrorVersion, setCommandErrorVersion] = useState(0);
   const { t } = useTranslation();
   const { setGameState, setObserverState, addChatMessage, setConnected, setRoomId, setError, reset, setGameResult, addToast, setTimers } =
     useGameStore();
@@ -51,6 +61,7 @@ export function useGameRoom(
   const connect = useCallback(
     async (token: string, userId: string, username: string) => {
       if (roomRef.current) return;
+      intentionalLeaveRef.current = false;
       // Guard: consumeSeatReservation is a one-time token. If this sessionId has already
       // been attempted (including Strict Mode's double-invocation), skip to avoid
       // "seat reservation expired" on the server.
@@ -159,7 +170,8 @@ export function useGameRoom(
 
         room.onMessage('error', (msg: { code: string; message: string }) => {
           if (msg.code === 'COMMAND_ERROR') {
-            // Non-fatal: just ignore invalid moves (e.g. race conditions)
+            // Let pending card submissions recover when the server rejects a move.
+            setCommandErrorVersion((version) => version + 1);
             console.warn('[room] command error:', msg.message);
             return;
           }
@@ -172,8 +184,12 @@ export function useGameRoom(
         });
 
         room.onLeave(() => {
+          if (roomRef.current !== room) return;
           setConnected(false);
           roomRef.current = null;
+          if (!intentionalLeaveRef.current && !useGameStore.getState().gameResult) {
+            setError(t('game.connectionLost'));
+          }
         });
 
         room.onError((code, message) => {
@@ -198,6 +214,7 @@ export function useGameRoom(
       setGameResult,
       addToast,
       reset,
+      t,
     ],
   );
 
@@ -251,10 +268,26 @@ export function useGameRoom(
 
   useEffect(() => {
     return () => {
+      intentionalLeaveRef.current = true;
       roomRef.current?.leave();
       reset();
     };
   }, [reset]);
 
-  return { connect, sendDeclareTrump, sendPlayCard, sendPassDeclaration, sendCallContra, sendChatMessage, sendSurrenderRequest, sendSurrenderRespond, sendReaction, sendPremade, sendContinueTrick, mutePlayer, unmutePlayer };
+  return {
+    connect,
+    sendDeclareTrump,
+    sendPlayCard,
+    sendPassDeclaration,
+    sendCallContra,
+    sendChatMessage,
+    sendSurrenderRequest,
+    sendSurrenderRespond,
+    sendReaction,
+    sendPremade,
+    sendContinueTrick,
+    mutePlayer,
+    unmutePlayer,
+    commandErrorVersion,
+  };
 }

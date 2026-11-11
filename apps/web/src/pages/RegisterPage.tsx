@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { useNavigate, Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { api } from '../api/client.js';
+import { AuthLayout } from '../components/AuthLayout.js';
 
 export function RegisterPage() {
   const { t } = useTranslation();
@@ -26,43 +27,44 @@ export function RegisterPage() {
   }
 
   return (
-    <div className="page">
-      <div className="card">
-        <h1 style={{ marginBottom: '1.5rem', fontSize: '1.5rem' }}>{t('auth.createAccount')}</h1>
-        <form onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label htmlFor="username">{t('auth.username')}</label>
-            <input
-              id="username"
-              type="text"
-              autoComplete="username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              required
-              minLength={3}
-            />
-          </div>
-          <div className="form-group">
-            <label htmlFor="password">{t('auth.password')}</label>
-            <input
-              id="password"
-              type="password"
-              autoComplete="new-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength={6}
-            />
-          </div>
-          {error && <p className="error-msg">{error}</p>}
-          <button type="submit" disabled={loading} style={{ width: '100%', marginTop: '1rem' }}>
-            {loading ? t('auth.registering') : t('auth.register')}
-          </button>
-        </form>
-        <p style={{ marginTop: '1rem', fontSize: '0.9rem', color: 'var(--color-muted)' }}>
-          {t('auth.alreadyHaveAccount')} <Link to="/login">{t('auth.signIn')}</Link>
-        </p>
-      </div>
-    </div>
+    <AuthLayout title={t('auth.createAccount')} intro={t('auth.registerIntro')}>
+      <form className="auth-form" onSubmit={handleSubmit}>
+        <div className="form-group">
+          <label htmlFor="username">{t('auth.username')}</label>
+          <input
+            id="username"
+            type="text"
+            autoComplete="username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            required
+            minLength={3}
+            aria-describedby="auth-username-hint"
+          />
+          <p id="auth-username-hint" className="auth-field-hint">{t('auth.usernameHint')}</p>
+        </div>
+        <div className="form-group">
+          <label htmlFor="password">{t('auth.password')}</label>
+          <input
+            id="password"
+            type="password"
+            autoComplete="new-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            minLength={6}
+            aria-describedby="auth-password-hint"
+          />
+          <p id="auth-password-hint" className="auth-field-hint">{t('auth.passwordHint')}</p>
+        </div>
+        {error && <p className="error-msg" role="alert">{error}</p>}
+        <button className="auth-submit" type="submit" disabled={loading}>
+          {loading ? t('auth.registering') : t('auth.register')}
+        </button>
+      </form>
+      <p className="auth-switch">
+        {t('auth.alreadyHaveAccount')} <Link to="/login">{t('auth.signIn')}</Link>
+      </p>
+    </AuthLayout>
   );
 }

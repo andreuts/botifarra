@@ -1,49 +1,47 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, signInAs } from './fixtures.js';
 
-test.describe('Smoke — unauthenticated user', () => {
-  test('landing page redirects to /login', async ({ page }) => {
+test.describe('Authentication and app shell', () => {
+  test('unauthenticated users are sent to login', async ({ page }) => {
     await page.goto('/');
-    // Should end up on login or home page (requires auth)
-    await expect(page).toHaveURL(/\/(login|home)?/);
+    await expect(page).toHaveURL(/\/login$/);
   });
 
-  test('login page renders with username and password fields', async ({ page }) => {
+  test('login page renders its required fields and registration link', async ({ page }) => {
     await page.goto('/login');
-    await expect(page.getByLabel(/usuari/i)).toBeVisible();
-    await expect(page.getByLabel(/contrasenya/i)).toBeVisible();
-    await expect(page.getByRole('button', { name: /entrar/i })).toBeVisible();
+    await expect(page.getByLabel(/username|usuari/i)).toBeVisible();
+    await expect(page.getByLabel(/password|contrasenya/i)).toBeVisible();
+    await expect(page.getByRole('button', { name: /sign in|inicia sessi/i })).toBeVisible();
+
+    await page.getByRole('link', { name: /register|registra/i }).click();
+    await expect(page).toHaveURL(/\/register$/);
   });
 
-  test('register page renders link from login', async ({ page }) => {
+  test('successful login establishes a session and opens the lobby', async ({ page }) => {
     await page.goto('/login');
-    const registerLink = page.getByRole('link', { name: /registra/i });
-    await expect(registerLink).toBeVisible();
-    await registerLink.click();
-    await expect(page).toHaveURL(/\/register/);
-  });
-});
+    await page.getByLabel(/username|usuari/i).fill('smokeuser');
+    await page.getByLabel(/password|contrasenya/i).fill('test-password');
+    await page.getByRole('button', { name: /sign in|inicia sessi/i }).click();
 
-test.describe('Smoke — nav user section', () => {
-  test.beforeEach(async ({ page }) => {
-    // Inject a fake auth session directly so we don't need a real server
-    await page.goto('/login');
-    await page.evaluate(() => {
-      localStorage.setItem(
-        'botifarra-auth',
-        JSON.stringify({ state: { user: { username: 'smokeuser', accessToken: 'fake' } }, version: 0 }),
-      );
-    });
-    await page.goto('/');
-  });
-
-  test('username is visible in the nav bar', async ({ page }) => {
-    await expect(page.locator('nav .app-nav-username')).toBeVisible();
+    await expect(page).toHaveURL('/');
     await expect(page.locator('nav .app-nav-username')).toHaveText('smokeuser');
   });
 
-  test('no h1 containing app title in main content area', async ({ page }) => {
-    const duplicateTitles = page.locator('main h1, [role="main"] h1, .page-content h1').filter({ hasText: /botifarra/i });
+  test('successful registration returns to login', async ({ page }) => {
+    await page.goto('/register');
+    await page.getByLabel(/username|usuari/i).fill('new-player');
+    await page.getByLabel(/password|contrasenya/i).fill('secure-password');
+    await page.getByRole('button', { name: /register|registra/i }).click();
+
+    await expect(page).toHaveURL(/\/login$/);
+  });
+
+  test('authenticated shell shows the user and avoids a duplicate app title', async ({ page }) => {
+    await signInAs(page, 'smokeuser');
+    await expect(page.locator('nav .app-nav-username')).toHaveText('smokeuser');
+
+    const duplicateTitles = page.locator('main h1, [role="main"] h1, .page-content h1').filter({
+      hasText: /botifarra/i,
+    });
     await expect(duplicateTitles).toHaveCount(0);
   });
 });
-

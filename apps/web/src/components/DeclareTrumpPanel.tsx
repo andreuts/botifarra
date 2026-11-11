@@ -21,12 +21,12 @@ function cdColor(ratio: number): string {
   return 'var(--color-danger)';
 }
 
-const DECLARATIONS: { value: TrumpDeclaration; label: string; symbol: string; color: string }[] = [
-  { value: 'oros', label: 'Oros', symbol: '◎', color: 'var(--card-gold)' },
-  { value: 'copes', label: 'Copes', symbol: '♦', color: 'var(--card-red)' },
-  { value: 'espases', label: 'Espases', symbol: '✦', color: 'var(--card-black)' },
-  { value: 'bastos', label: 'Bastos', symbol: '♣', color: 'var(--card-green)' },
-  { value: 'botifarra', label: 'Botifarra', symbol: '✕', color: 'var(--color-primary)' },
+const DECLARATIONS: { value: TrumpDeclaration; label: string; image: string; color: string }[] = [
+  { value: 'oros', label: 'Oros', image: '/cards/01-oros.png', color: 'var(--card-gold)' },
+  { value: 'copes', label: 'Copes', image: '/cards/01-copas.png', color: 'var(--card-red)' },
+  { value: 'espases', label: 'Espases', image: '/cards/01-espadas.png', color: 'var(--card-black)' },
+  { value: 'bastos', label: 'Bastos', image: '/cards/01-bastos.png', color: 'var(--card-green)' },
+  { value: 'botifarra', label: 'Botifarra', image: '/cards/reverso.png', color: 'var(--color-primary)' },
 ];
 
 const CONTRA_LABELS: Record<number, string> = { 1: 'Contra', 2: 'Recontro', 3: 'Sant Vicenç' };
@@ -221,12 +221,17 @@ export function DeclareTrumpPanel({
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
-                  gap: 2,
-                  minWidth: 68,
+                  gap: 4,
+                  minWidth: 76,
                   boxShadow: 'none',
                 }}
               >
-                <span style={{ fontSize: '1.2em', lineHeight: 1 }}>{d.symbol}</span>
+                <img
+                  className="declare-card-art"
+                  src={d.image}
+                  alt=""
+                  draggable={false}
+                />
                 <span style={{ fontSize: '0.75rem' }}>{d.label}</span>
               </button>
             ))}

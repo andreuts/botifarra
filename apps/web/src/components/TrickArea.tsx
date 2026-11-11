@@ -105,7 +105,7 @@ export function TrickArea({ gameState, mySeat, timers: liveTimers }: TrickAreaPr
       <div
         className={position}
         style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}
-        aria-label={`${name}${card ? '' : isActive ? ' — waiting to play' : ''}`}
+        aria-label={card ? name : isActive ? t('trick.waitingToPlay', { name }) : name}
       >
         <span className={`seat-badge ${teamClass}${isActive ? ' active' : ''}`}>
           {/* Active indicator dot — always mounted, opacity toggled to avoid layout shift */}
@@ -135,12 +135,11 @@ export function TrickArea({ gameState, mySeat, timers: liveTimers }: TrickAreaPr
           )}
           {isDeclarant && !isDealer && (
             <span
+              className="trick-declarant-marker"
+              role="img"
               aria-label={t('trick.declarant')}
               title={t('trick.declarant')}
-              style={{ marginLeft: 3, color: 'var(--color-primary)', fontSize: '0.7em', lineHeight: 1 }}
-            >
-              ♦
-            </span>
+            />
           )}
         </span>
         <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 4 }}>

@@ -4,7 +4,7 @@ import { useNavigate, Link, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { api } from '../api/client.js';
 import { useAuthStore } from '../store/authStore.js';
-import { useMatchmakingQueue } from '../hooks/useMatchmakingQueue.js';
+import { useMatchmakingQueue, type SeatReservationData } from '../hooks/useMatchmakingQueue.js';
 import type { FriendDTO, FriendRequestDTO, PairInviteDTO } from '@botifarra/shared';
 
 export function FriendsPage() {
@@ -110,13 +110,15 @@ export function FriendsPage() {
     const prev = prevOutgoingCountRef.current;
     prevOutgoingCountRef.current = outgoingPairInvites.length;
     if (prev !== null && prev > 0 && outgoingPairInvites.length === 0 && queueState === 'idle') {
-      // An outgoing invite just disappeared — check if we're now in queue
+      // The invite may already have produced a match, so check for either a
+      // queued entry or a seat reservation before deciding whether to poll.
       void fetch('/api/matches/queue/status', {
         headers: { Authorization: `Bearer ${token}` },
       })
         .then((r) => (r.ok ? r.json() : null))
-        .then((body: { inQueue: boolean } | null) => {
-          if (body?.inQueue) startPollingOnly();
+        .then((body: { inQueue: boolean; reservation?: SeatReservationData } | null) => {
+          if (body?.reservation) startPollingOnly('pair', body.reservation);
+          else if (body?.inQueue) startPollingOnly();
         });
     }
   }, [outgoingPairInvites.length]); // eslint-disable-line react-hooks/exhaustive-deps

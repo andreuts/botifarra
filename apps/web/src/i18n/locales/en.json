@@ -3,6 +3,12 @@
     "title": "Botifarra Online"
   },
   "auth": {
+    "eyebrow": "Botifarra · Catalan card game",
+    "brandLine": "Tradition, cards, and a good game.",
+    "loginIntro": "Sign in to return to the table.",
+    "registerIntro": "Create your account and take a seat.",
+    "usernameHint": "At least 3 characters.",
+    "passwordHint": "At least 6 characters.",
     "username": "Username",
     "password": "Password",
     "signIn": "Sign in",
@@ -27,6 +33,10 @@
   },
   "home": {
     "play": "Play",
+    "heroEyebrow": "Botifarra · Catalan card game",
+    "heroTitle": "The table is set.",
+    "heroIntro": "Gather your crew, deal the cards, and play a hand.",
+    "playOptions": "Choose how to play",
     "quickMatchSolo": "Quick Match (Solo)",
     "quickMatchSoloDesc": "Find a match against another player right now.",
     "quickMatchPair": "Quick Match (Pair)",
@@ -61,6 +71,7 @@
     "waitingForPlayers": "Waiting for players…",
     "connecting": "Connecting to game…",
     "connectionError": "Connection error",
+    "connectionLost": "The connection to the game was lost. Return to the lobby.",
     "yourTurn": "✨ Your turn — play a card",
     "waitingFor": "Waiting for {{name}}…",
     "waiting": "Waiting…",

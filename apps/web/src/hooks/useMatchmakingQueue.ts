@@ -93,11 +93,15 @@ export function useMatchmakingQueue() {
           },
           body: JSON.stringify(bodyData),
         });
+        const responseBody = (await res.json().catch(() => ({}))) as {
+          error?: string;
+          queueSize?: number;
+        };
         if (!res.ok) {
-          const body = (await res.json().catch(() => ({}))) as { error?: string };
-          setError(body.error ?? 'Failed to join queue');
+          setError(responseBody.error ?? 'Failed to join queue');
           return;
         }
+        setQueueSize(responseBody.queueSize ?? 0);
         setState('queued');
         pollRef.current = setInterval(poll, POLL_INTERVAL);
       } catch {
@@ -123,17 +127,24 @@ export function useMatchmakingQueue() {
    * via the pair-invite REST endpoint).
    */
   const startPollingOnly = useCallback(
-    (queueMode: QueueMode = 'pair') => {
+    (queueMode: QueueMode = 'pair', reservation?: SeatReservationData) => {
       if (state !== 'idle') return;
-      setState('queued');
+      setState(reservation ? 'matched' : 'queued');
       setMode(queueMode);
+      if (reservation) {
+        stopPolling();
+        navigate(`/match/${reservation.room.roomId}`, {
+          state: { reservation },
+        });
+        return;
+      }
       // Poll once immediately, then on interval
       void poll();
       if (!pollRef.current) {
         pollRef.current = setInterval(poll, POLL_INTERVAL);
       }
     },
-    [state, poll],
+    [state, poll, navigate, stopPolling],
   );
 
   // On mount: check if already queued server-side (handles pair invite accepted

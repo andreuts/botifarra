@@ -9,6 +9,13 @@ import { useGameStore } from '../store/gameStore.js';
 import { RecentGameRow } from '../components/RecentGameRow.js';
 import { LobbyCard } from '../components/LobbyCard.js';
 
+const SUITS = [
+  { key: 'O', suit: 'oros', image: '/cards/01-oros.png' },
+  { key: 'C', suit: 'copes', image: '/cards/01-copas.png' },
+  { key: 'E', suit: 'espases', image: '/cards/01-espadas.png' },
+  { key: 'B', suit: 'bastos', image: '/cards/01-bastos.png' },
+] as const;
+
 export function HomePage() {
   const { t } = useTranslation();
   const { user } = useAuthStore();
@@ -83,193 +90,202 @@ export function HomePage() {
   }
 
   return (
-    <div style={{ maxWidth: 800, margin: '0 auto', padding: '2rem 1rem' }}>
-      {/* Rejoin active game */}
+    <div className="lobby-page">
       {activeGameRoomId && (
-        <section
-          style={{
-            background:
-              'linear-gradient(135deg, rgba(46, 204, 113, 0.15) 0%, rgba(52, 152, 219, 0.15) 100%)',
-            border: '2px solid var(--color-success)',
-            borderRadius: 'var(--radius)',
-            padding: '1.25rem',
-            marginBottom: '2rem',
-            animation: 'fadeIn 0.3s ease',
-          }}
-        >
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '1rem',
-              flexWrap: 'wrap',
-            }}
-          >
-            <div>
-              <h2
-                style={{ fontSize: '1rem', marginBottom: '0.25rem', color: 'var(--color-success)' }}
-              >
-                {t('home.gameInProgress')}
-              </h2>
-              <p style={{ color: 'var(--color-muted)', fontSize: '0.85rem' }}>
-                {t('home.gameInProgressHint')}
-              </p>
-            </div>
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <button
-                className="btn-success"
-                onClick={() => handleResume(activeGameRoomId!)}
-                style={{ fontWeight: 600 }}
-              >
-                {t('home.rejoinGame')}
-              </button>
-              <button
-                className="btn-outline"
-                onClick={() => {
-                  if (
-                    confirm(
-                      t('home.abandonConfirm'),
-                    )
-                  ) {
-                    setActiveGameRoomId(null);
-                  }
-                }}
-                style={{ padding: '0.5rem 0.75rem', fontSize: '0.85rem' }}
-              >
-                {t('home.abandon')}
-              </button>
-            </div>
+        <section className="resume-banner" aria-label={t('home.gameInProgress')}>
+          <div className="resume-banner-mark" aria-hidden="true">↻</div>
+          <div className="resume-banner-copy">
+            <p className="lobby-overline">{t('home.gameInProgress')}</p>
+            <p className="resume-banner-hint">{t('home.gameInProgressHint')}</p>
+          </div>
+          <div className="resume-banner-actions">
+            <button className="btn-accent" onClick={() => handleResume(activeGameRoomId!)}>
+              {t('home.rejoinGame')}
+            </button>
+            <button
+              className="btn-outline"
+              onClick={() => {
+                if (confirm(t('home.abandonConfirm'))) setActiveGameRoomId(null);
+              }}
+            >
+              {t('home.abandon')}
+            </button>
           </div>
         </section>
       )}
 
-      {/* Lobby cards */}
-      <section style={{ marginBottom: '2rem' }}>
-        <h2 style={{ marginBottom: '1rem', fontSize: '1.1rem' }}>{t('home.play')}</h2>
-        <div className="lobby-cards">
-          {/* Solo Quick Match */}
-          <LobbyCard
-            title={t('home.quickMatchSolo')}
-            description={t('home.quickMatchSoloDesc')}
-            disabled={queueState !== 'idle' && queueMode !== 'single'}
-          >
-            <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', cursor: queueState === 'idle' ? 'pointer' : 'not-allowed', opacity: queueState !== 'idle' ? 0.5 : 1 }}>
-              <input
-                type="checkbox"
-                checked={ranked}
-                disabled={queueState !== 'idle'}
-                onChange={(e) => setRanked(e.target.checked)}
-              />
-              {t('home.ranked')}
-            </label>
-            {queueState === 'idle' ? (
-              <button onClick={() => joinQueue('single', undefined, ranked)}>
-                {t('home.quickMatchSolo')}
-              </button>
-            ) : queueState === 'queued' && queueMode === 'single' ? (
-              <button
-                onClick={leaveQueue}
-                style={{ background: 'var(--color-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
-              >
-                <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: '#fff', animation: 'pulse 1s infinite' }} />
-                {t('home.searching', { mode: queueMode, count: queueSize })}
-              </button>
-            ) : (
-              <button disabled style={{ opacity: 0.6 }}>{t('home.matchFound')}</button>
-            )}
-            {queueError && queueMode === 'single' && (
-              <p style={{ color: 'var(--color-danger)', fontSize: '0.8rem', margin: 0 }}>{queueError}</p>
-            )}
-          </LobbyCard>
+      <header className="lobby-hero">
+        <div className="lobby-hero-copy">
+          <p className="lobby-overline">{t('home.heroEyebrow')}</p>
+          <h1>{t('home.heroTitle')}</h1>
+          <p className="lobby-hero-intro">{t('home.heroIntro')}</p>
+          <div className="lobby-hero-rule" aria-hidden="true">
+            <span />
+            <span />
+            <span />
+          </div>
+        </div>
+        <div className="lobby-deck" aria-hidden="true">
+          {SUITS.map((suit) => (
+            <div className={`lobby-deck-card lobby-deck-card--${suit.suit}`} key={suit.key}>
+              <img src={suit.image} alt="" draggable={false} />
+            </div>
+          ))}
+        </div>
+      </header>
 
-          {/* Pair Quick Match */}
-          <LobbyCard
-            title={t('home.quickMatchPair')}
-            description={t('home.quickMatchPairDesc')}
-            disabled={queueState !== 'idle' && queueMode !== 'pair'}
-          >
-            <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', cursor: queueState === 'idle' ? 'pointer' : 'not-allowed', opacity: queueState !== 'idle' ? 0.5 : 1 }}>
-              <input
-                type="checkbox"
-                checked={rankedPair}
-                disabled={queueState !== 'idle'}
-                onChange={(e) => setRankedPair(e.target.checked)}
-              />
-              {t('home.ranked')}
-            </label>
-            <button className="btn-accent" onClick={() => navigate(`/friends?ranked=${rankedPair}`)}>
-              {t('home.quickMatchPair')}
-            </button>
-          </LobbyCard>
+      <main className="lobby-content">
+        <section className="lobby-section" aria-labelledby="lobby-play-heading">
+          <div className="lobby-section-heading">
+            <div className="lobby-section-title-wrap">
+              <span className="lobby-section-number" aria-hidden="true">01</span>
+              <div>
+                <p className="lobby-overline">{t('home.playOptions')}</p>
+                <h2 id="lobby-play-heading">{t('home.play')}</h2>
+              </div>
+            </div>
+            <div className="lobby-suit-line" aria-hidden="true">
+              {SUITS.map((suit) => (
+                <img key={suit.key} src={suit.image} alt="" draggable={false} />
+              ))}
+            </div>
+          </div>
 
-          {/* Private Room */}
-          <LobbyCard
-            title={t('home.privateRoomSection')}
-            description={t('home.privateRoomCreateHint')}
-          >
-            {/* Create */}
-            {inviteCode ? (
-              <div style={{ textAlign: 'center', width: '100%' }}>
-                <div className="invite-code">{inviteCode}</div>
-                <p style={{ color: 'var(--color-muted)', fontSize: '0.75rem', margin: '0.5rem 0 0.75rem' }}>
-                  {t('home.privateRoomShareHint')}
-                </p>
-                <button className="btn-success" onClick={() => handleJoinRoom(inviteCode)} disabled={roomLoading}>
-                  {t('home.privateRoomEnter')}
+          <div className="lobby-cards">
+            <LobbyCard
+              variant="solo"
+              markerImage="/cards/01-oros.png"
+              title={t('home.quickMatchSolo')}
+              description={t('home.quickMatchSoloDesc')}
+              disabled={queueState !== 'idle' && queueMode !== 'single'}
+            >
+              <label className="lobby-ranked-toggle" htmlFor="ranked-solo">
+                <input
+                  id="ranked-solo"
+                  type="checkbox"
+                  checked={ranked}
+                  disabled={queueState !== 'idle'}
+                  onChange={(e) => setRanked(e.target.checked)}
+                />
+                {t('home.ranked')}
+              </label>
+              {queueState === 'idle' ? (
+                <button className="btn-accent lobby-primary-action" onClick={() => joinQueue('single', undefined, ranked)}>
+                  {t('home.quickMatchSolo')}
+                </button>
+              ) : queueState === 'queued' && queueMode === 'single' ? (
+                <button
+                  className="lobby-searching-button lobby-primary-action"
+                  onClick={leaveQueue}
+                >
+                  <span className="lobby-search-dot" />
+                  {t('home.searching', { mode: queueMode, count: queueSize })}
+                </button>
+              ) : (
+                <button className="btn-accent lobby-primary-action" disabled>{t('home.matchFound')}</button>
+              )}
+              {queueError && queueMode === 'single' && (
+                <p className="lobby-error">{queueError}</p>
+              )}
+            </LobbyCard>
+
+            <LobbyCard
+              variant="pair"
+              markerImage="/cards/01-copas.png"
+              title={t('home.quickMatchPair')}
+              description={t('home.quickMatchPairDesc')}
+              disabled={queueState !== 'idle' && queueMode !== 'pair'}
+            >
+              <label className="lobby-ranked-toggle" htmlFor="ranked-pair">
+                <input
+                  id="ranked-pair"
+                  type="checkbox"
+                  checked={rankedPair}
+                  disabled={queueState !== 'idle'}
+                  onChange={(e) => setRankedPair(e.target.checked)}
+                />
+                {t('home.ranked')}
+              </label>
+              <button className="btn-accent lobby-primary-action" onClick={() => navigate(`/friends?ranked=${rankedPair}`)}>
+                {t('home.quickMatchPair')}
+              </button>
+            </LobbyCard>
+
+            <LobbyCard
+              variant="private"
+              markerImage="/cards/01-espadas.png"
+              title={t('home.privateRoomSection')}
+              description={t('home.privateRoomCreateHint')}
+            >
+              {inviteCode ? (
+                <div className="private-room-created">
+                  <div className="invite-code">{inviteCode}</div>
+                  <p className="private-room-hint">{t('home.privateRoomShareHint')}</p>
+                  <button className="btn-accent lobby-primary-action" onClick={() => handleJoinRoom(inviteCode)} disabled={roomLoading}>
+                    {t('home.privateRoomEnter')}
+                  </button>
+                </div>
+              ) : (
+                <button className="btn-accent lobby-primary-action" onClick={handleCreateRoom} disabled={roomLoading}>
+                  {roomLoading ? t('home.privateRoomCreating') : t('home.privateRoomCreate')}
+                </button>
+              )}
+              <div className="private-room-join">
+                <label className="private-room-join-label" htmlFor="private-room-code">
+                  {t('home.privateRoomJoinHint')}
+                </label>
+                <input
+                  id="private-room-code"
+                  type="text"
+                  value={joinCode}
+                  onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+                  placeholder={t('home.privateRoomCodePlaceholder')}
+                  maxLength={6}
+                  onKeyDown={(e) => e.key === 'Enter' && handleJoinRoom(joinCode)}
+                />
+                <button
+                  className="btn-accent lobby-primary-action"
+                  onClick={() => handleJoinRoom(joinCode)}
+                  disabled={roomLoading || joinCode.length < 4}
+                >
+                  {t('home.privateRoomJoin')}
                 </button>
               </div>
-            ) : (
-              <button onClick={handleCreateRoom} disabled={roomLoading}>
-                {roomLoading ? t('home.privateRoomCreating') : t('home.privateRoomCreate')}
-              </button>
-            )}
-            {/* Join */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', width: '100%' }}>
-              <input
-                type="text"
-                value={joinCode}
-                onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-                placeholder={t('home.privateRoomCodePlaceholder')}
-                maxLength={6}
-                style={{ width: '100%', textTransform: 'uppercase', letterSpacing: '0.15em', textAlign: 'center', fontSize: '1rem', fontFamily: 'monospace', boxSizing: 'border-box' }}
-                onKeyDown={(e) => e.key === 'Enter' && handleJoinRoom(joinCode)}
-              />
-              <button onClick={() => handleJoinRoom(joinCode)} disabled={roomLoading || joinCode.length < 4} style={{ width: '100%' }}>
-                {t('home.privateRoomJoin')}
-              </button>
+              {roomError && <p className="lobby-error">{roomError}</p>}
+            </LobbyCard>
+          </div>
+
+          <div className="lobby-secondary-actions">
+            <button className="practice-button" onClick={() => navigate('/play?mode=practice')}>
+              {t('home.practiceBot')}
+            </button>
+          </div>
+        </section>
+
+        <section className="lobby-section lobby-activity" aria-labelledby="lobby-activity-heading">
+          <div className="lobby-section-heading lobby-section-heading--activity">
+            <div className="lobby-section-title-wrap">
+              <span className="lobby-section-number" aria-hidden="true">02</span>
+              <div>
+                <p className="lobby-overline">{t('nav.matchHistory')}</p>
+                <h2 id="lobby-activity-heading">{t('home.recentMatches')}</h2>
+              </div>
             </div>
-            {roomError && (
-              <p style={{ color: 'var(--color-danger)', fontSize: '0.8rem', margin: 0 }}>{roomError}</p>
-            )}
-          </LobbyCard>
-        </div>
+          </div>
 
-        {/* Practice bot — outside cards, secondary action */}
-        <div style={{ marginTop: '0.75rem' }}>
-          <button className="btn-outline" onClick={() => navigate('/play?mode=practice')}>
-            {t('home.practiceBot')}
-          </button>
-        </div>
-      </section>
-
-      {/* Recent matches */}
-      <section>
-        <h2 style={{ marginBottom: '1rem', fontSize: '1.1rem' }}>{t('home.recentMatches')}</h2>
-        {isLoading && <p style={{ color: 'var(--color-muted)' }}>{t('home.loading')}</p>}
-        {matches && matches.length === 0 && (
-          <p style={{ color: 'var(--color-muted)' }}>{t('home.noMatches')}</p>
-        )}
-        {matches && matches.length > 0 && (
-          <ul
-            style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}
-          >
-            {matches.map((m) => (
-              <RecentGameRow key={m.matchId} match={m} onResume={handleResume} />
-            ))}
-          </ul>
-        )}
-      </section>
+          {isLoading && <p className="recent-match-empty">{t('home.loading')}</p>}
+          {matches && matches.length === 0 && (
+            <p className="recent-match-empty">{t('home.noMatches')}</p>
+          )}
+          {matches && matches.length > 0 && (
+            <ul className="recent-match-list">
+              {matches.map((match) => (
+                <RecentGameRow key={match.matchId} match={match} onResume={handleResume} />
+              ))}
+            </ul>
+          )}
+        </section>
+      </main>
     </div>
   );
 }

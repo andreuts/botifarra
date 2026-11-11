@@ -22,8 +22,9 @@ export interface LegalMovesInput {
  *    c. If opponent is winning with a trump: follow suit (can’t beat a trump with a non-trump).
  * 3. Led suit IS trump: must follow trump and overtrump if possible (unless partner winning).
  * 4. Void in led suit:
- *    a. Trump available: must trump. Must overtrump if possible (unless partner winning).
- *    b. No trump (or botifarra): play any card.
+ *    a. If partner is winning: play any card.
+ *    b. If an opponent is winning: trump/overtrump if able to beat them; otherwise play any card.
+ *    c. No trump (or botifarra): play any card.
  * 5. Botifarra (no trump): follow suit if possible; else any card.
  */
 export function legalMoves({ hand, currentTrick, trump, playerSeat = 0 }: LegalMovesInput): Card[] {
@@ -73,6 +74,9 @@ export function legalMoves({ hand, currentTrick, trump, playerSeat = 0 }: LegalM
     return [...hand];
   }
 
+  // There is no obligation to overtake a partner who is already winning.
+  if (partnerWinning) return [...hand];
+
   // Suit trump available?
   const trumpCards = hand.filter((c) => c.suit === trump);
   if (trumpCards.length === 0) {
@@ -80,8 +84,12 @@ export function legalMoves({ hand, currentTrick, trump, playerSeat = 0 }: LegalM
     return [...hand];
   }
 
-  // Must play trump. If partner is winning we are exempt from overtrump obligation.
-  return overtrumpOrAll(trumpCards, currentTrick, trump, playerSeat);
+  // An opponent is winning: trump if it beats the current winner, and
+  // overtrump if a trump is already winning. If none of our trumps can win,
+  // rule 2 imposes no further restriction in the western version.
+  const highestTrumpPower = maxTrumpPowerInTrick(currentTrick, trump);
+  const overtrumps = trumpCards.filter((c) => cardTrumpPower(c) > highestTrumpPower);
+  return overtrumps.length > 0 ? overtrumps : [...hand];
 }
 
 // ---------------------------------------------------------------------------
