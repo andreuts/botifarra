@@ -30,10 +30,11 @@ jobs:
           pnpm --filter @botifarra/core build
           pnpm --filter @botifarra/shared build
 
-      - name: Run unit tests
-        run: |
-          pnpm --filter @botifarra/core test --run
-          pnpm --filter @botifarra/server test --run
+      - name: Test core rules
+        run: pnpm --filter @botifarra/core test --run
+
+      - name: Test server
+        run: pnpm --filter @botifarra/server test --run
 
   publish:
     name: Build & push Docker image
