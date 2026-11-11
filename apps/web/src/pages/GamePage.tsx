@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Link, useParams, useNavigate, useSearchParams, useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../store/authStore.js';
 import { useGameStore } from '../store/gameStore.js';
@@ -13,7 +13,12 @@ import { DeclareTrumpPanel } from '../components/DeclareTrumpPanel.js';
 import { ContinueTrickButton } from '../components/ContinueTrickButton.js';
 import { getContraDecidingTeam } from '../gamePhase.js';
 import { ConfirmDialog } from '../components/ConfirmDialog.js';
-import type { Seat } from '@botifarra/core';
+import type { CompletedTrick, Seat } from '@botifarra/core';
+import {
+  TRICK_MIN_PAUSE_MS,
+  TRICK_PAUSE_DURATION_MS,
+  TRICK_REVEAL_DURATION_MS,
+} from '@botifarra/shared';
 import type { SeatReservationData } from '../hooks/useMatchmakingQueue.js';
 
 export function GamePage() {
@@ -41,6 +46,80 @@ export function GamePage() {
 
   // Interpolate authoritative server timer snapshots against monotonic client time.
   const interpolatedTimers = useInterpolatedTimers(timerSnapshot);
+  const [finalTrickReveal, setFinalTrickReveal] = useState<CompletedTrick | null>(null);
+  const [finalTrickAnimating, setFinalTrickAnimating] = useState(false);
+  const [trickReveal, setTrickReveal] = useState<CompletedTrick | null>(null);
+  const previousTrickRef = useRef<{ roundNumber: number; count: number } | null>(null);
+
+  useLayoutEffect(() => {
+    if (!gameState) {
+      previousTrickRef.current = null;
+      setTrickReveal(null);
+      return;
+    }
+
+    const current = {
+      roundNumber: gameState.roundNumber,
+      count: gameState.completedTricks.length,
+    };
+    const previous = previousTrickRef.current;
+    previousTrickRef.current = current;
+
+    if (!previous) {
+      if (gameState.trickPauseLeader != null && current.count > 0 && current.count < 12) {
+        setTrickReveal(gameState.completedTricks.at(-1) ?? null);
+      }
+      return;
+    }
+    if (previous.roundNumber !== current.roundNumber || current.count < previous.count) {
+      setTrickReveal(null);
+      return;
+    }
+    if (current.count > previous.count) {
+      // The twelfth trick already has its own end-of-round/game reveal.
+      setTrickReveal(current.count === 12 ? null : gameState.completedTricks.at(-1) ?? null);
+    }
+    // The state payload changes on every timer update; only react to trick-count changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameState?.roundNumber, gameState?.completedTricks.length]);
+
+  useEffect(() => {
+    if (!gameState || gameState.completedTricks.length !== 12) {
+      setFinalTrickReveal(null);
+      setFinalTrickAnimating(false);
+      return;
+    }
+
+    const lastTrick = gameState.completedTricks.at(-1);
+    if (!lastTrick) return;
+
+    setFinalTrickReveal(lastTrick);
+    setFinalTrickAnimating(false);
+    const animationTimer = window.setTimeout(() => setFinalTrickAnimating(true), TRICK_REVEAL_DURATION_MS);
+    const clearTimer = window.setTimeout(() => {
+      setFinalTrickReveal(null);
+      setFinalTrickAnimating(false);
+    }, TRICK_MIN_PAUSE_MS);
+
+    return () => {
+      window.clearTimeout(animationTimer);
+      window.clearTimeout(clearTimer);
+    };
+    // Restart the reveal only when a round first reaches its twelfth trick or a new round begins.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameState?.roundNumber, gameState?.completedTricks.length]);
+
+  const pauseRemainingMs = interpolatedTimers?.trickPauseRemainingMs
+    ?? gameState?.trickPauseRemainingMs
+    ?? null;
+  const trickPauseElapsedMs = pauseRemainingMs === null
+    ? 0
+    : Math.max(0, TRICK_PAUSE_DURATION_MS - pauseRemainingMs);
+  const activeTrickReveal = gameState?.trickPauseLeader != null && trickPauseElapsedMs < TRICK_MIN_PAUSE_MS
+    ? trickReveal
+    : null;
+  const isTrickRevealAnimating = activeTrickReveal !== null
+    && trickPauseElapsedMs >= TRICK_REVEAL_DURATION_MS;
 
   // Seat reservation passed from matchmaking via route state.
   // Only use it for fresh joins — if we're reconnecting to an active game, force joinById instead.
@@ -187,7 +266,6 @@ export function GamePage() {
 
   const isDeclaringPhase = gameState.trump === null;
   const isContraPhase = getContraDecidingTeam(gameState) !== null;
-  const isPlayingPhase = gameState.trump !== null && gameState.completedTricks.length < 12;
   const isMyTurn =
     getContraDecidingTeam(gameState) === null &&
     (gameState.currentPlayerSeat === mySeat ||
@@ -262,6 +340,9 @@ export function GamePage() {
             <span className="game-connection-dot" aria-hidden="true" />
             {connected ? t('game.online') : t('game.offline')}
           </span>
+          <Link to="/rules" target="_blank" rel="noreferrer" className="game-rules-link">
+            {t('nav.rules')}
+          </Link>
         </div>
       </header>
 
@@ -271,34 +352,50 @@ export function GamePage() {
       {/* Table status: trump, dealer, and active seat */}
       <GameStatusPanel gameState={gameState} isMyTurn={isMyTurn} />
 
-      {/* Trump declaration & contra phase */}
-      {(isDeclaringPhase || isContraPhase) && (
-        <DeclareTrumpPanel
-          gameState={gameState}
-          mySeat={mySeat}
-          timers={interpolatedTimers?.timers}
-          onDeclare={sendDeclareTrump}
-          onPass={sendPassDeclaration}
-          onPassContra={sendPassContra}
-          onContra={sendCallContra}
-        />
-      )}
-
-      {/* Trick area */}
-      {isPlayingPhase && (
+      {/* Keep the table mounted in one stable stage through bidding and card play. */}
+      <div className="game-play-stage">
         <div className="game-table-panel">
-          <TrickArea gameState={gameState} mySeat={mySeat} timers={interpolatedTimers?.timers} />
-          {gameState.trickPauseLeader != null && (
+          <TrickArea
+            gameState={gameState}
+            mySeat={mySeat}
+            timers={interpolatedTimers?.timers}
+            trickReveal={activeTrickReveal}
+            trickRevealAnimating={isTrickRevealAnimating}
+            finalTrickReveal={finalTrickReveal}
+            finalTrickAnimating={finalTrickAnimating}
+          />
+        </div>
+
+        {/* Bidding and contra prompts float over the table, so showing or hiding them
+            never pushes the board up or down. */}
+        {(isDeclaringPhase || isContraPhase) && (
+          <div className="game-decision-overlay">
+            <DeclareTrumpPanel
+              gameState={gameState}
+              mySeat={mySeat}
+              timers={interpolatedTimers?.timers}
+              onDeclare={sendDeclareTrump}
+              onPass={sendPassDeclaration}
+              onPassContra={sendPassContra}
+              onContra={sendCallContra}
+            />
+          </div>
+        )}
+
+        {/* Keep the continue countdown anchored to the table instead of adding a row below it. */}
+        {gameState.trickPauseLeader != null && (
+          <div className="game-trick-pause-overlay">
             <ContinueTrickButton
               isLeader={gameState.trickPauseLeader === mySeat}
-              pauseRemainingMs={interpolatedTimers?.trickPauseRemainingMs ?? 30_000}
-              pauseDuration={30_000}
+              pauseRemainingMs={pauseRemainingMs ?? TRICK_PAUSE_DURATION_MS}
+              pauseDuration={TRICK_PAUSE_DURATION_MS}
+              minimumWaitMs={TRICK_MIN_PAUSE_MS + 200}
               onContinue={sendContinueTrick}
               leaderName={gameState.playerNames[gameState.trickPauseLeader] ?? '?'}
             />
-          )}
-        </div>
-      )}
+          </div>
+        )}
+      </div>
 
       {/* Hand */}
       <div className="game-hand-panel">

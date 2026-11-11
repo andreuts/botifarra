@@ -29,7 +29,7 @@ describe('legalMoves — must follow suit', () => {
     const hand: Card[] = [c('oros', 2), c('oros', 5), c('copes', 3)];
     const trick: TrickCard[] = [{ seat: 1, card: c('oros', 6) }];
     const result = legalMoves({ hand, currentTrick: trick, trump: 'copes' });
-    expect(result).toHaveLength(2);
+    expect(result).toEqual([c('oros', 2)]);
     expect(result.every((card) => card.suit === 'oros')).toBe(true);
   });
 
@@ -58,7 +58,7 @@ describe('legalMoves — must trump when void in led suit', () => {
     expect(result.every((c) => c.suit === 'oros')).toBe(true);
   });
 
-  it('can play any card when void in led suit and no trump', () => {
+  it('must play the lowest card of each available suit when unable to win', () => {
     const hand: Card[] = [c('bastos', 3), c('espases', 7)];
     const trick: TrickCard[] = [{ seat: 1, card: c('copes', 5) }];
     const result = legalMoves({ hand, currentTrick: trick, trump: 'oros' });
@@ -81,24 +81,24 @@ describe('legalMoves — overtrump obligation', () => {
     expect(result[0]).toEqual(c('oros', 9));
   });
 
-  it('may play any trump if unable to overtrump', () => {
+  it('must play the lowest trump if unable to overtrump', () => {
     // opponent winning with Manilla (9) — player has only lower trump
     const trick: TrickCard[] = [{ seat: 1, card: c('oros', 9) }];
     const hand: Card[] = [c('oros', 2), c('oros', 3)];
     const result = legalMoves({ hand, currentTrick: trick, trump: 'oros' });
-    expect(result).toHaveLength(2);
+    expect(result).toEqual([c('oros', 2)]);
   });
 
-  it('partner winning the trick → exempt from overtrump obligation', () => {
+  it('partner winning the trick → apply the lowest-card rule if not overtaking', () => {
     // Seats: 0 and 2 are partners. seat 2 led and is winning.
     // Player at seat 0 does not need to overtrump.
     const trick: TrickCard[] = [
       { seat: 2, card: c('oros', 9) }, // partner leading with Manilla
     ];
     const hand: Card[] = [c('oros', 2), c('oros', 3)];
-    // No obligation to overtrump partner — can play any trump (or even discard if void in suit)
+    // No obligation to overtrump partner, but a non-winning play must be lowest or count.
     const result = legalMoves({ hand, currentTrick: trick, trump: 'oros', playerSeat: 0 });
-    expect(result).toHaveLength(2);
+    expect(result).toEqual([c('oros', 2)]);
   });
 });
 
@@ -114,7 +114,7 @@ describe('legalMoves — botifarra (no trump)', () => {
     expect(result).toEqual([c('copes', 3)]);
   });
 
-  it('can play any card when void in led suit (no trump to play)', () => {
+  it('must play the lowest card of each available suit when void in the led suit', () => {
     const hand: Card[] = [c('oros', 4), c('bastos', 2)];
     const trick: TrickCard[] = [{ seat: 1, card: c('copes', 7) }];
     const result = legalMoves({ hand, currentTrick: trick, trump: 'botifarra' });
@@ -139,35 +139,34 @@ describe('legalMoves — must-kill for non-trump led suit', () => {
     expect(result).toEqual([c('copes', 1)]);
   });
 
-  it('if cannot beat, can play any led-suit card', () => {
+  it('if unable to beat, must play the lowest card in the led suit', () => {
     const trickCards: TrickCard[] = [{ seat: 1, card: c('copes', 9) }]; // Manilla = highest
     const hand: Card[] = [c('copes', 4), c('copes', 7)];
     const result = legalMoves({ hand, currentTrick: trickCards, trump: 'oros', playerSeat: 2 });
-    // No card can beat Manilla → play any copes
-    expect(result).toHaveLength(2);
-    expect(result.every((card) => card.suit === 'copes')).toBe(true);
+    // No card can beat Manilla → play the lowest copes
+    expect(result).toEqual([c('copes', 4)]);
   });
 
-  it('partner winning → no must-kill obligation (follow suit freely)', () => {
+  it('partner winning → may avoid overtaking only with a counting card or the lowest card', () => {
     // seat 0 and seat 2 are partners; seat 2 is winning
     const trickCards: TrickCard[] = [
       { seat: 2, card: c('copes', 9) }, // partner leading with Manilla
     ];
     const hand: Card[] = [c('copes', 4), c('copes', 7)];
     const result = legalMoves({ hand, currentTrick: trickCards, trump: 'oros', playerSeat: 0 });
-    // Partner winning → no obligation to beat, play any copes
-    expect(result).toHaveLength(2);
+    // Partner winning → the only non-winning play here is the lowest copes
+    expect(result).toEqual([c('copes', 4)]);
   });
 
-  it('opponent winning with trump → no must-kill obligation on led-suit cards', () => {
+  it('opponent winning with trump → follow suit and play its lowest card if unable to win', () => {
     // led suit = copes, opponent sitting at 1 ruffed with oros (trump)
     const trickCards: TrickCard[] = [
       { seat: 3, card: c('copes', 4) }, // led
       { seat: 1, card: c('oros', 2) }, // opponent trumped
     ];
     const hand: Card[] = [c('copes', 2), c('copes', 1)];
-    // Cannot beat a trump with a non-trump, so just follow suit freely
+    // Cannot beat a trump with a non-trump, so follow suit and play the lowest copes
     const result = legalMoves({ hand, currentTrick: trickCards, trump: 'oros', playerSeat: 0 });
-    expect(result).toHaveLength(2);
+    expect(result).toEqual([c('copes', 2)]);
   });
 });

@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
+import { getTownLabel } from '@botifarra/shared';
 import type {
   PairInviteDTO,
   SendPairInvitePayload,
@@ -81,10 +82,16 @@ export const pairInviteRoutes: FastifyPluginAsync = async (app: FastifyInstance)
     }
 
     // Look up friend's username
-    const friendUser = await app.prisma.user.findUnique({
-      where: { id: body.friendUserId },
-      select: { username: true },
-    });
+    const [friendUser, currentUser] = await Promise.all([
+      app.prisma.user.findUnique({
+        where: { id: body.friendUserId },
+        select: { username: true, townId: true },
+      }),
+      app.prisma.user.findUnique({
+        where: { id: userId },
+        select: { townId: true },
+      }),
+    ]);
 
     if (!friendUser) {
       return reply.status(404).send({ error: 'User not found' });
@@ -107,8 +114,10 @@ export const pairInviteRoutes: FastifyPluginAsync = async (app: FastifyInstance)
       inviteId: invite.inviteId,
       fromUserId: invite.fromUserId,
       fromUsername: invite.fromUsername,
+      fromTownLabel: getTownLabel(currentUser?.townId),
       toUserId: invite.toUserId,
       toUsername: invite.toUsername,
+      toTownLabel: getTownLabel(friendUser.townId),
       ranked: invite.ranked,
       status: invite.status,
       createdAt: new Date(invite.createdAt).toISOString(),
@@ -185,20 +194,29 @@ export const pairInviteRoutes: FastifyPluginAsync = async (app: FastifyInstance)
 
     cleanupStaleInvites();
     const pendingInvites: PairInviteDTO[] = [];
+    const currentInvites = [...pairInvites.values()].filter(
+      (invite) => invite.status === 'pending' && (invite.fromUserId === userId || invite.toUserId === userId),
+    );
+    const townIdsByUserId = new Map<string, string | null>(
+      (await app.prisma.user.findMany({
+        where: { id: { in: [...new Set(currentInvites.flatMap((invite) => [invite.fromUserId, invite.toUserId]))] } },
+        select: { id: true, townId: true },
+      })).map((inviteUser) => [inviteUser.id, inviteUser.townId] as const),
+    );
 
-    for (const [, invite] of pairInvites) {
-      if (invite.status === 'pending' && (invite.fromUserId === userId || invite.toUserId === userId)) {
-        pendingInvites.push({
-          inviteId: invite.inviteId,
-          fromUserId: invite.fromUserId,
-          fromUsername: invite.fromUsername,
-          toUserId: invite.toUserId,
-          toUsername: invite.toUsername,
-          ranked: invite.ranked,
-          status: invite.status,
-          createdAt: new Date(invite.createdAt).toISOString(),
-        });
-      }
+    for (const invite of currentInvites) {
+      pendingInvites.push({
+        inviteId: invite.inviteId,
+        fromUserId: invite.fromUserId,
+        fromUsername: invite.fromUsername,
+        fromTownLabel: getTownLabel(townIdsByUserId.get(invite.fromUserId)),
+        toUserId: invite.toUserId,
+        toUsername: invite.toUsername,
+        toTownLabel: getTownLabel(townIdsByUserId.get(invite.toUserId)),
+        ranked: invite.ranked,
+        status: invite.status,
+        createdAt: new Date(invite.createdAt).toISOString(),
+      });
     }
 
     return reply.send(pendingInvites);

@@ -152,7 +152,6 @@ export function BugReportWidget({ appVersion }: BugReportWidgetProps) {
           <ellipse cx="12" cy="12" rx="5.5" ry="7" />
           <path d="M12 5V3M9 3h6M12 9v4m0 0-2 2m2-2 2 2" />
         </svg>
-        <span>{t('bugReport.trigger')}</span>
       </button>
 
       {open && (

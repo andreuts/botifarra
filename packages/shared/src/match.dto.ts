@@ -70,7 +70,7 @@ export interface PlayerGameStateDTO {
   trickPauseRemainingMs?: number | null;
   /** Pending surrender request */
   surrenderPending?: { requestingSeat: Seat; partnerSeat: Seat } | null;
-  /** When set, a trick just completed and this seat must click "continue" (or wait for timeout) */
+  /** When set, a trick just completed and this seat can continue after the reveal animation. */
   trickPauseLeader?: Seat | null;
   /** Server monotonic time when the trick pause started. */
   trickPauseStartedAt?: number | null;

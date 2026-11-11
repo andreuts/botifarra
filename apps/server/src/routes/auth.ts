@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import * as argon2 from 'argon2';
+import { isKnownTownId } from '@botifarra/shared';
 import type {
   RegisterRequest,
   RegisterResponse,
@@ -10,13 +11,16 @@ import type {
 export const authRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   // POST /api/auth/register
   app.post<{ Body: RegisterRequest }>('/register', async (request, reply) => {
-    const { username, password } = request.body;
+    const { username, password, townId } = request.body;
 
     if (!username || username.length < 3) {
       return reply.status(400).send({ error: 'Username must be at least 3 characters' });
     }
     if (!password || password.length < 6) {
       return reply.status(400).send({ error: 'Password must be at least 6 characters' });
+    }
+    if (!isKnownTownId(townId)) {
+      return reply.status(400).send({ error: 'Town must be selected from the list' });
     }
 
     const existing = await app.prisma.user.findUnique({ where: { username } });
@@ -30,6 +34,7 @@ export const authRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
       data: {
         username,
         passwordHash,
+        townId,
         stats: { create: {} },
       },
     });

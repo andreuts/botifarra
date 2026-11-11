@@ -5,6 +5,7 @@
 export interface RegisterRequest {
   username: string;
   password: string;
+  townId: string;
 }
 
 export interface RegisterResponse {
@@ -38,4 +39,15 @@ export interface MeResponse {
   username: string;
   createdAt: string;
   handSortDirection: HandSortDirection;
+  townId: string | null;
+  townLabel: string | null;
+}
+
+export interface UpdateUserTownRequest {
+  townId: string;
+}
+
+export interface UpdateUserTownResponse {
+  townId: string;
+  townLabel: string;
 }

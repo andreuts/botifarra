@@ -7,14 +7,16 @@ interface ContinueTrickButtonProps {
   pauseRemainingMs: number;
   /** Total pause duration (ms) */
   pauseDuration: number;
+  /** Minimum reveal time before the leader can continue. */
+  minimumWaitMs: number;
   /** Called when the leader clicks to continue */
   onContinue: () => void;
   /** Name of the player who leads */
   leaderName: string;
 }
 
-const SIZE = 72;
-const STROKE = 4;
+const SIZE = 58;
+const STROKE = 3;
 const RADIUS = (SIZE - STROKE) / 2;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
@@ -22,20 +24,26 @@ export function ContinueTrickButton({
   isLeader,
   pauseRemainingMs,
   pauseDuration,
+  minimumWaitMs,
   onContinue,
   leaderName,
 }: ContinueTrickButtonProps) {
   const { t } = useTranslation();
   const progress = 1 - Math.min(1, Math.max(0, pauseRemainingMs / pauseDuration));
-  const remaining = Math.max(0, Math.ceil(pauseRemainingMs / 1000));
+  const elapsed = Math.max(0, pauseDuration - pauseRemainingMs);
+  const canContinue = elapsed >= minimumWaitMs;
+  const remaining = Math.max(0, Math.ceil(
+    (isLeader && !canContinue ? minimumWaitMs - elapsed : pauseRemainingMs) / 1000,
+  ));
   const dashOffset = CIRCUMFERENCE * (1 - progress);
 
   if (isLeader) {
     return (
       <button
+        disabled={!canContinue}
         onClick={onContinue}
-        aria-label={t('trickPause.continue')}
-        title={t('trickPause.continue')}
+        aria-label={t(canContinue ? 'trickPause.continue' : 'trickPause.reviewCards')}
+        title={t(canContinue ? 'trickPause.continue' : 'trickPause.reviewCards')}
         style={{
           position: 'relative',
           width: SIZE,
@@ -43,14 +51,15 @@ export function ContinueTrickButton({
           borderRadius: '50%',
           background: 'rgba(201,168,76,0.12)',
           border: 'none',
-          cursor: 'pointer',
+          cursor: canContinue ? 'pointer' : 'wait',
+          opacity: canContinue ? 1 : 0.65,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           padding: 0,
           transition: 'background 0.2s, transform 0.1s',
         }}
-        onMouseDown={(e) => (e.currentTarget.style.transform = 'scale(0.93)')}
+        onMouseDown={(e) => { if (canContinue) e.currentTarget.style.transform = 'scale(0.93)'; }}
         onMouseUp={(e) => (e.currentTarget.style.transform = 'scale(1)')}
         onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
       >

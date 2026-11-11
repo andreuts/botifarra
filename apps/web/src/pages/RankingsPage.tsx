@@ -125,9 +125,14 @@ export function RankingsPage() {
   function renderPlayerName(entry: RankingEntry) {
     if (entry.userId === user?.userId) {
       return (
-        <span className="rankings-player-self">
-          {entry.username} <span className="rankings-you-badge">{t('rankings.you')}</span>
-        </span>
+        <div className="rankings-player-cell">
+          <span className="rankings-player-self">
+            {entry.username} <span className="rankings-you-badge">{t('rankings.you')}</span>
+          </span>
+          {entry.townLabel && (
+            <span className="rankings-player-town" title={entry.townLabel}>{entry.townLabel}</span>
+          )}
+        </div>
       );
     }
 
@@ -175,6 +180,9 @@ export function RankingsPage() {
             {entry.username}
           </button>
         </span>
+        {entry.townLabel && (
+          <span className="rankings-player-town" title={entry.townLabel}>{entry.townLabel}</span>
+        )}
       </div>
     );
   }

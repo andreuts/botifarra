@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
+import { useQueryClient } from '@tanstack/react-query';
 import { api } from '../api/client.js';
 import type { HandSortDirection } from '@botifarra/shared';
 import { useAuthStore } from '../store/authStore.js';
 import { BugReportWidget } from './BugReportWidget.js';
 import { SettingsPanel } from './SettingsPanel.js';
+import { TownPickerDialog } from './TownPickerDialog.js';
 
 declare const __APP_VERSION__: string;
 
@@ -16,6 +18,7 @@ interface AppShellProps {
 export function AppShell({ children }: AppShellProps) {
   const { t, i18n } = useTranslation();
   const { user, logout, setHandSortDirection } = useAuthStore();
+  const queryClient = useQueryClient();
   const location = useLocation();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
@@ -26,6 +29,9 @@ export function AppShell({ children }: AppShellProps) {
   const [statsError, setStatsError] = useState(false);
   const [handSortSaving, setHandSortSaving] = useState(false);
   const [handSortSaveError, setHandSortSaveError] = useState(false);
+  const [townDialogOpen, setTownDialogOpen] = useState(false);
+  const [townSaving, setTownSaving] = useState(false);
+  const [townSaveError, setTownSaveError] = useState(false);
   const [profile, setProfile] = useState<Awaited<ReturnType<typeof api.auth.me>> | null>(null);
   const [stats, setStats] = useState<Awaited<ReturnType<typeof api.users.myStats>> | null>(null);
   const profileRef = useRef<HTMLDivElement>(null);
@@ -85,7 +91,7 @@ export function AppShell({ children }: AppShellProps) {
   }, [profileOpen, accessToken]);
 
   useEffect(() => {
-    if (!profileOpen) return;
+    if (!profileOpen || townDialogOpen) return;
 
     const closeOnOutsidePointer = (event: PointerEvent) => {
       if (!profileRef.current?.contains(event.target as Node)) setProfileOpen(false);
@@ -108,7 +114,7 @@ export function AppShell({ children }: AppShellProps) {
       document.removeEventListener('keydown', closeOnEscape);
       document.removeEventListener('focusin', closeOnFocusOutside);
     };
-  }, [profileOpen]);
+  }, [profileOpen, townDialogOpen]);
 
   async function saveHandSortDirection(direction: HandSortDirection) {
     if (!accessToken || !user || direction === handSortDirection || handSortSaving) return;
@@ -126,6 +132,27 @@ export function AppShell({ children }: AppShellProps) {
       setHandSortSaveError(true);
     } finally {
       setHandSortSaving(false);
+    }
+  }
+
+  async function saveTown(townId: string) {
+    if (!accessToken || townSaving) return;
+
+    setTownSaving(true);
+    setTownSaveError(false);
+    try {
+      const response = await api.users.updateTown({ townId }, accessToken);
+      setProfile((current) => current
+        ? { ...current, townId: response.townId, townLabel: response.townLabel }
+        : current);
+      void queryClient.invalidateQueries({ queryKey: ['rankings'] });
+      void queryClient.invalidateQueries({ queryKey: ['friends'] });
+      void queryClient.invalidateQueries({ queryKey: ['pair-invites'] });
+      setTownDialogOpen(false);
+    } catch {
+      setTownSaveError(true);
+    } finally {
+      setTownSaving(false);
     }
   }
 
@@ -148,6 +175,9 @@ export function AppShell({ children }: AppShellProps) {
               {t('app.title')}
             </Link>
             <div className="app-nav-links">
+              <Link to="/rules" className={location.pathname === '/rules' ? 'active' : ''}>
+                {t('nav.rules')}
+              </Link>
               <Link to="/news" className={location.pathname.startsWith('/news') ? 'active' : ''}>
                 {t('nav.news')}
               </Link>
@@ -191,29 +221,53 @@ export function AppShell({ children }: AppShellProps) {
                     <h2 id="app-nav-player-profile-heading">{t('playerProfile.heading')}</h2>
                     {profileLoading || statsLoading ? (
                       <p className="app-nav-profile-message">{t('playerProfile.loading')}</p>
-                    ) : profileError || statsError || !profile || !stats ? (
+                    ) : profileError || !profile ? (
                       <p className="app-nav-profile-message app-nav-profile-error">
                         {t('playerProfile.error')}
                       </p>
                     ) : (
-                      <dl className="app-nav-profile-details">
-                        <div>
-                          <dt>{t('playerProfile.elo')}</dt>
-                          <dd>{stats.currentElo}</dd>
-                        </div>
-                        <div>
-                          <dt>{t('playerProfile.gamesPlayed')}</dt>
-                          <dd>{stats.totalGames}</dd>
-                        </div>
-                        <div>
-                          <dt>{t('playerProfile.joined')}</dt>
-                          <dd>
-                            {new Intl.DateTimeFormat(i18n.resolvedLanguage ?? i18n.language, {
-                              dateStyle: 'medium',
-                            }).format(new Date(profile.createdAt))}
-                          </dd>
-                        </div>
-                      </dl>
+                      <>
+                        {statsError && (
+                          <p className="app-nav-profile-message app-nav-profile-error">
+                            {t('playerProfile.statsError')}
+                          </p>
+                        )}
+                        <dl className="app-nav-profile-details">
+                          <div>
+                            <dt>{t('playerProfile.elo')}</dt>
+                            <dd>{stats?.currentElo ?? '—'}</dd>
+                          </div>
+                          <div>
+                            <dt>{t('playerProfile.gamesPlayed')}</dt>
+                            <dd>{stats?.totalGames ?? '—'}</dd>
+                          </div>
+                          <div>
+                            <dt>{t('playerProfile.joined')}</dt>
+                            <dd>
+                              {new Intl.DateTimeFormat(i18n.resolvedLanguage ?? i18n.language, {
+                                dateStyle: 'medium',
+                              }).format(new Date(profile.createdAt))}
+                            </dd>
+                          </div>
+                          <div className="app-nav-profile-town-row">
+                            <dt>{t('playerProfile.town')}</dt>
+                            <dd title={profile.townLabel ?? undefined}>
+                              {profile.townLabel ?? t('playerProfile.townNotSet')}
+                            </dd>
+                            <button
+                              className="app-nav-profile-town-edit"
+                              type="button"
+                              disabled={townSaving}
+                              onClick={() => {
+                                setTownSaveError(false);
+                                setTownDialogOpen(true);
+                              }}
+                            >
+                              {profile.townId ? t('playerProfile.changeTown') : t('playerProfile.addTown')}
+                            </button>
+                          </div>
+                        </dl>
+                      </>
                     )}
                     <div className="app-nav-profile-preference">
                       <label htmlFor="app-nav-hand-sort-direction">
@@ -275,6 +329,19 @@ export function AppShell({ children }: AppShellProps) {
       />
 
       {showAbout && <AboutModal onClose={() => setShowAbout(false)} />}
+
+      <TownPickerDialog
+        open={townDialogOpen}
+        currentTownId={profile?.townId ?? null}
+        saving={townSaving}
+        error={townSaveError ? t('playerProfile.townSaveError') : ''}
+        onClose={() => {
+          if (townSaving) return;
+          setTownDialogOpen(false);
+          setTownSaveError(false);
+        }}
+        onSave={(townId) => { void saveTown(townId); }}
+      />
 
       <BugReportWidget appVersion={appVersion} />
     </>

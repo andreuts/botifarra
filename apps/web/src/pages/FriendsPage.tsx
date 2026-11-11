@@ -16,7 +16,7 @@ export function FriendsPage() {
   const rankedParam = searchParams.get('ranked') === 'true';
   const queryClient = useQueryClient();
   const token = user?.accessToken ?? '';
-  const { state: queueState, queueSize, leaveQueue, startPollingOnly } = useMatchmakingQueue();
+  const { state: queueState, queueSize, mode: queueMode, leaveQueue, startPollingOnly } = useMatchmakingQueue();
 
   const [searchUsername, setSearchUsername] = useState('');
   const [actionError, setActionError] = useState('');
@@ -149,7 +149,9 @@ export function FriendsPage() {
             <span className="friends-notice-message">
               {queueState === 'matched'
                 ? t('home.matchFound')
-                : t('friends.searchingWithPartner', { count: queueSize })}
+                : queueMode === 'single'
+                  ? t('friends.searchingSolo', { count: queueSize })
+                  : t('friends.searchingWithPartner', { count: queueSize })}
             </span>
           </div>
           {queueState === 'queued' && (
@@ -176,9 +178,12 @@ export function FriendsPage() {
           <h2 className="friends-section-title">{t('friends.pairInvites')}</h2>
           {incomingPairInvites.map((inv) => (
             <div key={inv.inviteId} className="friends-row friends-pair-invite">
-              <span className="friends-row-copy">
-                <strong>{inv.fromUsername}</strong> {t('friends.wantsToQueueWithYou')}
-                {inv.ranked && <em className="friends-ranked">({t('home.ranked')})</em>}
+              <span className="friends-row-copy friends-person-copy">
+                <span>
+                  <strong>{inv.fromUsername}</strong> {t('friends.wantsToQueueWithYou')}
+                  {inv.ranked && <em className="friends-ranked">({t('home.ranked')})</em>}
+                </span>
+                {inv.fromTownLabel && <small className="friends-town-label" title={inv.fromTownLabel}>{inv.fromTownLabel}</small>}
               </span>
               <div className="friends-actions">
                 <button className="btn-success friends-small-button" onClick={() => handlePairInviteRespond(inv.inviteId, 'accept')}>
@@ -217,7 +222,10 @@ export function FriendsPage() {
           <h2 className="friends-section-title">{t('friends.incomingRequests')}</h2>
           {incoming.map((req) => (
             <div key={req.friendshipId} className="friends-row">
-              <span className="friends-row-copy"><strong>{req.fromUsername}</strong></span>
+              <span className="friends-row-copy friends-person-copy">
+                <strong>{req.fromUsername}</strong>
+                {req.fromTownLabel && <small className="friends-town-label" title={req.fromTownLabel}>{req.fromTownLabel}</small>}
+              </span>
               <div className="friends-actions">
                 <button className="btn-success friends-small-button" onClick={() => handleRespond(req.friendshipId, 'accept')}>
                   {t('friends.accept')}
@@ -237,7 +245,10 @@ export function FriendsPage() {
           <h2 className="friends-section-title">{t('friends.outgoingRequests')}</h2>
           {outgoing.map((req) => (
             <div key={req.friendshipId} className="friends-row">
-              <span className="friends-row-copy">{t('friends.sentTo')} <strong>{req.toUsername}</strong></span>
+              <span className="friends-row-copy friends-person-copy">
+                <span>{t('friends.sentTo')} <strong>{req.toUsername}</strong></span>
+                {req.toTownLabel && <small className="friends-town-label" title={req.toTownLabel}>{req.toTownLabel}</small>}
+              </span>
               <span className="friends-pending">{t('friends.pending')}</span>
             </div>
           ))}
@@ -272,6 +283,9 @@ export function FriendsPage() {
                   </span>
                 )}
               </div>
+              {friend.townLabel && (
+                <small className="friends-town-label" title={friend.townLabel}>{friend.townLabel}</small>
+              )}
             </div>
             <div className="friends-actions friends-actions--friend">
               {friend.inGame && friend.activeRoomId && (
@@ -309,7 +323,10 @@ export function FriendsPage() {
           <h2 className="friends-section-title">{t('friends.sentPairInvites')}</h2>
           {outgoingPairInvites.map((inv) => (
             <div key={inv.inviteId} className="friends-row">
-              <span className="friends-row-copy">{t('friends.waitingFor')} <strong>{inv.toUsername}</strong></span>
+              <span className="friends-row-copy friends-person-copy">
+                <span>{t('friends.waitingFor')} <strong>{inv.toUsername}</strong></span>
+                {inv.toTownLabel && <small className="friends-town-label" title={inv.toTownLabel}>{inv.toTownLabel}</small>}
+              </span>
               <span className="friends-pending">{t('friends.pending')}</span>
             </div>
           ))}

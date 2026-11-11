@@ -24,6 +24,10 @@ import type { PrismaClient } from '@prisma/client';
 import type { SerializableRoomSnapshot } from '../services/persistence.js';
 import { finalizeMatch, updateUserStats, updateRatings, saveGameSnapshot, clearGameSnapshot, deserializeSnapshot } from '../services/persistence.js';
 import { setUserActiveGame, clearUserActiveGame } from '../routes/friends.js';
+import { TRICK_MIN_PAUSE_MS, TRICK_PAUSE_DURATION_MS } from '@botifarra/shared';
+
+/** Keep the final trick visible long enough to read and animate into its won-trick pile. */
+export const FINAL_TRICK_READ_AND_ANIMATION_MS = TRICK_MIN_PAUSE_MS;
 
 // Module-level Prisma reference — set from index.ts after DB connects
 let _prisma: PrismaClient | null = null;
@@ -139,8 +143,8 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
   /** Which team (0 or 1) currently has to decide contra/recontro/sant vicenç. Null outside contra phase. */
   protected contraDecidingTeam: 0 | 1 | null = null;
 
-  // -- Trick pause: after a trick completes, wait for the next leader to "continue" --
-  private static readonly TRICK_PAUSE_MS = 30_000; // 30 seconds max wait
+  // -- Trick pause: keep the completed cards visible before allowing the leader to continue --
+  private static readonly TRICK_PAUSE_MS = TRICK_PAUSE_DURATION_MS;
   protected trickPauseLeader: Seat | null = null;
   private trickPauseStartedAt: number = 0;
   private trickPauseTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -424,15 +428,25 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
           this.resetTurnTimer();
           this.gameState = state;
           this.syncSchemaPublic();
-          for (const event of events) this.broadcastEvent(event);
-          // Send each player their personalized game state
+          const deferGameEnd = roundEnded && this.gameState.phase === 'finished';
+          for (const event of events) {
+            // The final-trick reveal is followed by onGameFinished(), which sends
+            // the game_ended event after the client animation has completed.
+            if (deferGameEnd && event.type === 'game_ended') continue;
+            this.broadcastEvent(event);
+          }
+          if (!roundEnded && trickCompleted) {
+            const lastTrick = this.gameState.round!.completedTricks.at(-1)!;
+            this.startTrickPause(lastTrick.winner as Seat);
+          }
+          // Send the completed trick and pause state together, so clients never see
+          // an empty table between the final card and the synchronized reveal.
           this.broadcastGameState();
-          // Immediately push fresh timer state so client interpolator has an accurate snapshot
           this.broadcastTimerState();
           this.lastTimerBroadcast = performance.now();
           if (roundEnded) {
             if (this.gameState.phase === 'finished') {
-              this.onGameFinished();
+              setTimeout(() => this.onGameFinished(), FINAL_TRICK_READ_AND_ANIMATION_MS);
             } else {
               // Save snapshot after each round while still in-progress
               this.persistSnapshot();
@@ -440,13 +454,7 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
               setTimeout(() => this.startNewRoundPublic(), 15_000);
             }
           } else if (trickCompleted) {
-            // Pause until the next leader clicks "continue" or 30s expires
-            const lastTrick = this.gameState.round!.completedTricks.at(-1)!;
-            this.startTrickPause(lastTrick.winner as Seat);
-            // Re-broadcast so the client sees trickPauseLeader (first broadcast was before pause was set)
-            this.broadcastGameState();
-            this.broadcastTimerState();
-            this.lastTimerBroadcast = performance.now();
+            // Save the pause state so reconnecting clients can resume the reveal.
             this.persistSnapshot();
           } else {
             // Save snapshot after each card play (throttled to avoid excessive writes)
@@ -503,6 +511,7 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
           if (this.trickPauseLeader === null) break;
           const seat = this.seatForClient(client);
           if (seat !== this.trickPauseLeader) break; // only the leader can continue
+          if (performance.now() - this.trickPauseStartedAt < TRICK_MIN_PAUSE_MS) break;
           this.clearTrickPause();
           this.startTurnTimerClock();
           this.broadcastGameState();

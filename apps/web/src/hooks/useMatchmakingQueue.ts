@@ -53,11 +53,13 @@ export function useMatchmakingQueue() {
       }
       const body = (await res.json()) as {
         inQueue: boolean;
+        mode?: QueueMode;
         ranked?: boolean;
         queueSize: number;
         reservation?: SeatReservationData;
       };
       setQueueSize(body.queueSize);
+      if (body.mode) setMode(body.mode);
       if (body.reservation) {
         stopPolling();
         setState('matched');
@@ -159,6 +161,7 @@ export function useMatchmakingQueue() {
         if (!res.ok) return;
         const body = (await res.json()) as {
           inQueue: boolean;
+          mode?: QueueMode;
           ranked?: boolean;
           queueSize: number;
           reservation?: SeatReservationData;
@@ -171,7 +174,7 @@ export function useMatchmakingQueue() {
           });
         } else if (body.inQueue) {
           setState('queued');
-          setMode('pair');
+          setMode(body.mode ?? 'pair');
           setRanked(body.ranked ?? false);
           if (!pollRef.current) {
             pollRef.current = setInterval(poll, POLL_INTERVAL);

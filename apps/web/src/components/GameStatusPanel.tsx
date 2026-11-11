@@ -83,7 +83,7 @@ export function GameStatusPanel({ gameState, isMyTurn }: GameStatusPanelProps) {
           className="game-status-card"
           src={
             trumpInfo?.image ??
-            (trump === 'botifarra' ? '/cards/botifarra.svg' : '/cards/reverso.png')
+            (trump === 'botifarra' ? '/cards/botifarra.png' : '/cards/reverso.png')
           }
           alt=""
           draggable={false}

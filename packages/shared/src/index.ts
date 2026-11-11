@@ -7,3 +7,5 @@ export * from './tournament.dto.js';
 export * from './news.dto.js';
 export * from './commands.js';
 export * from './events.js';
+export * from './game-timing.js';
+export * from './towns.js';

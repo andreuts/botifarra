@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import { getTownLabel } from '@botifarra/shared';
 
 export async function rankingsRoutes(app: FastifyInstance) {
   // GET /api/rankings — paginated standings ordered by the selected statistic
@@ -28,6 +29,7 @@ export async function rankingsRoutes(app: FastifyInstance) {
       SELECT
         stats."userId" AS "userId",
         users.username AS username,
+        users."townId" AS "townId",
         stats."individualRating" AS "individualRating",
         stats."matchesPlayed" AS "matchesPlayed",
         stats."matchesWon" AS "matchesWon",
@@ -61,7 +63,7 @@ export async function rankingsRoutes(app: FastifyInstance) {
       const fallbackRows = await app.prisma.userStats.findMany({
         orderBy,
         ...(sort !== 'winRate' ? { skip, take: pageSize } : {}),
-        include: { user: { select: { id: true, username: true } } },
+        include: { user: { select: { id: true, username: true, townId: true } } },
       });
       rows = sort === 'winRate'
         ? [...fallbackRows]
@@ -80,6 +82,7 @@ export async function rankingsRoutes(app: FastifyInstance) {
       rank: skip + index + 1,
       userId: r.user?.id ?? r.userId,
       username: r.user?.username ?? r.username,
+      townLabel: getTownLabel(r.townId ?? r.user?.townId),
       rating: Math.round(r.individualRating),
       matchesPlayed: r.matchesPlayed,
       matchesWon: r.matchesWon,

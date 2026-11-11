@@ -6,6 +6,8 @@ import type {
   MeResponse,
   UpdateUserPreferencesRequest,
   UpdateUserPreferencesResponse,
+  UpdateUserTownRequest,
+  UpdateUserTownResponse,
   RecentGameDTO,
   MatchDTO,
   PlayerStatsDTO,
@@ -86,6 +88,11 @@ export const api = {
 
   users: {
     myStats: (token: string) => request<PlayerStatsDTO>('/users/me/stats', {}, token),
+    updateTown: (data: UpdateUserTownRequest, token: string) =>
+      request<UpdateUserTownResponse>('/users/me/town', {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }, token),
     updatePreferences: (data: UpdateUserPreferencesRequest, token: string) =>
       request<UpdateUserPreferencesResponse>('/users/me/preferences', {
         method: 'PATCH',
@@ -548,6 +555,7 @@ export interface RankingEntry {
   rank: number;
   userId: string;
   username: string;
+  townLabel: string | null;
   rating: number;
   matchesPlayed: number;
   matchesWon: number;

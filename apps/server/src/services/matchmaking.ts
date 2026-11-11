@@ -166,6 +166,13 @@ export class MatchmakingQueue {
     );
   }
 
+  /** Returns the queue mode for a user, or undefined if they are not queued. */
+  getModeForUser(userId: string): QueueMode | undefined {
+    if (this.singles.some((e) => e.userId === userId)) return 'single';
+    if (this.pairs.some((e) => e.players.some((p) => p.userId === userId))) return 'pair';
+    return undefined;
+  }
+
   /** Returns the ranked flag of the queued entry for a user, or undefined if not queued. */
   getRankedForUser(userId: string): boolean | undefined {
     const single = this.singles.find((e) => e.userId === userId);

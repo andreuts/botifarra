@@ -1,5 +1,5 @@
 import type { Card, Seat, TrickCard, TrumpDeclaration } from './types.js';
-import { cardTrumpPower, cardSuitPower } from './deck.js';
+import { cardPointValue, cardTrumpPower, cardSuitPower } from './deck.js';
 import { seatTeam } from './types.js';
 
 export interface LegalMovesInput {
@@ -13,19 +13,13 @@ export interface LegalMovesInput {
 /**
  * Returns the subset of `hand` that is legal to play given the current trick state.
  *
- * Rules (official Botifarra, rule 12):
+ * Rules (eastern / obligada variant):
  *
- * 1. Leading (empty trick) → any card.
- * 2. Must follow the led suit if possible.
- *    a. If partner is currently winning: just follow suit (no must-kill obligation).
- *    b. If opponent is currently winning with a led-suit card: must beat it if possible.
- *    c. If opponent is winning with a trump: follow suit (can’t beat a trump with a non-trump).
- * 3. Led suit IS trump: must follow trump and overtrump if possible (unless partner winning).
- * 4. Void in led suit:
- *    a. If partner is winning: play any card.
- *    b. If an opponent is winning: trump/overtrump if able to beat them; otherwise play any card.
- *    c. No trump (or botifarra): play any card.
- * 5. Botifarra (no trump): follow suit if possible; else any card.
+ * Follow suit first. If the partner is not winning, beat the current winner if
+ * possible, including trumping or overtrumping when void in the led suit.
+ * Otherwise, a non-winning play must be the lowest card of its suit. When the
+ * partner is winning, a counting card may be played instead; the second player
+ * who is void in the led suit has the same counting-card exception.
  */
 export function legalMoves({ hand, currentTrick, trump, playerSeat = 0 }: LegalMovesInput): Card[] {
   // Leading: no cards have been played yet
@@ -47,7 +41,13 @@ export function legalMoves({ hand, currentTrick, trump, playerSeat = 0 }: LegalM
     // Must follow led suit.
     if (isTrumpLed) {
       // Led suit is trump — overtrump if possible (unless partner winning)
-      return overtrumpOrAll(sameSuit, currentTrick, trumpStr, playerSeat);
+      return obligadaMoves(
+        overtrumpOrAll(sameSuit, currentTrick, trumpStr, playerSeat),
+        hand,
+        currentTrick,
+        trumpStr,
+        playerSeat,
+      );
     }
 
     if (opponentWinning) {
@@ -60,41 +60,76 @@ export function legalMoves({ hand, currentTrick, trump, playerSeat = 0 }: LegalM
         // Opponent winning with a led-suit card — must play higher if available
         const winnerPower = cardSuitPower(winnerCard);
         const beating = sameSuit.filter((c) => cardSuitPower(c) > winnerPower);
-        return beating.length > 0 ? beating : sameSuit;
+        if (beating.length > 0) return beating;
       }
+
+      return obligadaMoves(sameSuit, hand, currentTrick, trumpStr, playerSeat);
     }
 
-    // Partner winning or first card — just follow suit, no overbeat obligation
-    return sameSuit;
+    // Partner winning: overtake only if desired; otherwise apply obligada.
+    return obligadaMoves(sameSuit, hand, currentTrick, trumpStr, playerSeat);
   }
 
   // Void in led suit
   if (trump === 'botifarra') {
-    // No trump concept — play anything
-    return [...hand];
+    // No trump concept, but obligada's discard restrictions still apply.
+    return obligadaMoves([...hand], hand, currentTrick, trumpStr, playerSeat);
   }
 
   // There is no obligation to overtake a partner who is already winning.
-  if (partnerWinning) return [...hand];
+  if (partnerWinning) return obligadaMoves([...hand], hand, currentTrick, trumpStr, playerSeat);
 
   // Suit trump available?
   const trumpCards = hand.filter((c) => c.suit === trump);
   if (trumpCards.length === 0) {
-    // No trump either — play anything
-    return [...hand];
+    // No trump available to beat the opponents; apply obligada to the discard.
+    return obligadaMoves([...hand], hand, currentTrick, trumpStr, playerSeat);
   }
 
   // An opponent is winning: trump if it beats the current winner, and
-  // overtrump if a trump is already winning. If none of our trumps can win,
-  // rule 2 imposes no further restriction in the western version.
+  // overtrump if a trump is already winning.
   const highestTrumpPower = maxTrumpPowerInTrick(currentTrick, trump);
   const overtrumps = trumpCards.filter((c) => cardTrumpPower(c) > highestTrumpPower);
-  return overtrumps.length > 0 ? overtrumps : [...hand];
+  return obligadaMoves(overtrumps.length > 0 ? overtrumps : [...hand], hand, currentTrick, trumpStr, playerSeat);
 }
 
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
+
+/** Applies obligada's lowest-card rules to candidate plays that do not win. */
+function obligadaMoves(
+  candidates: Card[],
+  hand: Card[],
+  currentTrick: TrickCard[],
+  trump: string,
+  playerSeat: Seat,
+): Card[] {
+  const winnerSeat = trickWinner(currentTrick, trump);
+  if (winnerSeat === null) return candidates;
+
+  const partnerWinning = seatTeam(winnerSeat) === seatTeam(playerSeat);
+  const winnerCard = currentTrick.find((played) => played.seat === winnerSeat)!.card;
+  const ledSuit = currentTrick[0]!.card.suit;
+  const winningMoves = candidates.filter((card) => beats(card, winnerCard, ledSuit, trump));
+  const nonWinningMoves = candidates.filter((card) => !beats(card, winnerCard, ledSuit, trump));
+  const secondPlayerVoidInLedSuit =
+    !partnerWinning && currentTrick.length === 1 && !hand.some((card) => card.suit === ledSuit);
+
+  const allowedNonWinningMoves = nonWinningMoves.filter((card) => {
+    if (partnerWinning && cardPointValue(card) > 0) return true;
+    if (isLowestOfSuit(card, hand)) return true;
+    return secondPlayerVoidInLedSuit && cardPointValue(card) > 0;
+  });
+
+  return [...winningMoves, ...allowedNonWinningMoves];
+}
+
+function isLowestOfSuit(card: Card, hand: Card[]): boolean {
+  return hand
+    .filter((held) => held.suit === card.suit)
+    .every((held) => cardSuitPower(card) <= cardSuitPower(held));
+}
 
 /**
  * Given a set of candidate trump cards, return only those that beat the

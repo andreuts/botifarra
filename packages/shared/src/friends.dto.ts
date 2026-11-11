@@ -8,8 +8,10 @@ export interface FriendRequestDTO {
   friendshipId: string;
   fromUserId: string;
   fromUsername: string;
+  fromTownLabel: string | null;
   toUserId: string;
   toUsername: string;
+  toTownLabel: string | null;
   status: FriendshipStatus;
   createdAt: string;
 }
@@ -17,6 +19,7 @@ export interface FriendRequestDTO {
 export interface FriendDTO {
   userId: string;
   username: string;
+  townLabel: string | null;
   /** Whether the friend is currently in a game room */
   inGame: boolean;
   /** The Colyseus room ID if the friend is in-game (for spectating) */
@@ -50,8 +53,10 @@ export interface PairInviteDTO {
   inviteId: string;
   fromUserId: string;
   fromUsername: string;
+  fromTownLabel: string | null;
   toUserId: string;
   toUsername: string;
+  toTownLabel: string | null;
   status: 'pending' | 'accepted' | 'rejected' | 'expired';
   ranked: boolean;
   createdAt: string;

@@ -1,4 +1,4 @@
-import { BotifarraRoom, type BotifarraRoomOptions } from './BotifarraRoom.js';
+import { BotifarraRoom, FINAL_TRICK_READ_AND_ANIMATION_MS, type BotifarraRoomOptions } from './BotifarraRoom.js';
 import {
   heuristicBotMove,
   heuristicBotDeclareTrump,
@@ -7,6 +7,7 @@ import {
 } from '@botifarra/core';
 import type { Seat } from '@botifarra/core';
 import { handleDeclareTrump, handlePlayCard } from './game-logic.js';
+import { TRICK_MIN_PAUSE_MS } from '@botifarra/shared';
 
 const BOT_USERNAMES = ['Bot-Alpha', 'Bot-Beta', 'Bot-Gamma'];
 
@@ -27,7 +28,7 @@ export class PracticeRoom extends BotifarraRoom {
   override maxClients = 1; // single human; bots fill remaining seats
   private botPendingMove = false; // prevent double-scheduling
   private lastTrickCompletedAt = 0; // ms timestamp of last trick completion
-  private static readonly BOT_VISUAL_PAUSE_MS = 2_500; // pause so players see the 4 played cards
+  private static readonly BOT_VISUAL_PAUSE_MS = TRICK_MIN_PAUSE_MS;
 
   override onCreate(options: BotifarraRoomOptions) {
     super.onCreate(options);
@@ -51,7 +52,7 @@ export class PracticeRoom extends BotifarraRoom {
       return p && p.seat === leader;
     });
     if (isBotLeader) {
-      // Still set the pause so the human sees the completed trick, then auto-clear
+      // Still set the pause so the human sees the completed trick and its animation.
       super.startTrickPause(leader);
       this.lastTrickCompletedAt = Date.now();
       setTimeout(() => {
@@ -107,7 +108,7 @@ export class PracticeRoom extends BotifarraRoom {
       return;
     }
 
-    // Don't let bots play immediately after a trick completes — give players 2.5s to see it
+      // Keep the bot from starting another action until the completed trick has cleared.
     if (this.lastTrickCompletedAt > 0 && Date.now() - this.lastTrickCompletedAt < PracticeRoom.BOT_VISUAL_PAUSE_MS) return;
 
     const round = this.gameState.round;
@@ -181,20 +182,23 @@ export class PracticeRoom extends BotifarraRoom {
         this.resetTurnTimer([seat]);
         this.gameState = state;
         this.syncSchemaPublic();
-        for (const event of events) this.broadcastEvent(event);
+        const deferGameEnd = roundEnded && this.gameState.phase === 'finished';
+        for (const event of events) {
+          if (deferGameEnd && event.type === 'game_ended') continue;
+          this.broadcastEvent(event);
+        }
+        if (!roundEnded && trickCompleted) {
+          const lastTrick = this.gameState.round!.completedTricks.at(-1)!;
+          this.startTrickPause(lastTrick.winner as Seat);
+        }
         this.broadcastGameState();
         this.broadcastTimerState();
         if (roundEnded) {
           if (this.gameState.phase === 'finished') {
-            this.onGameFinished();
+            setTimeout(() => this.onGameFinished(), FINAL_TRICK_READ_AND_ANIMATION_MS);
           } else {
             setTimeout(() => this.startNewRoundPublic(), 15_000);
           }
-        } else if (trickCompleted) {
-          const lastTrick = this.gameState.round!.completedTricks.at(-1)!;
-          this.startTrickPause(lastTrick.winner as Seat);
-          this.broadcastGameState();
-          this.broadcastTimerState();
         }
       } catch {
         /* ignore invalid move */

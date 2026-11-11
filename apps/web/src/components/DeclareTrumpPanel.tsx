@@ -30,7 +30,7 @@ const DECLARATIONS: { value: TrumpDeclaration; labelKey: string; image: string }
   { value: 'copes', labelKey: 'suits.C', image: '/cards/01-copas.png' },
   { value: 'espases', labelKey: 'suits.E', image: '/cards/01-espadas.png' },
   { value: 'bastos', labelKey: 'suits.B', image: '/cards/01-bastos.png' },
-  { value: 'botifarra', labelKey: 'game_terms.botifarra', image: '/cards/botifarra.svg' },
+  { value: 'botifarra', labelKey: 'game_terms.botifarra', image: '/cards/botifarra.png' },
 ];
 
 const CONTRA_KEYS = {

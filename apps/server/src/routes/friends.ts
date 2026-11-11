@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
+import { getTownLabel } from '@botifarra/shared';
 import type {
   FriendDTO,
   FriendRequestDTO,
@@ -42,8 +43,8 @@ export const friendsRoutes: FastifyPluginAsync = async (app: FastifyInstance) =>
         OR: [{ requesterId: userId }, { addresseeId: userId }],
       },
       include: {
-        requester: { select: { id: true, username: true } },
-        addressee: { select: { id: true, username: true } },
+        requester: { select: { id: true, username: true, townId: true } },
+        addressee: { select: { id: true, username: true, townId: true } },
       },
     });
 
@@ -68,6 +69,7 @@ export const friendsRoutes: FastifyPluginAsync = async (app: FastifyInstance) =>
         return {
           userId: friendUser.id,
           username: friendUser.username,
+          townLabel: getTownLabel(friendUser.townId),
           inGame: !!activeRoomId,
           ...(activeRoomId ? { activeRoomId } : {}),
           ...(stats ? { individualRating: Math.round(stats.individualRating) } : {}),
@@ -80,8 +82,8 @@ export const friendsRoutes: FastifyPluginAsync = async (app: FastifyInstance) =>
     const incomingPending = await app.prisma.friendship.findMany({
       where: { addresseeId: userId, status: 'PENDING' },
       include: {
-        requester: { select: { id: true, username: true } },
-        addressee: { select: { id: true, username: true } },
+        requester: { select: { id: true, username: true, townId: true } },
+        addressee: { select: { id: true, username: true, townId: true } },
       },
     });
 
@@ -89,8 +91,10 @@ export const friendsRoutes: FastifyPluginAsync = async (app: FastifyInstance) =>
       friendshipId: f.id,
       fromUserId: f.requester.id,
       fromUsername: f.requester.username,
+      fromTownLabel: getTownLabel(f.requester.townId),
       toUserId: f.addressee.id,
       toUsername: f.addressee.username,
+      toTownLabel: getTownLabel(f.addressee.townId),
       status: 'pending',
       createdAt: f.createdAt.toISOString(),
     }));
@@ -99,8 +103,8 @@ export const friendsRoutes: FastifyPluginAsync = async (app: FastifyInstance) =>
     const outgoingPending = await app.prisma.friendship.findMany({
       where: { requesterId: userId, status: 'PENDING' },
       include: {
-        requester: { select: { id: true, username: true } },
-        addressee: { select: { id: true, username: true } },
+        requester: { select: { id: true, username: true, townId: true } },
+        addressee: { select: { id: true, username: true, townId: true } },
       },
     });
 
@@ -108,8 +112,10 @@ export const friendsRoutes: FastifyPluginAsync = async (app: FastifyInstance) =>
       friendshipId: f.id,
       fromUserId: f.requester.id,
       fromUsername: f.requester.username,
+      fromTownLabel: getTownLabel(f.requester.townId),
       toUserId: f.addressee.id,
       toUsername: f.addressee.username,
+      toTownLabel: getTownLabel(f.addressee.townId),
       status: 'pending',
       createdAt: f.createdAt.toISOString(),
     }));
@@ -163,8 +169,8 @@ export const friendsRoutes: FastifyPluginAsync = async (app: FastifyInstance) =>
         status: 'PENDING',
       },
       include: {
-        requester: { select: { id: true, username: true } },
-        addressee: { select: { id: true, username: true } },
+        requester: { select: { id: true, username: true, townId: true } },
+        addressee: { select: { id: true, username: true, townId: true } },
       },
     });
 
@@ -172,8 +178,10 @@ export const friendsRoutes: FastifyPluginAsync = async (app: FastifyInstance) =>
       friendshipId: friendship.id,
       fromUserId: friendship.requester.id,
       fromUsername: friendship.requester.username,
+      fromTownLabel: getTownLabel(friendship.requester.townId),
       toUserId: friendship.addressee.id,
       toUsername: friendship.addressee.username,
+      toTownLabel: getTownLabel(friendship.addressee.townId),
       status: 'pending',
       createdAt: friendship.createdAt.toISOString(),
     };

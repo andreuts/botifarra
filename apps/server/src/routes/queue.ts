@@ -94,6 +94,7 @@ export const queueRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
 
     const inQueue = app.matchmakingQueue?.isQueued(userId) ?? false;
     const reservation = app.matchmakingQueue?.popResolvedReservation(userId);
+    const mode = inQueue ? app.matchmakingQueue?.getModeForUser(userId) : undefined;
     // Return the count for the same ranked pool the player is in (or total if not in queue)
     const ranked = inQueue ? (app.matchmakingQueue?.getRankedForUser(userId) ?? false) : false;
     const queueSize = inQueue
@@ -101,6 +102,7 @@ export const queueRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
       : (app.matchmakingQueue?.size ?? 0);
     return reply.send({
       inQueue,
+      ...(mode ? { mode } : {}),
       ranked,
       queueSize,
       ...(reservation ? { reservation } : {}),

@@ -20,9 +20,6 @@ export function NewsPage() {
     <div className="section-page news-page">
       <header className="section-page-header">
         <div className="section-page-title">
-          <Link to="/" className="section-page-back">
-            {t('nav.back')}
-          </Link>
           <h1>{t('news.heading')}</h1>
         </div>
         <img className="section-page-card" src="/cards/01-bastos.png" alt="" />

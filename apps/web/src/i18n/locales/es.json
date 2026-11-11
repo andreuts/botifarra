@@ -10,6 +10,11 @@
     "brandLine": "Tradición, cartas y una buena partida.",
     "loginIntro": "Inicia sesión para volver a la mesa.",
     "registerIntro": "Crea tu cuenta y toma asiento.",
+    "town": "Población",
+    "townPlaceholder": "Escribe el nombre del pueblo o la ciudad",
+    "townHint": "Escribe al menos dos letras y selecciona una población de la lista.",
+    "townNoResults": "No se han encontrado poblaciones.",
+    "townSelectionRequired": "Selecciona una población de la lista.",
     "usernameHint": "Al menos 3 caracteres.",
     "passwordHint": "Al menos 6 caracteres.",
     "username": "Usuario",
@@ -28,11 +33,22 @@
   "playerProfile": {
     "open": "Abrir el perfil de {{username}}",
     "heading": "Perfil del jugador",
+    "town": "Población",
+    "townNotSet": "No indicada",
+    "addTown": "Añadir",
+    "changeTown": "Cambiar",
+    "editTownTitle": "Cambia tu población",
+    "editTownIntro": "Busca y selecciona una población de la lista.",
+    "saveTown": "Guardar",
+    "savingTown": "Guardando…",
+    "cancelTownEdit": "Cancelar",
+    "townSaveError": "No se pudo guardar la población.",
     "elo": "ELO",
     "gamesPlayed": "Partidas jugadas",
     "joined": "Se unió",
     "loading": "Cargando datos del jugador…",
     "error": "No se pudieron cargar los datos del jugador.",
+    "statsError": "No se pudieron cargar las estadísticas.",
     "handSort": "Orden de las cartas",
     "leftToRight": "De izquierda a derecha",
     "rightToLeft": "De derecha a izquierda",
@@ -82,9 +98,27 @@
     "rankings": "Clasificación",
     "news": "Noticias",
     "back": "← Atrás",
-    "backToLobby": "← Lobby",
+    "backToLobby": "← Sala",
     "backToHome": "Volver al inicio",
+    "rules": "Reglas",
     "home": "Inicio"
+  },
+  "rules": {
+    "kicker": "Botifarra",
+    "heading": "Cómo se juega",
+    "intro": "Botifarra Online sigue la variante obligada (oriental) en partidas normales, clasificatorias y de práctica.",
+    "playHeading": "Cómo jugar una baza",
+    "followSuitText": "Asiste al palo de salida si lo tienes.",
+    "beatText": "Si tu compañero no gana, supera la carta que va ganando siempre que puedas. Si no puedes asistir, falla o sobrefalla cuando así puedas ganar.",
+    "lowCardText": "Si tu jugada no gana: si gana tu compañero, juega una carta de puntos o la más baja del palo que juegues; si ganan los rivales, juega la más baja del palo que juegues.",
+    "secondPlayerText": "Excepción: si juegas segundo, no tienes el palo de salida y no puedes ganar, puedes descartarte con una carta de puntos.",
+    "cardsHeading": "Puntos y fuerza de las cartas",
+    "pointCardsText": "Cartas de puntos: 9 (5 puntos), 1 (4), 12 (3), 11 (2) y 10 (1). Fuerza, de mayor a menor: 9, 1, 12, 11, 10, 8, 7, 6, 5, 4, 3, 2.",
+    "botifarraTitle": "Botifarra",
+    "botifarraText": "No hay triunfo: solo puede ganar una carta del palo de salida.",
+    "variantNote": "No se aplican variantes locales, como la variante intermedia de la Garrotxa.",
+    "source": "Referencia:",
+    "sourceLink": "Club Conservador de Cartes i Jocs"
   },
   "home": {
     "play": "Jugar",
@@ -93,7 +127,9 @@
     "heroIntro": "Reúne a la cuadrilla, reparte las cartas y juega una mano.",
     "playOptions": "Elige cómo quieres jugar",
     "quickMatchSolo": "Partida rápida (Solo)",
+    "quickMatchSoloDesc": "Busca ahora una partida contra otro jugador.",
     "quickMatchPair": "Partida rápida (Pareja)",
+    "quickMatchPairDesc": "Invita a un amigo para buscar juntos una pareja rival.",
     "quickMatchPairComingSoon": "Próximamente — invita a tu compañero primero",
     "searching": "Buscando ({{mode}})… ({{count}} en cola) — Cancelar",
     "matchFound": "¡Partida encontrada!",
@@ -130,7 +166,7 @@
     "waitingForPlayers": "Esperando jugadores…",
     "connecting": "Conectando a la partida…",
     "connectionError": "Error de conexión",
-    "connectionLost": "Se perdió la conexión con la partida. Vuelve al lobby.",
+    "connectionLost": "Se perdió la conexión con la partida. Vuelve a la sala.",
     "retryConnection": "Reintentar conexión",
     "yourTurn": "Tu turno — juega una carta",
     "currentTurn": "Turno actual",
@@ -151,7 +187,7 @@
     "finalScore": "Puntuación Final",
     "yourTeam": "Tu Equipo",
     "opponents": "Oponentes",
-    "backToLobby": "Volver al Lobby",
+    "backToLobby": "Volver a la sala",
     "ranked": "Clasificatoria",
     "surrenderRequest": "Rendirse",
     "surrenderPartnerAsk": "Tu compañero quiere rendirse. ¿Aceptas?",
@@ -193,6 +229,7 @@
   },
   "trickPause": {
     "continue": "Continuar",
+    "reviewCards": "Revisa las cartas jugadas",
     "waitingFor": "Esperando a {{name}}"
   },
   "trick": {
@@ -200,6 +237,8 @@
     "waitingToPlay": "{{name}} — esperando para jugar",
     "you": "Tú",
     "seatFallback": "Asiento {{seat}}",
+    "dealer": "Repartidor",
+    "declarant": "Declarante",
     "noTrumpYet": "Aún no hay triunfo",
     "trump": "Triunfo",
     "trumpLabel": "Triunfo: {{trump}}"
@@ -253,7 +292,8 @@
     "playerJoined": "{{username}} se unió (asiento {{seat}})",
     "playerLeft": "{{name}} se desconectó",
     "connectionFailed": "Error al conectar a la partida",
-    "roomError": "Error de sala {{code}}: {{message}}"
+    "roomError": "Error de sala {{code}}: {{message}}",
+    "lobbyTimeout": "No todos los jugadores se conectaron a tiempo. Vuelve a entrar en la cola."
   },
   "history": {
     "heading": "Historial de partidas",
@@ -288,8 +328,8 @@
       "avgEloChange": "Cambio ELO medio",
       "eloOverall": "Historial ELO (todas)",
       "eloRanked": "Historial ELO (clasificatorias)",
-      "topPlayedWith": "Top compañeros de juego",
-      "topPlayedAgainst": "Top rivales",
+      "topPlayedWith": "Compañeros más frecuentes",
+      "topPlayedAgainst": "Rivales más frecuentes",
       "games": "partida",
       "games_plural": "partidas",
       "wr": "% V",
@@ -397,7 +437,7 @@
     "heading": "Monitoreo del servidor",
     "autoRefresh": "Actualización automática",
     "refresh": "Actualizar",
-    "admin": "Admin",
+    "admin": "Administración",
     "lastUpdated": "Última actualización: {{time}}",
     "loading": "Cargando…",
     "adminSecret": "Clave de administrador",
@@ -474,6 +514,7 @@
     "waitingForResponse": "Esperando respuesta de",
     "sentPairInvites": "Invitaciones de pareja enviadas",
     "waitingFor": "Esperando",
+    "searchingSolo": "Buscando partida individual… ({{count}} en cola)",
     "searchingWithPartner": "Buscando partida en pareja… ({{count}} en cola)",
     "cancelQueue": "Cancelar cola",
     "alreadyQueued": "Ya estás en cola"
@@ -643,6 +684,6 @@
   },
   "gameEnd": {
     "rematch": "Revancha",
-    "backToLobby": "Volver al Lobby"
+    "backToLobby": "Volver a la sala"
   }
 }
