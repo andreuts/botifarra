@@ -30,6 +30,18 @@ export interface Card {
  */
 export type TrumpDeclaration = Suit | 'botifarra';
 
+const TRUMP_DECLARATIONS: readonly TrumpDeclaration[] = [
+  'oros',
+  'copes',
+  'espases',
+  'bastos',
+  'botifarra',
+];
+
+export function isTrumpDeclaration(value: unknown): value is TrumpDeclaration {
+  return typeof value === 'string' && TRUMP_DECLARATIONS.includes(value as TrumpDeclaration);
+}
+
 // ---------------------------------------------------------------------------
 // Players & teams
 // ---------------------------------------------------------------------------

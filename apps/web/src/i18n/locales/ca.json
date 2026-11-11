@@ -165,6 +165,15 @@
     "leavePracticeCancel": "Continua jugant",
     "waitingForPlayers": "Esperant jugadors…",
     "connecting": "Connectant a la partida…",
+    "startingGame": "Començant la partida…",
+    "waitingForMatch": "Partida trobada. Esperant que es connectin els altres jugadors.",
+    "connectingToCode": "Entrant a la sala {{code}}…",
+    "waitingForCodePlayers": "Codi de sala {{code}} · esperant que s'hi uneixin més jugadors.",
+    "allPlayersConnected": "Tots quatre jugadors estan connectats.",
+    "playersInRoom": "Jugadors de la sala",
+    "playersConnected": "{{count}} de 4 connectats",
+    "waitingSeat": "Seient {{seat}}",
+    "waitingForPlayer": "Esperant que s'hi uneixi un jugador",
     "connectionError": "Error de connexió",
     "connectionLost": "S'ha perdut la connexió amb la partida. Torna al vestíbul.",
     "retryConnection": "Torna-ho a provar",
@@ -172,7 +181,6 @@
     "currentTurn": "Torn actual",
     "contraDecision": "Torn de contra",
     "playerContraDecision": "{{name}} és de l'equip que decideix el contra",
-    "playerContinueTrick": "{{name}} ha de continuar la mà",
     "tableStatus": "Estat de la taula",
     "waitingFor": "Esperant {{name}}…",
     "waiting": "Esperant…",
@@ -226,11 +234,6 @@
     "closeAria": "Tanca",
     "clickToClose": "Fes clic a qualsevol lloc per tancar",
     "wonBy": "Guanyada per {{name}}"
-  },
-  "trickPause": {
-    "continue": "Continua",
-    "reviewCards": "Mira les cartes jugades",
-    "waitingFor": "Esperant {{name}}"
   },
   "trick": {
     "currentTrick": "Mà actual",

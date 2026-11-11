@@ -27,6 +27,11 @@ export function GameStatusPanel({ gameState, isMyTurn }: GameStatusPanelProps) {
   const contraTeam = getContraDecidingTeam(gameState);
   const myTeam = gameState.mySeat % 2;
   const contraLevel = gameState.contraLevel ?? 0;
+  const currentContraLabel =
+    contraLevel > 0
+      ? t(CONTRA_KEYS[contraLevel as keyof typeof CONTRA_KEYS] ?? CONTRA_KEYS[1])
+      : null;
+  const compactContraLabel = contraLevel === 3 ? 'SV' : contraLevel === 2 ? 'R' : 'C';
   const nextContraLabel = t(
     CONTRA_KEYS[(contraLevel + 1) as keyof typeof CONTRA_KEYS] ?? CONTRA_KEYS[1],
   );
@@ -37,7 +42,7 @@ export function GameStatusPanel({ gameState, isMyTurn }: GameStatusPanelProps) {
         ? t('game_terms.botifarra')
         : trumpInfo
           ? t(`suits.${trumpInfo.key}`)
-          : t('game_terms.botifarra');
+          : trump;
 
   const trickPauseLeader = gameState.trickPauseLeader ?? null;
   const turnSeat =
@@ -45,7 +50,11 @@ export function GameStatusPanel({ gameState, isMyTurn }: GameStatusPanelProps) {
       ? trickPauseLeader ?? gameState.currentPlayerSeat ?? (trump === null ? gameState.declarantSeat : null)
       : null;
   const yourTurn =
-    contraTeam !== null ? contraTeam === myTeam : isMyTurn || turnSeat === gameState.mySeat;
+    contraTeam !== null
+      ? contraTeam === myTeam
+      : trickPauseLeader !== null
+        ? false
+        : isMyTurn || turnSeat === gameState.mySeat;
   const turnName =
     contraTeam !== null
       ? t(contraTeam === myTeam ? 'game.yourTeam' : 'game.opponents')
@@ -66,10 +75,8 @@ export function GameStatusPanel({ gameState, isMyTurn }: GameStatusPanelProps) {
           : t('declare.waitingDecision')
       : turnSeat === null
         ? t('game.waiting')
-        : trickPauseLeader === turnSeat
-          ? yourTurn
-            ? t('trickPause.continue')
-            : t('trickPause.waitingFor', { name: turnName })
+        : trickPauseLeader !== null
+          ? t('game.waiting')
           : yourTurn
             ? trump === null
               ? t('declare.heading')
@@ -90,7 +97,21 @@ export function GameStatusPanel({ gameState, isMyTurn }: GameStatusPanelProps) {
         />
         <div className="game-status-copy">
           <span className="game-status-label">{t('trick.trump')}</span>
-          <strong>{trumpLabel}</strong>
+          <div className="game-status-trump-value">
+            <strong>{trumpLabel}</strong>
+            {currentContraLabel && (
+              <span
+                className={`game-contra-badge game-contra-badge--${contraLevel} game-status-contra-badge`}
+                aria-label={currentContraLabel}
+                title={currentContraLabel}
+              >
+                <span className="game-status-contra-full">{currentContraLabel}</span>
+                <span className="game-status-contra-compact" aria-hidden="true">
+                  {compactContraLabel}
+                </span>
+              </span>
+            )}
+          </div>
         </div>
       </div>
 

@@ -112,6 +112,87 @@ describe('BotifarraRoom contra decisions', () => {
     expect(room.contraDecidingTeam).toBe(declarantSeat % 2 === 0 ? 1 : 0);
   });
 
+  it('applies a timeout penalty only once before the next round starts', () => {
+    vi.useFakeTimers();
+    const room = Object.create(BotifarraRoom.prototype) as any;
+    room.gameState = { phase: 'playing', game: { scores: [0, 0] } };
+    room.targetScore = 101;
+    room.roundBudgets = { 0: 60_000, 1: 60_000, 2: 60_000, 3: 60_000 };
+    room.broadcast = vi.fn();
+    room.syncSchemaPublic = vi.fn();
+    room.startNewRoundPublic = vi.fn();
+
+    room.handleRankedTimeout(0);
+    room.handleRankedTimeout(0);
+
+    expect(room.gameState.game.scores).toEqual([0, 36]);
+    vi.advanceTimersByTime(2000);
+    expect(room.startNewRoundPublic).toHaveBeenCalledTimes(1);
+  });
+
+  it('ends the game once on a timeout that reaches the target score', () => {
+    vi.useFakeTimers();
+    const room = Object.create(BotifarraRoom.prototype) as any;
+    room.gameState = {
+      phase: 'playing',
+      game: { scores: [0, 80] },
+      seats: new Map(),
+    };
+    room.targetScore = 101;
+    room.roundBudgets = { 0: 60_000, 1: 60_000, 2: 60_000, 3: 60_000 };
+    room.broadcast = vi.fn();
+    room.disconnect = vi.fn();
+    room.syncSchemaPublic = vi.fn();
+    room.startNewRoundPublic = vi.fn();
+
+    // Simulate an older round transition still pending when the timeout decides the game.
+    room.scheduleRoundTransition(15_000);
+    room.handleRankedTimeout(0);
+    room.handleRankedTimeout(0);
+
+    expect(room.gameState.game.scores).toEqual([0, 116]);
+    expect(room.gameState.phase).toBe('finished');
+    expect(room.broadcast).toHaveBeenCalledTimes(2); // round_timeout and game_ended
+    vi.advanceTimersByTime(15_000);
+    expect(room.startNewRoundPublic).not.toHaveBeenCalled();
+  });
+
+  it('cancels a scheduled round start when the game ends', () => {
+    vi.useFakeTimers();
+    const room = Object.create(BotifarraRoom.prototype) as any;
+    room.gameState = {
+      phase: 'playing',
+      game: { scores: [101, 40] },
+      seats: new Map(),
+    };
+    room.broadcast = vi.fn();
+    room.disconnect = vi.fn();
+    room.startNewRoundPublic = vi.fn();
+    room.roundTimeoutHandled = false;
+    room.gameFinished = false;
+    room.pendingRoundTransition = null;
+
+    room.scheduleRoundTransition(2000);
+    room.gameState.phase = 'finished';
+    room.onGameFinished();
+    vi.advanceTimersByTime(2000);
+
+    expect(room.pendingRoundTransition).toBeNull();
+    expect(room.startNewRoundPublic).not.toHaveBeenCalled();
+  });
+
+  it('rejects invalid trump declarations at the room command boundary', () => {
+    const room = Object.create(BotifarraRoom.prototype) as any;
+    const client = { send: vi.fn() };
+
+    room.handleCommand(client, 'declare_trump', { declaration: 'invalid-suit' });
+
+    expect(client.send).toHaveBeenCalledWith('error', {
+      code: 'COMMAND_ERROR',
+      message: 'Invalid trump declaration',
+    });
+  });
+
   it('filters private game-state events from broadcasts', () => {
     const room = Object.create(BotifarraRoom.prototype) as any;
     room.broadcast = vi.fn();

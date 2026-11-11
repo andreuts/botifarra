@@ -202,6 +202,7 @@ export function HandComponent({ gameState, onPlayCard, commandErrorVersion = 0 }
             <CardComponent
               key={key}
               card={card}
+              disabled={!isMyTurn || !legalSet.has(key)}
               onClick={() => handleCardClick(card)}
               selected={isSel}
               compact={!isMobile}

@@ -33,6 +33,12 @@ export const EMOJI_DISPLAY: Record<string, string> = {
   beer: '🍺',
 };
 
+export interface RoomLobbyPlayer {
+  username: string;
+  seat: number;
+  connected: boolean;
+}
+
 /**
  * Prevents duplicate consumption of a one-time reservation, including React
  * Strict Mode's repeated effect setup. Failed attempts are removed so they can
@@ -52,6 +58,7 @@ export function useGameRoom(
   const timerStreamActive = useRef(false);
   const intentionalLeaveRef = useRef(false);
   const [commandErrorVersion, setCommandErrorVersion] = useState(0);
+  const [roomPlayers, setRoomPlayers] = useState<RoomLobbyPlayer[]>([]);
   const { t } = useTranslation();
   const { setGameState, setObserverState, addChatMessage, setConnected, setRoomId, setError, reset, setGameResult, addToast, setTimers } =
     useGameStore();
@@ -68,6 +75,7 @@ export function useGameRoom(
         attemptedReservations.add(seatReservation.sessionId);
       }
 
+      setRoomPlayers([]);
       try {
         const client = new Client(COLYSEUS_URL);
         let room: Room;
@@ -83,9 +91,39 @@ export function useGameRoom(
           room = await client.joinOrCreate(roomType, { userId, username, token, observe });
         }
 
+        // The user may leave the waiting screen before the join handshake finishes.
+        // In that case, release the newly-created room connection instead of keeping
+        // them in the lobby after they've navigated away.
+        if (intentionalLeaveRef.current) {
+          void room.leave();
+          return;
+        }
+
         roomRef.current = room;
         setRoomId(room.id);
         setConnected(true);
+
+        const syncRoomPlayers = (state: unknown) => {
+          const playerMap = (state as {
+            players?: { values: () => Iterable<RoomLobbyPlayer> };
+          } | null)?.players;
+          if (!playerMap) {
+            setRoomPlayers([]);
+            return;
+          }
+          setRoomPlayers(
+            Array.from(playerMap.values())
+              .map(({ username: playerName, seat, connected: playerConnected }) => ({
+                username: playerName,
+                seat,
+                connected: playerConnected,
+              }))
+              .sort((a, b) => a.seat - b.seat),
+          );
+        };
+
+        syncRoomPlayers(room.state);
+        room.onStateChange(syncRoomPlayers);
 
         room.onMessage('game_state', (msg: { state: PlayerGameStateDTO }) => {
           setGameState(msg.state);
@@ -196,6 +234,7 @@ export function useGameRoom(
         room.onLeave(() => {
           if (roomRef.current !== room) return;
           setConnected(false);
+          setRoomPlayers([]);
           roomRef.current = null;
           if (!intentionalLeaveRef.current && !useGameStore.getState().gameResult) {
             setError(t('game.connectionLost'));
@@ -206,6 +245,7 @@ export function useGameRoom(
           setError(t('toast.roomError', { code, message }));
         });
       } catch (err) {
+        if (intentionalLeaveRef.current) return;
         // A failed connection attempt must not permanently consume this
         // module-level guard; the user may retry while the reservation is valid.
         if (seatReservation) attemptedReservations.delete(seatReservation.sessionId);
@@ -271,8 +311,12 @@ export function useGameRoom(
     roomRef.current?.send('send_premade', { key });
   }, []);
 
-  const sendContinueTrick = useCallback(() => {
-    roomRef.current?.send('continue_trick', {});
+  const leaveRoom = useCallback(() => {
+    intentionalLeaveRef.current = true;
+    const room = roomRef.current;
+    roomRef.current = null;
+    if (room) void room.leave();
+    setRoomPlayers([]);
   }, []);
 
   const mutePlayer = useCallback((seat: number) => {
@@ -303,9 +347,10 @@ export function useGameRoom(
     sendSurrenderRespond,
     sendReaction,
     sendPremade,
-    sendContinueTrick,
+    leaveRoom,
     mutePlayer,
     unmutePlayer,
     commandErrorVersion,
+    roomPlayers,
   };
 }

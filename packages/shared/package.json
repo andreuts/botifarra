@@ -1,6 +1,6 @@
 {
   "name": "@botifarra/shared",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Shared DTOs, events and commands for Botifarra frontend & backend",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

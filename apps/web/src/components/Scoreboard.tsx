@@ -5,16 +5,9 @@ interface ScoreboardProps {
   gameState: PlayerGameStateDTO;
 }
 
-const CONTRA_KEYS = {
-  1: 'game_terms.contra',
-  2: 'game_terms.recontro',
-  3: 'game_terms.santVicenc',
-} as const;
-
 export function Scoreboard({ gameState }: ScoreboardProps) {
   const { t } = useTranslation();
   const names = gameState.playerNames;
-  const contraLevel = gameState.contraLevel ?? 0;
 
   return (
     <div className="game-scoreboard" role="region" aria-label={t('scoreboard.aria')}>
@@ -27,11 +20,6 @@ export function Scoreboard({ gameState }: ScoreboardProps) {
         <span className="game-score-label">{t('scoreboard.round')}</span>
         <strong className="game-round-number">{gameState.roundNumber}</strong>
         <span className="game-trick-progress">{gameState.completedTricks.length}/12</span>
-        {contraLevel > 0 && (
-          <span className={`game-contra-badge game-contra-badge--${contraLevel}`}>
-            {t(CONTRA_KEYS[contraLevel as keyof typeof CONTRA_KEYS])}
-          </span>
-        )}
       </div>
 
       <div className="game-score-team game-score-team--1">

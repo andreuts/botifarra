@@ -1,7 +1,7 @@
 {
   "name": "botifarra",
   "private": true,
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Botifarra Online — Catalan card game multiplayer platform",
   "scripts": {
     "dev": "concurrently --kill-others-on-fail --prefix-colors cyan,magenta --names server,web \"pnpm --filter @botifarra/server dev\" \"pnpm --filter @botifarra/web dev\"",

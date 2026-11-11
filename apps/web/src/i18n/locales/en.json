@@ -165,6 +165,15 @@
     "leavePracticeCancel": "Keep playing",
     "waitingForPlayers": "Waiting for players…",
     "connecting": "Connecting to game…",
+    "startingGame": "Starting game…",
+    "waitingForMatch": "Match found. Waiting for the other players to connect.",
+    "connectingToCode": "Joining room {{code}}…",
+    "waitingForCodePlayers": "Room code {{code}} · waiting for more players to join.",
+    "allPlayersConnected": "All four players are connected.",
+    "playersInRoom": "Players in this room",
+    "playersConnected": "{{count}} / 4 connected",
+    "waitingSeat": "Seat {{seat}}",
+    "waitingForPlayer": "Waiting for a player to join",
     "connectionError": "Connection error",
     "connectionLost": "The connection to the game was lost. Return to the lobby.",
     "retryConnection": "Retry connection",
@@ -172,7 +181,6 @@
     "currentTurn": "Current turn",
     "contraDecision": "Contra decision",
     "playerContraDecision": "{{name}} is on the team deciding the contra",
-    "playerContinueTrick": "{{name}} needs to continue the trick",
     "tableStatus": "Table status",
     "waitingFor": "Waiting for {{name}}…",
     "waiting": "Waiting…",
@@ -226,11 +234,6 @@
     "closeAria": "Close",
     "clickToClose": "Click anywhere to close",
     "wonBy": "Won by {{name}}"
-  },
-  "trickPause": {
-    "continue": "Continue",
-    "reviewCards": "Review the played cards",
-    "waitingFor": "Waiting for {{name}}"
   },
   "trick": {
     "currentTrick": "Current trick",

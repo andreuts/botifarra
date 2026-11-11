@@ -7,7 +7,6 @@ import {
 } from '@botifarra/core';
 import type { Seat } from '@botifarra/core';
 import { handleDeclareTrump, handlePlayCard } from './game-logic.js';
-import { TRICK_MIN_PAUSE_MS } from '@botifarra/shared';
 
 const BOT_USERNAMES = ['Bot-Alpha', 'Bot-Beta', 'Bot-Gamma'];
 
@@ -27,8 +26,6 @@ function botDelay() {
 export class PracticeRoom extends BotifarraRoom {
   override maxClients = 1; // single human; bots fill remaining seats
   private botPendingMove = false; // prevent double-scheduling
-  private lastTrickCompletedAt = 0; // ms timestamp of last trick completion
-  private static readonly BOT_VISUAL_PAUSE_MS = TRICK_MIN_PAUSE_MS;
 
   override onCreate(options: BotifarraRoomOptions) {
     super.onCreate(options);
@@ -43,31 +40,6 @@ export class PracticeRoom extends BotifarraRoom {
   protected override tick() {
     super.tick();
     this.triggerBotIfNeeded();
-  }
-
-  /** Override: if a bot wins the trick, auto-continue after the visual pause */
-  protected override startTrickPause(leader: Seat) {
-    const isBotLeader = [...this.botSeeds].some((sid) => {
-      const p = this.state.players.get(sid);
-      return p && p.seat === leader;
-    });
-    if (isBotLeader) {
-      // Still set the pause so the human sees the completed trick and its animation.
-      super.startTrickPause(leader);
-      this.lastTrickCompletedAt = Date.now();
-      setTimeout(() => {
-        if (this.trickPauseLeader !== null) {
-          this.clearTrickPause();
-          this.startTurnTimerClock();
-          this.broadcastGameState();
-          this.broadcastTimerState();
-        }
-      }, PracticeRoom.BOT_VISUAL_PAUSE_MS);
-    } else {
-      // Human is the leader — use the normal 30s pause
-      super.startTrickPause(leader);
-      this.lastTrickCompletedAt = Date.now();
-    }
   }
 
   private triggerBotIfNeeded() {
@@ -107,9 +79,6 @@ export class PracticeRoom extends BotifarraRoom {
       }, botDelay());
       return;
     }
-
-      // Keep the bot from starting another action until the completed trick has cleared.
-    if (this.lastTrickCompletedAt > 0 && Date.now() - this.lastTrickCompletedAt < PracticeRoom.BOT_VISUAL_PAUSE_MS) return;
 
     const round = this.gameState.round;
     const phase = getRoundPhase(round);

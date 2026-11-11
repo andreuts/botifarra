@@ -91,6 +91,12 @@ describe('declareTrump', () => {
       expect(r.trump).toBe(d);
     }
   });
+
+  it('rejects unsupported runtime declaration values', () => {
+    expect(() => declareTrump(freshRound(), 'invalid-suit' as TrumpDeclaration)).toThrow(
+      'Invalid trump declaration',
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------

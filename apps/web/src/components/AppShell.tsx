@@ -39,7 +39,7 @@ export function AppShell({ children }: AppShellProps) {
   const accessToken = user?.accessToken;
   const profileUserId = user?.userId;
   const handSortDirection = user?.handSortDirection ?? 'left-to-right';
-  const appVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.0.1';
+  const appVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.1.0';
 
   // Don't show nav on game page (keep it fullscreen)
   const isGamePage = location.pathname.startsWith('/match/') || location.pathname === '/play';
@@ -372,7 +372,7 @@ function AboutModal({ onClose }: { onClose: () => void }) {
         </div>
         <div className="settings-body about-body">
           <h3 className="about-title">{t('app.title')}</h3>
-          <p className="about-version">v{typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.0.1'}</p>
+          <p className="about-version">v{typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.1.0'}</p>
           <p className="about-desc">{t('about.description')}</p>
 
           <div className="about-section">

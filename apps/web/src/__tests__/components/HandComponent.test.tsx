@@ -29,10 +29,37 @@ describe('HandComponent', () => {
     expect(statusEl).toBeInTheDocument();
   });
 
-  it('does not call onPlayCard when it is not my turn', () => {
+  it('disables cards when it is not my turn', () => {
     const notMyTurn = { ...mockGameState, currentPlayerSeat: 1 as const };
     render(<HandComponent gameState={notMyTurn} onPlayCard={onPlayCard} />);
-    const cards = screen.getAllByRole('button');
+    const hand = screen.getByRole('group', { name: 'hand.yourHand' });
+    const cards = hand.querySelectorAll('[aria-label]');
+    expect(cards).toHaveLength(notMyTurn.hand.length);
+    expect(screen.queryAllByRole('button')).toHaveLength(0);
+    expect([...cards].every((card) => card.getAttribute('aria-disabled') === 'true')).toBe(true);
+  });
+
+  it('disables off-suit cards when following suit is required', () => {
+    const mustFollowSuit = {
+      ...mockGameState,
+      currentTrick: [{ seat: 3 as const, card: { suit: 'oros' as const, rank: 2 as const } }],
+    };
+    render(<HandComponent gameState={mustFollowSuit} onPlayCard={onPlayCard} />);
+    const hand = screen.getByRole('group', { name: 'hand.yourHand' });
+    const cards = hand.querySelectorAll('[aria-label]');
+
+    expect(cards).toHaveLength(mustFollowSuit.hand.length);
+    expect(cards[0]).toHaveAttribute('role', 'button');
+    expect(cards[1]).toHaveAttribute('aria-disabled', 'true');
+    expect(cards[2]).toHaveAttribute('aria-disabled', 'true');
+    expect(screen.getAllByRole('button')).toHaveLength(1);
+  });
+
+  it('does not call onPlayCard for a disabled card', () => {
+    const notMyTurn = { ...mockGameState, currentPlayerSeat: 1 as const };
+    render(<HandComponent gameState={notMyTurn} onPlayCard={onPlayCard} />);
+    const hand = screen.getByRole('group', { name: 'hand.yourHand' });
+    const cards = hand.querySelectorAll('[aria-label]');
     fireEvent.click(cards[0]!);
     expect(onPlayCard).not.toHaveBeenCalled();
   });

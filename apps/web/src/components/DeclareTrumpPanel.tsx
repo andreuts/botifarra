@@ -59,7 +59,11 @@ export function DeclareTrumpPanel({
   const { t } = useTranslation();
   const isDeclarant = gameState.declarantSeat === mySeat;
   const { trump, contraLevel = 0, dealerPassed = false, dealerSeat } = gameState;
-  const trumpLabel = trump ? t(TRUMP_KEYS[trump] ?? 'game_terms.botifarra') : t('trick.noTrumpYet');
+  const trumpLabel = trump
+    ? TRUMP_KEYS[trump]
+      ? t(TRUMP_KEYS[trump]!)
+      : trump
+    : t('trick.noTrumpYet');
 
   const myTeam = mySeat % 2;
 

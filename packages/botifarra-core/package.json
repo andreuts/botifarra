@@ -1,6 +1,6 @@
 {
   "name": "@botifarra/core",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Standalone Botifarra rules engine — no UI, no DB, no network dependencies",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

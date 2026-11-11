@@ -18,16 +18,16 @@ import {
   handleCallContra,
 } from './game-logic.js';
 import type { RoomGameState } from './game-logic.js';
-import { currentPlayerSeat } from '@botifarra/core';
+import { currentPlayerSeat, isTrumpDeclaration } from '@botifarra/core';
 import type { Seat } from '@botifarra/core';
 import type { PrismaClient } from '@prisma/client';
 import type { SerializableRoomSnapshot } from '../services/persistence.js';
 import { finalizeMatch, updateUserStats, updateRatings, saveGameSnapshot, clearGameSnapshot, deserializeSnapshot } from '../services/persistence.js';
 import { setUserActiveGame, clearUserActiveGame } from '../routes/friends.js';
-import { TRICK_MIN_PAUSE_MS, TRICK_PAUSE_DURATION_MS } from '@botifarra/shared';
+import { TRICK_PAUSE_DURATION_MS } from '@botifarra/shared';
 
 /** Keep the final trick visible long enough to read and animate into its won-trick pile. */
-export const FINAL_TRICK_READ_AND_ANIMATION_MS = TRICK_MIN_PAUSE_MS;
+export const FINAL_TRICK_READ_AND_ANIMATION_MS = TRICK_PAUSE_DURATION_MS;
 
 // Module-level Prisma reference — set from index.ts after DB connects
 let _prisma: PrismaClient | null = null;
@@ -129,6 +129,7 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
   private static readonly LOBBY_FILL_TIMEOUT_MS = 150_000; // 2.5 minutes (>120s reservation)
   private gameStartedAt: number = 0;
   private endReason: string | null = null;
+  private gameFinished = false;
 
   // -- Decision timers --
   private static readonly DECLARATION_TURN_MS = 30_000; // 30 seconds to choose trump
@@ -136,6 +137,8 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
   private static readonly CONTRA_TIMEOUT_MS = 15_000; // 15 seconds per contra decision
   private static readonly ROUND_BUDGET_MS = 60_000; // 1 minute per player per round
   private static readonly TIMEOUT_PENALTY_POINTS = 36;
+  private roundTimeoutHandled = false;
+  private pendingRoundTransition: ReturnType<typeof setTimeout> | null = null;
   protected turnStartedAt: number = 0;
   private timerEpoch = 0;
   private roundBudgets: Record<Seat, number> = { 0: 60_000, 1: 60_000, 2: 60_000, 3: 60_000 };
@@ -143,7 +146,7 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
   /** Which team (0 or 1) currently has to decide contra/recontro/sant vicenç. Null outside contra phase. */
   protected contraDecidingTeam: 0 | 1 | null = null;
 
-  // -- Trick pause: keep the completed cards visible before allowing the leader to continue --
+  // -- Fixed pause: let players review the completed trick before the next one --
   private static readonly TRICK_PAUSE_MS = TRICK_PAUSE_DURATION_MS;
   protected trickPauseLeader: Seat | null = null;
   private trickPauseStartedAt: number = 0;
@@ -329,6 +332,20 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
     }
 
     const player = this.state.players.get(client.sessionId);
+    if (player && consented && this.gameState.phase === 'lobby') {
+      const seat = player.seat as Seat;
+      const seatInfo = this.gameState.seats.get(seat);
+      if (seatInfo?.sessionId === client.sessionId) {
+        this.gameState.seats.delete(seat);
+        delete this.seatAssignments[seatInfo.userId];
+        clearUserActiveGame(seatInfo.userId);
+      }
+      // A deliberate exit frees the waiting seat and removes the departed player
+      // from the roster so another code-holder can take their place.
+      this.state.players.delete(client.sessionId);
+      return;
+    }
+
     if (player) {
       player.connected = false;
       this.broadcast('player_disconnected', { seat: player.seat });
@@ -349,6 +366,8 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
   }
 
   override onDispose() {
+    this.cancelPendingRoundTransition();
+    this.clearTrickPause();
     // Clear active game tracking for all players
     for (const [, info] of this.gameState.seats) {
       clearUserActiveGame(info.userId);
@@ -383,11 +402,14 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
     try {
       switch (type) {
         case 'declare_trump': {
-          const { declaration } = payload as { declaration: string };
+          const declaration = (payload as { declaration?: unknown } | null)?.declaration;
+          if (!isTrumpDeclaration(declaration)) {
+            throw new Error('Invalid trump declaration');
+          }
           const { state, events } = handleDeclareTrump(
             this.gameState,
             client.sessionId,
-            declaration as any,
+            declaration,
           );
           const declarantSeat = this.gameState.round!.declarantSeat;
           this.resetTurnTimer([declarantSeat]);
@@ -451,7 +473,7 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
               // Save snapshot after each round while still in-progress
               this.persistSnapshot();
               // Show the completed last trick for 5s, then start the new round after 15s total
-              setTimeout(() => this.startNewRoundPublic(), 15_000);
+              this.scheduleRoundTransition(15_000);
             }
           } else if (trickCompleted) {
             // Save the pause state so reconnecting clients can resume the reveal.
@@ -504,19 +526,6 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
           this.broadcastTimerState();
           this.lastTimerBroadcast = performance.now();
           this.persistSnapshot();
-          break;
-        }
-        case 'continue_trick': {
-          // The trick-pause leader clicks to resume play
-          if (this.trickPauseLeader === null) break;
-          const seat = this.seatForClient(client);
-          if (seat !== this.trickPauseLeader) break; // only the leader can continue
-          if (performance.now() - this.trickPauseStartedAt < TRICK_MIN_PAUSE_MS) break;
-          this.clearTrickPause();
-          this.startTurnTimerClock();
-          this.broadcastGameState();
-          this.broadcastTimerState();
-          this.lastTimerBroadcast = performance.now();
           break;
         }
         case 'chat_message': {
@@ -577,6 +586,9 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
   // ---------------------------------------------------------------------------
 
   protected startNewRoundPublic() {
+    if (this.gameFinished || this.gameState.phase === 'finished') return;
+    this.cancelPendingRoundTransition();
+    this.roundTimeoutHandled = false;
     this.gameState = startRound(this.gameState);
     this.syncSchemaPublic();
 
@@ -687,6 +699,12 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
   }
 
   protected onGameFinished() {
+    if (this.gameFinished) return;
+    this.gameFinished = true;
+    this.roundTimeoutHandled = true;
+    this.cancelPendingRoundTransition();
+    this.clearTrickPause();
+
     const { scores } = this.gameState.game;
     const winner: 0 | 1 = scores[0] >= scores[1] ? 0 : 1;
     this.endReason = this.endReason ?? 'normal';
@@ -892,6 +910,15 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
   // ---------------------------------------------------------------------------
 
   private handleRankedTimeout(timedOutSeat: Seat) {
+    if (
+      this.roundTimeoutHandled ||
+      this.gameFinished ||
+      this.gameState.phase !== 'playing'
+    ) {
+      return;
+    }
+    this.roundTimeoutHandled = true;
+
     // The timed-out player's team loses the round, other team gets 36 points
     const timedOutTeam: 0 | 1 = timedOutSeat % 2 === 0 ? 0 : 1;
     const scoringTeam: 0 | 1 = timedOutTeam === 0 ? 1 : 0;
@@ -915,12 +942,30 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
     } else {
       // Start a new round
       this.syncSchemaPublic();
-      setTimeout(() => this.startNewRoundPublic(), 2000);
+      this.scheduleRoundTransition(2000);
+    }
+  }
+
+  private scheduleRoundTransition(delayMs: number) {
+    this.cancelPendingRoundTransition();
+    if (this.gameFinished || this.gameState.phase === 'finished') return;
+
+    this.pendingRoundTransition = setTimeout(() => {
+      this.pendingRoundTransition = null;
+      if (this.gameFinished || this.gameState.phase === 'finished') return;
+      this.startNewRoundPublic();
+    }, delayMs);
+  }
+
+  private cancelPendingRoundTransition() {
+    if (this.pendingRoundTransition !== null) {
+      clearTimeout(this.pendingRoundTransition);
+      this.pendingRoundTransition = null;
     }
   }
 
   // ---------------------------------------------------------------------------
-  // Trick pause — after a trick completes, wait for leader to click "continue"
+  // Trick pause — automatically resume after the fixed review interval
   // ---------------------------------------------------------------------------
 
   private seatForClient(client: Client): Seat | null {
@@ -931,7 +976,7 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
   protected startTrickPause(leader: Seat) {
     this.trickPauseLeader = leader;
     this.trickPauseStartedAt = performance.now();
-    // Auto-continue after 30s
+    // Automatically advance when the review interval ends.
     if (this.trickPauseTimeout) clearTimeout(this.trickPauseTimeout);
     this.trickPauseTimeout = setTimeout(() => {
       if (this.trickPauseLeader !== null) {

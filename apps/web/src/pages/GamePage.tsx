@@ -10,12 +10,10 @@ import { TrickArea } from '../components/TrickArea.js';
 import { Scoreboard } from '../components/Scoreboard.js';
 import { GameStatusPanel } from '../components/GameStatusPanel.js';
 import { DeclareTrumpPanel } from '../components/DeclareTrumpPanel.js';
-import { ContinueTrickButton } from '../components/ContinueTrickButton.js';
 import { getContraDecidingTeam } from '../gamePhase.js';
 import { ConfirmDialog } from '../components/ConfirmDialog.js';
 import type { CompletedTrick, Seat } from '@botifarra/core';
 import {
-  TRICK_MIN_PAUSE_MS,
   TRICK_PAUSE_DURATION_MS,
   TRICK_REVEAL_DURATION_MS,
 } from '@botifarra/shared';
@@ -23,6 +21,7 @@ import type { SeatReservationData } from '../hooks/useMatchmakingQueue.js';
 
 export function GamePage() {
   const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
+  const [leavingWaitingRoom, setLeavingWaitingRoom] = useState(false);
   const { matchId } = useParams<{ matchId: string }>();
   const [searchParams] = useSearchParams();
   const location = useLocation();
@@ -99,7 +98,7 @@ export function GamePage() {
     const clearTimer = window.setTimeout(() => {
       setFinalTrickReveal(null);
       setFinalTrickAnimating(false);
-    }, TRICK_MIN_PAUSE_MS);
+    }, TRICK_PAUSE_DURATION_MS);
 
     return () => {
       window.clearTimeout(animationTimer);
@@ -115,7 +114,7 @@ export function GamePage() {
   const trickPauseElapsedMs = pauseRemainingMs === null
     ? 0
     : Math.max(0, TRICK_PAUSE_DURATION_MS - pauseRemainingMs);
-  const activeTrickReveal = gameState?.trickPauseLeader != null && trickPauseElapsedMs < TRICK_MIN_PAUSE_MS
+  const activeTrickReveal = gameState?.trickPauseLeader != null && trickPauseElapsedMs < TRICK_PAUSE_DURATION_MS
     ? trickReveal
     : null;
   const isTrickRevealAnimating = activeTrickReveal !== null
@@ -124,9 +123,14 @@ export function GamePage() {
   // Seat reservation passed from matchmaking via route state.
   // Only use it for fresh joins — if we're reconnecting to an active game, force joinById instead.
   const isReconnecting = activeGameRoomId === matchId;
+  const routeState = location.state as {
+    reservation?: SeatReservationData;
+    inviteCode?: string;
+  } | null;
   const seatReservation = !isReconnecting
-    ? (location.state as { reservation?: SeatReservationData } | null)?.reservation
+    ? routeState?.reservation
     : undefined;
+  const inviteCode = routeState?.inviteCode;
 
   const {
     connect,
@@ -135,8 +139,9 @@ export function GamePage() {
     sendPassDeclaration,
     sendPassContra,
     sendCallContra,
-    sendContinueTrick,
     commandErrorVersion,
+    roomPlayers,
+    leaveRoom,
   } = useGameRoom(matchId, mode, seatReservation);
 
   function returnToLobby() {
@@ -144,6 +149,30 @@ export function GamePage() {
     setActiveGameRoomId(null);
     reset();
     navigate('/');
+  }
+
+  async function leaveWaitingRoom() {
+    if (leavingWaitingRoom) return;
+    setLeavingWaitingRoom(true);
+    leaveRoom();
+
+    if (user?.accessToken) {
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), 1500);
+      try {
+        await fetch('/api/matches/queue/leave', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${user.accessToken}` },
+          signal: controller.signal,
+        });
+      } catch {
+        // The room is already being left. Queue cleanup is best-effort if offline.
+      } finally {
+        window.clearTimeout(timeoutId);
+      }
+    }
+
+    returnToLobby();
   }
 
   function requestReturnToLobby() {
@@ -247,12 +276,79 @@ export function GamePage() {
   // Loading state
   // ---------------------------------------------------------------------------
   if ((!connected && !gameResult) || !gameState) {
+    const connectedPlayerCount = roomPlayers.filter((player) => player.connected).length;
+    const loadingTitle = connectedPlayerCount >= 4
+      ? t('game.startingGame')
+      : connected
+        ? t('game.waitingForPlayers')
+        : t('game.connecting');
+    const loadingDescription = !connected
+      ? inviteCode
+        ? t('game.connectingToCode', { code: inviteCode })
+        : t('game.connecting')
+      : connectedPlayerCount >= 4
+        ? t('game.allPlayersConnected')
+        : inviteCode
+          ? t('game.waitingForCodePlayers', { code: inviteCode })
+          : t('game.waitingForMatch');
+
     return (
       <div className="page game-screen game-loading">
-        <div className="game-loading-indicator" aria-hidden="true" />
-        <p className="game-loading-copy">
-          {connected ? t('game.waitingForPlayers') : t('game.connecting')}
-        </p>
+        <section className="game-loading-panel" role="status" aria-live="polite">
+          <div className="game-loading-header">
+            <div className="game-loading-indicator" aria-hidden="true" />
+            <div className="game-loading-message">
+              <h1 className="game-loading-title">{loadingTitle}</h1>
+              <p className="game-loading-copy">{loadingDescription}</p>
+            </div>
+          </div>
+
+          {connected && (
+            <section className="game-lobby-roster" aria-label={t('game.playersInRoom')}>
+              <div className="game-lobby-roster-heading">
+                <h2>{t('game.playersInRoom')}</h2>
+                <span>{t('game.playersConnected', { count: connectedPlayerCount })}</span>
+              </div>
+              <ul className="game-lobby-player-list">
+                {([0, 1, 2, 3] as const).map((seat) => {
+                  const player = roomPlayers.find((candidate) => candidate.seat === seat);
+                  const stateClass = !player
+                    ? 'is-open'
+                    : player.connected
+                      ? 'is-connected'
+                      : 'is-disconnected';
+
+                  return (
+                    <li className={`game-lobby-player-slot ${stateClass}`} key={seat}>
+                      <span className="game-lobby-player-mark" aria-hidden="true" />
+                      <div className="game-lobby-player-copy">
+                        <strong>{player?.username ?? t('game.waitingSeat', { seat: seat + 1 })}</strong>
+                        <span>
+                          {player
+                            ? player.connected
+                              ? t('game.online')
+                              : t('game.offline')
+                            : t('game.waitingForPlayer')}
+                        </span>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          )}
+
+          {!isReconnecting && (
+            <button
+              type="button"
+              className="btn-outline game-loading-back"
+              disabled={leavingWaitingRoom}
+              onClick={() => void leaveWaitingRoom()}
+            >
+              {leavingWaitingRoom ? t('common.loading') : t('game.backToLobby')}
+            </button>
+          )}
+        </section>
       </div>
     );
   }
@@ -382,19 +478,6 @@ export function GamePage() {
           </div>
         )}
 
-        {/* Keep the continue countdown anchored to the table instead of adding a row below it. */}
-        {gameState.trickPauseLeader != null && (
-          <div className="game-trick-pause-overlay">
-            <ContinueTrickButton
-              isLeader={gameState.trickPauseLeader === mySeat}
-              pauseRemainingMs={pauseRemainingMs ?? TRICK_PAUSE_DURATION_MS}
-              pauseDuration={TRICK_PAUSE_DURATION_MS}
-              minimumWaitMs={TRICK_MIN_PAUSE_MS + 200}
-              onContinue={sendContinueTrick}
-              leaderName={gameState.playerNames[gameState.trickPauseLeader] ?? '?'}
-            />
-          </div>
-        )}
       </div>
 
       {/* Hand */}

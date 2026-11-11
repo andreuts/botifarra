@@ -165,6 +165,15 @@
     "leavePracticeCancel": "Seguir jugando",
     "waitingForPlayers": "Esperando jugadores…",
     "connecting": "Conectando a la partida…",
+    "startingGame": "Iniciando la partida…",
+    "waitingForMatch": "Partida encontrada. Esperando a que se conecten los demás jugadores.",
+    "connectingToCode": "Entrando en la sala {{code}}…",
+    "waitingForCodePlayers": "Código de sala {{code}} · esperando a que se unan más jugadores.",
+    "allPlayersConnected": "Los cuatro jugadores están conectados.",
+    "playersInRoom": "Jugadores de la sala",
+    "playersConnected": "{{count}} de 4 conectados",
+    "waitingSeat": "Asiento {{seat}}",
+    "waitingForPlayer": "Esperando a que se una un jugador",
     "connectionError": "Error de conexión",
     "connectionLost": "Se perdió la conexión con la partida. Vuelve a la sala.",
     "retryConnection": "Reintentar conexión",
@@ -172,7 +181,6 @@
     "currentTurn": "Turno actual",
     "contraDecision": "Decisión de contra",
     "playerContraDecision": "{{name}} está en el equipo que decide el contra",
-    "playerContinueTrick": "{{name}} debe continuar la baza",
     "tableStatus": "Estado de la mesa",
     "waitingFor": "Esperando a {{name}}…",
     "waiting": "Esperando…",
@@ -226,11 +234,6 @@
     "closeAria": "Cerrar",
     "clickToClose": "Haz clic en cualquier lugar para cerrar",
     "wonBy": "Ganada por {{name}}"
-  },
-  "trickPause": {
-    "continue": "Continuar",
-    "reviewCards": "Revisa las cartas jugadas",
-    "waitingFor": "Esperando a {{name}}"
   },
   "trick": {
     "currentTrick": "Baza actual",

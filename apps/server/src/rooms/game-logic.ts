@@ -181,6 +181,7 @@ export function handlePassDeclaration(
   if (seat === null) throw new Error('Session not in room');
   const round = state.round;
   if (!round) throw new Error('No active round');
+  if (seat !== round.dealerSeat) throw new Error('Only the dealer can pass declaration');
   const newRound = passDeclaration(round);
   const events: ServerEvent[] = [
     { type: 'game_state', state: buildPlayerState(state, newRound, seat) },

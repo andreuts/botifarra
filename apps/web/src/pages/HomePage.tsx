@@ -138,8 +138,8 @@ export function HomePage() {
     setRoomError('');
     setRoomLoading(true);
     try {
-      const { roomId } = await api.rooms.join(code.trim().toUpperCase(), token);
-      navigate(`/match/${roomId}?mode=botifarra`);
+      const { roomId, inviteCode: joinedCode } = await api.rooms.join(code.trim().toUpperCase(), token);
+      navigate(`/match/${roomId}?mode=botifarra`, { state: { inviteCode: joinedCode } });
     } catch (err) {
       setRoomError(err instanceof Error ? err.message : t('home.privateRoomJoinFailed'));
     } finally {

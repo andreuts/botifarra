@@ -3514,13 +3514,6 @@ body::before {
   backdrop-filter: blur(8px);
 }
 
-.game-trick-pause-overlay {
-  position: absolute;
-  z-index: 6;
-  top: 0.65rem;
-  right: 0.65rem;
-}
-
 .game-hand-panel {
   margin-top: auto;
   padding: 1rem;
@@ -3776,11 +3769,6 @@ body::before {
 
   .game-decision-overlay {
     width: calc(100% - 1rem);
-  }
-
-  .game-trick-pause-overlay {
-    top: 0.35rem;
-    right: 0.35rem;
   }
 
   .game-hand-panel {
@@ -4495,23 +4483,171 @@ body::before {
 }
 
 .game-loading {
-  gap: 0.8rem;
+  gap: 0;
+  padding: 1.5rem;
   color: #e8dfc9;
 }
 
+.game-loading-panel {
+  box-sizing: border-box;
+  width: min(100%, 520px);
+  padding: 1.25rem;
+  border: 1px solid rgba(212, 168, 68, 0.32);
+  border-radius: 15px;
+  background: linear-gradient(145deg, rgba(31, 58, 35, 0.98), rgba(16, 32, 21, 0.98));
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.3), inset 0 1px rgba(255, 255, 255, 0.05);
+}
+
+.game-loading-header {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+}
+
 .game-loading-indicator {
-  width: 42px;
-  height: 42px;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
   border: 3px solid rgba(230, 210, 165, 0.35);
   border-top-color: #d4a844;
   border-radius: 50%;
   animation: game-spin 0.8s linear infinite;
 }
 
-.game-loading-copy {
-  color: #e5dbc1;
+.game-loading-message {
+  min-width: 0;
+}
+
+.game-loading-title {
+  margin: 0;
+  color: #f4ead7;
   font-family: 'Fraunces', Georgia, serif;
-  font-size: 1.05rem;
+  font-size: 1.2rem;
+  line-height: 1.2;
+}
+
+.game-loading-copy {
+  margin: 0.3rem 0 0;
+  color: #e5dbc1;
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.game-loading-back {
+  width: auto;
+  min-height: 40px;
+  margin-top: 1rem;
+  padding: 0.4rem 0.9rem;
+}
+
+.game-lobby-roster {
+  margin-top: 1.15rem;
+  padding-top: 0.95rem;
+  border-top: 1px solid rgba(230, 210, 165, 0.18);
+}
+
+.game-lobby-roster-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.6rem;
+}
+
+.game-lobby-roster-heading h2 {
+  margin: 0;
+  color: #f0d48e;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.game-lobby-roster-heading > span {
+  color: #e5dbc1;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.game-lobby-player-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.game-lobby-player-slot {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid rgba(230, 210, 165, 0.14);
+  border-radius: 9px;
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.game-lobby-player-slot.is-connected {
+  border-color: rgba(127, 172, 111, 0.34);
+  background: rgba(90, 130, 76, 0.14);
+}
+
+.game-lobby-player-slot.is-disconnected {
+  border-color: rgba(201, 146, 102, 0.32);
+}
+
+.game-lobby-player-mark {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #8d9885;
+}
+
+.game-lobby-player-slot.is-connected .game-lobby-player-mark {
+  background: #91bf7f;
+  box-shadow: 0 0 0 3px rgba(145, 191, 127, 0.12);
+}
+
+.game-lobby-player-slot.is-disconnected .game-lobby-player-mark {
+  background: #d3a078;
+}
+
+.game-lobby-player-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+  min-width: 0;
+}
+
+.game-lobby-player-copy strong {
+  overflow: hidden;
+  color: #f2e8d4;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.game-lobby-player-copy span {
+  color: #aeb6a8;
+  font-size: 0.69rem;
+}
+
+@media (max-width: 480px) {
+  .game-loading {
+    padding: 1rem;
+  }
+
+  .game-loading-panel {
+    padding: 1rem;
+  }
+
+  .game-lobby-player-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 @keyframes game-spin {
@@ -4606,6 +4742,25 @@ body::before {
 
 .game-contra-badge--3 {
   background: #6c4b76;
+}
+
+.game-status-trump-value {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.game-status-contra-badge {
+  flex: 0 0 auto;
+  margin-top: 0;
+  padding: 0.06rem 0.34rem;
+  font-size: 0.52rem;
+  line-height: 1.2;
+}
+
+.game-status-contra-compact {
+  display: none;
 }
 
 .game-status-strip {
@@ -5098,6 +5253,24 @@ body::before {
 
   .trick-trump-display {
     width: 82px;
+  }
+}
+
+@media (max-width: 480px) {
+  .game-status-trump-value {
+    gap: 0.22rem;
+  }
+
+  .game-status-contra-badge {
+    padding: 0.06rem 0.24rem;
+  }
+
+  .game-status-contra-full {
+    display: none;
+  }
+
+  .game-status-contra-compact {
+    display: inline;
   }
 }
 

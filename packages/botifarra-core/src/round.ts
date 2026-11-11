@@ -8,7 +8,7 @@ import type {
   TrickCard,
   TrumpDeclaration,
 } from './types.js';
-import { partnerSeat, seatTeam } from './types.js';
+import { isTrumpDeclaration, partnerSeat, seatTeam } from './types.js';
 import { legalMoves } from './legal-moves.js';
 import { resolveTrick } from './trick.js';
 
@@ -107,6 +107,9 @@ export function passDeclaration(round: RoundState): RoundState {
 export function declareTrump(round: RoundState, declaration: TrumpDeclaration): RoundState {
   if (round.trump !== null) {
     throw new Error(`Trump already declared: ${round.trump}`);
+  }
+  if (!isTrumpDeclaration(declaration)) {
+    throw new Error(`Invalid trump declaration: ${String(declaration)}`);
   }
 
   return { ...round, trump: declaration };

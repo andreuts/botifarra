@@ -9,6 +9,7 @@ import {
   reassignSessionToSeat,
   startRound,
   handleDeclareTrump,
+  handlePassDeclaration,
   handlePlayCard,
 } from './game-logic.js';
 import { getRoundPhase, currentPlayerSeat, legalMoves } from '@botifarra/core';
@@ -188,6 +189,39 @@ describe('handleDeclareTrump', () => {
     const declarantSeat = s.round!.declarantSeat;
     const wrongSeat = ((declarantSeat + 1) % 4) as Seat;
     expect(() => handleDeclareTrump(s, sessions[wrongSeat]!, 'oros')).toThrow();
+  });
+
+  it('rejects a runtime trump value outside the supported declarations', () => {
+    const { state, sessions } = filledRoom();
+    const started = startRound(state);
+    const declarantSession = sessions[started.round!.declarantSeat]!;
+
+    expect(() => handleDeclareTrump(started, declarantSession, 'invalid-suit' as any)).toThrow(
+      'Invalid trump declaration',
+    );
+  });
+});
+
+describe('handlePassDeclaration', () => {
+  it('rejects a non-dealer trying to delegate the declaration', () => {
+    const { state, sessions } = filledRoom();
+    const started = startRound(state);
+    const dealerSeat = started.round!.dealerSeat;
+    const nonDealerSeat = ((dealerSeat + 1) % 4) as Seat;
+
+    expect(() => handlePassDeclaration(started, sessions[nonDealerSeat]!)).toThrow(
+      'Only the dealer can pass declaration',
+    );
+  });
+
+  it('allows the dealer to delegate to their partner once', () => {
+    const { state, sessions } = filledRoom();
+    const started = startRound(state);
+    const dealerSeat = started.round!.dealerSeat;
+    const { state: delegated } = handlePassDeclaration(started, sessions[dealerSeat]!);
+
+    expect(delegated.round?.dealerPassed).toBe(true);
+    expect(delegated.round?.declarantSeat).toBe((dealerSeat + 2) % 4);
   });
 });
 

@@ -1,6 +1,6 @@
 {
   "name": "@botifarra/web",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Botifarra Online — React PWA",
   "type": "module",
   "scripts": {

@@ -193,11 +193,9 @@ export function TrickArea({
       ? name
       : isActive && contraTeam !== null
         ? t('game.playerContraDecision', { name })
-        : isActive && trickPauseLeader === seat
-          ? t('game.playerContinueTrick', { name })
-          : isActive
-            ? t('trick.waitingToPlay', { name })
-            : name;
+        : isActive
+          ? t('trick.waitingToPlay', { name })
+          : name;
 
     return (
       <div
