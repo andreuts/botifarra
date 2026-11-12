@@ -1,10 +1,12 @@
 import { useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { CompletedTrick, Seat } from '@botifarra/core';
+import type { Card, CompletedTrick, Seat } from '@botifarra/core';
 import type { PlayerGameStateDTO } from '@botifarra/shared';
 import { TRICK_ANIMATION_DURATION_MS } from '@botifarra/shared';
 import { CardComponent, EmptyCardSlot } from './CardComponent.js';
+import { HandComponent } from './HandComponent.js';
 import { getContraDecidingTeam } from '../gamePhase.js';
+import { avatarImageSrc } from '../utils/avatar.js';
 import {
   CARD_TURN_MS,
   DECLARATION_TURN_MS,
@@ -16,6 +18,8 @@ import {
 interface TrickAreaProps {
   gameState: PlayerGameStateDTO;
   mySeat: Seat;
+  onPlayCard: (card: Card) => void;
+  commandErrorVersion?: number;
   /** Live timer state from the store — overrides gameState.timers for real-time updates */
   timers?: PlayerGameStateDTO['timers'];
   /** Keep the most recently completed trick on the table during the synchronized reveal. */
@@ -134,6 +138,8 @@ function TimerBar({
 export function TrickArea({
   gameState,
   mySeat,
+  onPlayCard,
+  commandErrorVersion = 0,
   timers: liveTimers,
   trickReveal = null,
   trickRevealAnimating = false,
@@ -224,6 +230,78 @@ export function TrickArea({
     return visibleTrick.find((tc) => tc.seat === seat) ?? null;
   }
 
+  function renderOpponentHand(seat: Seat, position: string) {
+    if (seat === mySeat) return null;
+    const count = Math.max(0, Math.min(gameState.handSizes[seat] ?? 0, 12));
+    if (count === 0) return null;
+
+    const isTopSeat = position === 'top';
+    const isSideSeat = position === 'left' || position === 'right';
+    const cardWidth = isSideSeat ? 17 : 22;
+    const cardHeight = isSideSeat ? 28 : 36;
+    const sideCardAxisWidth = isSideSeat ? cardHeight : cardWidth;
+    const sideCardAxisHeight = isSideSeat ? cardWidth : cardHeight;
+    const step = isSideSeat ? 5.2 : 8.1;
+    const fanStrength = Math.min(1, (count - 1) / 5);
+    const fanCurve = (isSideSeat ? 10 : 14) * fanStrength;
+    const inwardDirection = position === 'left' ? 1 : position === 'right' ? -1 : 0;
+    const fanWidth = isSideSeat
+      ? sideCardAxisWidth + fanCurve
+      : cardWidth + (count - 1) * step;
+    const fanHeight = isSideSeat
+      ? sideCardAxisHeight + (count - 1) * step
+      : cardHeight + (isTopSeat ? fanCurve : 0);
+    const maxRotation = isSideSeat ? 5 : 17;
+    const sideCardCenter = position === 'left'
+      ? sideCardAxisWidth / 2
+      : fanWidth - sideCardAxisWidth / 2;
+
+    return (
+      <div
+        className={`opponent-card-fan${isSideSeat ? ' opponent-card-fan--side' : ''}`}
+        style={{ width: fanWidth, height: fanHeight }}
+        aria-hidden="true"
+      >
+        {Array.from({ length: count }, (_, index) => {
+          const offset = index - (count - 1) / 2;
+          const normalizedOffset = count > 1 ? offset / ((count - 1) / 2) : 0;
+          const edgeOffset = fanCurve * normalizedOffset ** 2;
+          const inwardOffset = fanCurve * (1 - normalizedOffset ** 2) * inwardDirection;
+          const rotationDirection = position === 'top' || position === 'right' ? -1 : 1;
+          const rotation = normalizedOffset * maxRotation * fanStrength;
+          const sideFacingRotation = position === 'left' ? 90 : position === 'right' ? -90 : 0;
+          const transformOrigin = isTopSeat
+            ? '50% 0%'
+            : position === 'left'
+              ? '0% 50%'
+              : '100% 50%';
+
+          return (
+            <img
+              key={index}
+              className="opponent-hand-card"
+              src="/cards/reverso.png"
+              alt=""
+              draggable={false}
+              style={{
+                left: isSideSeat
+                  ? `${sideCardCenter + inwardOffset}px`
+                  : `calc(50% + ${offset * step}px)`,
+                top: isSideSeat ? `calc(50% + ${offset * step}px)` : undefined,
+                bottom: isTopSeat ? edgeOffset : undefined,
+                width: cardWidth,
+                height: cardHeight,
+                zIndex: Math.round((1 - Math.abs(normalizedOffset)) * 100) + 1,
+                transform: `${isSideSeat ? 'translate(-50%, -50%)' : 'translateX(-50%)'} rotate(${sideFacingRotation + rotation * rotationDirection}deg)`,
+                transformOrigin: isSideSeat ? '50% 50%' : transformOrigin,
+              }}
+            />
+          );
+        })}
+      </div>
+    );
+  }
+
   function renderSlot(seat: Seat, position: string) {
     const card = cardFor(seat);
     const name = seat === mySeat ? t('trick.you') : (playerNames[seat] ?? t('trick.seatFallback', { seat }));
@@ -240,50 +318,48 @@ export function TrickArea({
 
     return (
       <div
-        className={`${position} trick-seat`}
+        className={`${position} trick-seat${seat === mySeat ? ' trick-seat--current' : ''}`}
         style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}
         aria-label={seatDescription}
       >
-        <div className="trick-seat-roles">
-          {isDeclarant && (
-            <span
-              className="trick-seat-declarant-icon"
-              role="img"
-              aria-label={t('trick.declarant')}
-              title={t('trick.declarant')}
-            >
-              <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
-                <path d="M2.8 8.1h3.3l6.2-3v9.8l-6.2-3H2.8z" />
-                <path d="m6.2 12 1.2 4.2h2.1L8.4 13" />
-                <path d="M14.2 7.4c1.3 1 1.3 4.2 0 5.2M16.3 5.3c2.4 1.8 2.4 7.6 0 9.4" />
-              </svg>
-            </span>
-          )}
-        </div>
-        <span className={`seat-badge ${teamClass}${isActive ? ' active' : ''}`}>
-          <img className="seat-avatar" src="/player-placeholder.svg" alt="" draggable={false} />
-          {/* Active indicator dot — always mounted, opacity toggled to avoid layout shift */}
-          <span
-            className="seat-active-mark"
-            aria-hidden="true"
-            style={{
-              width: 6,
-              height: 6,
-              borderRadius: '50%',
-              background: 'var(--color-success)',
-              display: 'inline-block',
-              animation: isActive ? 'pulse 1s infinite' : 'none',
-              opacity: isActive ? 1 : 0,
-              marginRight: 0,
-              transition: 'opacity 0.2s, margin-right 0.2s',
-            }}
-          />
+        <div className="trick-seat-roles" />
+        {seat === mySeat ? (
+          <div className="current-player-hand">
+            <HandComponent
+              gameState={gameState}
+              onPlayCard={onPlayCard}
+              commandErrorVersion={commandErrorVersion}
+            />
+          </div>
+        ) : renderOpponentHand(seat, position)}
+        <div className="seat-identity">
+          <span className={`seat-badge ${teamClass}${isActive ? ' active' : ''}`}>
+            <img
+              className="seat-avatar"
+              src={avatarImageSrc(gameState.playerAvatarIds?.[seat] ?? null)}
+              alt=""
+              draggable={false}
+            />
+            {isDeclarant && (
+              <span
+                className="trick-seat-declarant-icon"
+                role="img"
+                aria-label={t('trick.declarant')}
+                title={t('trick.declarant')}
+              >
+                <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+                  <path d="M2.8 8.1h3.3l6.2-3v9.8l-6.2-3H2.8z" />
+                  <path d="m6.2 12 1.2 4.2h2.1L8.4 13" />
+                  <path d="M14.2 7.4c1.3 1 1.3 4.2 0 5.2M16.3 5.3c2.4 1.8 2.4 7.6 0 9.4" />
+                </svg>
+              </span>
+            )}
+          </span>
           <span className="seat-name">{name}</span>
-        </span>
+        </div>
       </div>
     );
   }
-
   function renderPlayedCard(seat: Seat, position: string) {
     const card = cardFor(seat);
     const trickCard = trickCardFor(seat);
@@ -309,13 +385,19 @@ export function TrickArea({
               style={{
                 transition: `transform ${TRICK_ANIMATION_DURATION_MS}ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity ${TRICK_ANIMATION_DURATION_MS}ms ease`,
                 transform: isMovingTrickCard && offset
-                  ? `translate3d(${offset.x}px, ${offset.y}px, 0) scale(0.24)`
+                  ? `translate3d(${offset.x}px, ${offset.y}px, 0) scale(0.2)`
                   : undefined,
               }}
             >
-              <CardComponent card={card} small={compactTable} tiny={tinyLandscape} magnifyOnHover />
+              <CardComponent
+                card={card}
+                small={compactTable}
+                tiny={tinyLandscape}
+                sizeScale={1.2}
+                magnifyOnHover
+              />
             </div>
-          ) : <EmptyCardSlot label="" small={compactTable} tiny={tinyLandscape} />}
+          ) : <EmptyCardSlot label="" small={compactTable} tiny={tinyLandscape} sizeScale={1.2} />}
           <TimerBar seat={seat} timers={timers} maxTimeMs={maxTimerMs} compact={compactTable} tiny={tinyLandscape} />
         </div>
       </div>

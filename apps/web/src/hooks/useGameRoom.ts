@@ -198,6 +198,10 @@ export function useGameRoom(
           }
         });
 
+        // The game_state message carries the authoritative played-card table state.
+        // Register this supplemental event because Colyseus warns on unhandled messages.
+        room.onMessage('card_played', () => undefined);
+
         room.onMessage('timer_update', (msg: {
           timers: { seat: 0|1|2|3; baseTurnMs: number }[];
           serverTime?: number;

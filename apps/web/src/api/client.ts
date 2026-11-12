@@ -6,6 +6,8 @@ import type {
   MeResponse,
   UpdateUserPreferencesRequest,
   UpdateUserPreferencesResponse,
+  UpdateUserAvatarRequest,
+  UpdateUserAvatarResponse,
   UpdateUserTownRequest,
   UpdateUserTownResponse,
   RecentGameDTO,
@@ -107,6 +109,11 @@ export const api = {
 
   users: {
     myStats: (token: string) => request<PlayerStatsDTO>('/users/me/stats', {}, token),
+    updateAvatar: (data: UpdateUserAvatarRequest, token: string) =>
+      request<UpdateUserAvatarResponse>('/users/me/avatar', {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }, token),
     updateTown: (data: UpdateUserTownRequest, token: string) =>
       request<UpdateUserTownResponse>('/users/me/town', {
         method: 'PATCH',

@@ -1,4 +1,5 @@
 import type { Card, CompletedTrick, RoundScore, Seat, TrumpDeclaration } from '@botifarra/core';
+import type { GameAvatarId } from './avatars.js';
 
 // ---------------------------------------------------------------------------
 // Match / Lobby DTOs
@@ -44,6 +45,8 @@ export interface PlayerGameStateDTO {
   mySeat: Seat;
   /** Player usernames indexed by seat */
   playerNames: Record<Seat, string>;
+  /** Selected avatar IDs indexed by seat; null uses the default avatar. */
+  playerAvatarIds: Record<Seat, GameAvatarId | null>;
   /** Number of cards held by each seat (not the actual cards) */
   handSizes: Record<Seat, number>;
   currentTrick: Array<{ seat: Seat; card: Card }>;
@@ -149,6 +152,8 @@ export interface ObserverGameStateDTO {
   trump: TrumpDeclaration | null;
   /** Player usernames indexed by seat */
   playerNames: Record<Seat, string>;
+  /** Selected avatar IDs indexed by seat; null uses the default avatar. */
+  playerAvatarIds: Record<Seat, GameAvatarId | null>;
   /** Number of cards held by each seat */
   handSizes: Record<Seat, number>;
   currentTrick: Array<{ seat: Seat; card: Card }>;

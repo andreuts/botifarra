@@ -15,7 +15,7 @@
     "townHint": "Escribe al menos dos letras y selecciona una población de la lista.",
     "townNoResults": "No se han encontrado poblaciones.",
     "townSelectionRequired": "Selecciona una población de la lista.",
-    "usernameHint": "Al menos 3 caracteres.",
+    "usernameHint": "Entre 3 y 20 caracteres.",
     "passwordHint": "Al menos 6 caracteres.",
     "username": "Usuario",
     "password": "Contraseña",
