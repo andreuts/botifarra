@@ -1,11 +1,13 @@
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
-import { getTownLabel, isKnownTownId } from '@botifarra/shared';
+import { getTownLabel, isGameAvatarId, isKnownTownId } from '@botifarra/shared';
 import type {
   HandSortDirection,
   MeResponse,
   PlayerStatsDTO,
   UpdateUserPreferencesRequest,
   UpdateUserPreferencesResponse,
+  UpdateUserAvatarRequest,
+  UpdateUserAvatarResponse,
   UpdateUserTownRequest,
   UpdateUserTownResponse,
   UserProfileDTO,
@@ -29,6 +31,7 @@ export const userRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
       username: user.username,
       createdAt: user.createdAt.toISOString(),
       handSortDirection: user.handSortDirection as HandSortDirection,
+      avatarId: isGameAvatarId(user.avatarId) ? user.avatarId : null,
       townId: user.townId,
       townLabel: getTownLabel(user.townId),
     };
@@ -55,6 +58,30 @@ export const userRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
 
       const response: UpdateUserPreferencesResponse = {
         handSortDirection: user.handSortDirection as HandSortDirection,
+      };
+      return reply.send(response);
+    },
+  );
+
+  // PATCH /api/users/me/avatar — update the authenticated player's avatar
+  app.patch<{ Body: UpdateUserAvatarRequest }>(
+    '/me/avatar',
+    { onRequest: [(app as any).authenticate] },
+    async (request, reply) => {
+      const avatarId = request.body?.avatarId;
+      if (avatarId !== null && !isGameAvatarId(avatarId)) {
+        return reply.status(400).send({ error: 'Invalid avatar selection' });
+      }
+
+      const { sub: userId } = (request as any).user as { sub: string };
+      const user = await app.prisma.user.update({
+        where: { id: userId },
+        data: { avatarId },
+        select: { avatarId: true },
+      });
+
+      const response: UpdateUserAvatarResponse = {
+        avatarId: isGameAvatarId(user.avatarId) ? user.avatarId : null,
       };
       return reply.send(response);
     },

@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { useNavigate, Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { TOWN_CATALOG, type TownOption } from '@botifarra/shared';
+import { TOWN_CATALOG, USERNAME_MAX_LENGTH, USERNAME_MIN_LENGTH, type TownOption } from '@botifarra/shared';
 import { api } from '../api/client.js';
 import { AuthLayout } from '../components/AuthLayout.js';
 
@@ -158,7 +158,8 @@ export function RegisterPage() {
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             required
-            minLength={3}
+            minLength={USERNAME_MIN_LENGTH}
+            maxLength={USERNAME_MAX_LENGTH}
             aria-describedby="auth-username-hint"
           />
           <p id="auth-username-hint" className="auth-field-hint">{t('auth.usernameHint')}</p>

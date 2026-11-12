@@ -13,6 +13,7 @@ export const mockGameState: PlayerGameStateDTO = {
   ],
   mySeat: 0,
   playerNames: { 0: 'Alice', 1: 'Bob', 2: 'Carol', 3: 'Dave' },
+  playerAvatarIds: { 0: null, 1: null, 2: null, 3: null },
   handSizes: { 0: 3, 1: 3, 2: 3, 3: 3 },
   currentTrick: [],
   completedTricks: [],

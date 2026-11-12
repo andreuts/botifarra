@@ -184,7 +184,9 @@ export function BugReportWidget({ appVersion }: BugReportWidgetProps) {
                 aria-label={t('bugReport.close')}
                 onClick={handleClose}
               >
-                ×
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <path d="m6 6 12 12M18 6 6 18" />
+                </svg>
               </button>
             </header>
 

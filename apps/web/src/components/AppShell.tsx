@@ -3,11 +3,14 @@ import { Link, useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
 import { api } from '../api/client.js';
-import type { HandSortDirection } from '@botifarra/shared';
+import { GAME_AVATAR_IDS } from '@botifarra/shared';
+import type { GameAvatarId, HandSortDirection } from '@botifarra/shared';
 import { useAuthStore } from '../store/authStore.js';
 import { BugReportWidget } from './BugReportWidget.js';
 import { SettingsPanel } from './SettingsPanel.js';
+import { SettingsOpenContext } from './SettingsOpenContext.js';
 import { TownPickerDialog } from './TownPickerDialog.js';
+import { avatarImageSrc } from '../utils/avatar.js';
 
 declare const __APP_VERSION__: string;
 
@@ -29,6 +32,8 @@ export function AppShell({ children }: AppShellProps) {
   const [statsError, setStatsError] = useState(false);
   const [handSortSaving, setHandSortSaving] = useState(false);
   const [handSortSaveError, setHandSortSaveError] = useState(false);
+  const [avatarSaving, setAvatarSaving] = useState(false);
+  const [avatarSaveError, setAvatarSaveError] = useState(false);
   const [townDialogOpen, setTownDialogOpen] = useState(false);
   const [townSaving, setTownSaving] = useState(false);
   const [townSaveError, setTownSaveError] = useState(false);
@@ -156,6 +161,25 @@ export function AppShell({ children }: AppShellProps) {
     }
   }
 
+  async function saveAvatar(avatarId: GameAvatarId | null) {
+    if (!accessToken || !profile || avatarSaving || profile.avatarId === avatarId) return;
+
+    const previousAvatarId = profile.avatarId;
+    setAvatarSaving(true);
+    setAvatarSaveError(false);
+    setProfile((current) => current ? { ...current, avatarId } : current);
+
+    try {
+      const response = await api.users.updateAvatar({ avatarId }, accessToken);
+      setProfile((current) => current ? { ...current, avatarId: response.avatarId } : current);
+    } catch {
+      setProfile((current) => current ? { ...current, avatarId: previousAvatarId } : current);
+      setAvatarSaveError(true);
+    } finally {
+      setAvatarSaving(false);
+    }
+  }
+
   if (!user) {
     return (
       <>
@@ -170,9 +194,10 @@ export function AppShell({ children }: AppShellProps) {
       {!isGamePage && (
         <nav className="app-nav" aria-label={t('nav.home')}>
           <div className="app-nav-inner">
-            <Link to="/" className="app-nav-brand">
+            <Link to="/" className="app-nav-brand" aria-label={t('app.title')}>
               <span className="app-nav-mark" aria-hidden="true">B</span>
-              {t('app.title')}
+              <span className="app-nav-brand-full">{t('app.title')}</span>
+              <span className="app-nav-brand-compact">Botifarra</span>
             </Link>
             <div className="app-nav-links">
               <Link to="/rules" className={location.pathname === '/rules' ? 'active' : ''}>
@@ -202,10 +227,7 @@ export function AppShell({ children }: AppShellProps) {
                   aria-controls="app-nav-player-profile"
                   onClick={() => setProfileOpen((open) => !open)}
                 >
-                  <svg className="app-nav-profile-icon" viewBox="0 0 24 24" aria-hidden="true">
-                    <circle cx="12" cy="8" r="4" />
-                    <path d="M4.5 21a7.5 7.5 0 0 1 15 0" />
-                  </svg>
+                  <img className="app-nav-profile-avatar" src={avatarImageSrc(profile?.avatarId)} alt="" />
                   <span className="app-nav-username">{user.username}</span>
                   <svg className="app-nav-profile-chevron" viewBox="0 0 12 12" aria-hidden="true">
                     <path d="m3 4.5 3 3 3-3" />
@@ -269,6 +291,44 @@ export function AppShell({ children }: AppShellProps) {
                         </dl>
                       </>
                     )}
+                    {!profileLoading && profile && !profileError && (
+                      <div className="app-nav-profile-avatar-picker">
+                        <div className="app-nav-profile-avatar-heading">
+                          <span id="app-nav-avatar-picker-label">{t('avatars.choose')}</span>
+                          <button
+                            className={`app-nav-profile-avatar-option app-nav-profile-avatar-default${profile.avatarId === null ? ' selected' : ''}`}
+                            type="button"
+                            aria-label={t('avatars.default')}
+                            aria-pressed={profile.avatarId === null}
+                            disabled={avatarSaving}
+                            onClick={() => void saveAvatar(null)}
+                          >
+                            <img src={avatarImageSrc(null)} alt="" draggable={false} />
+                            <span>{t('avatars.default')}</span>
+                          </button>
+                        </div>
+                        <div className="app-nav-profile-avatar-grid" role="group" aria-labelledby="app-nav-avatar-picker-label">
+                          {GAME_AVATAR_IDS.map((avatarId) => (
+                            <button
+                              className={`app-nav-profile-avatar-option${profile.avatarId === avatarId ? ' selected' : ''}`}
+                              key={avatarId}
+                              type="button"
+                              aria-label={t(`avatars.${avatarId}`)}
+                              aria-pressed={profile.avatarId === avatarId}
+                              title={t(`avatars.${avatarId}`)}
+                              disabled={avatarSaving}
+                              onClick={() => void saveAvatar(avatarId)}
+                            >
+                              <img src={avatarImageSrc(avatarId)} alt="" draggable={false} />
+                              <span>{t(`avatars.${avatarId}`)}</span>
+                            </button>
+                          ))}
+                        </div>
+                        {avatarSaveError && (
+                          <p className="app-nav-profile-message app-nav-profile-error">{t('avatars.saveError')}</p>
+                        )}
+                      </div>
+                    )}
                     <div className="app-nav-profile-preference">
                       <label htmlFor="app-nav-hand-sort-direction">
                         {t('playerProfile.handSort')}
@@ -290,12 +350,12 @@ export function AppShell({ children }: AppShellProps) {
                         </p>
                       )}
                     </div>
+                    <button className="btn-outline app-nav-signout app-nav-profile-signout" type="button" onClick={logout}>
+                      {t('auth.signOut')}
+                    </button>
                   </section>
                 )}
               </div>
-              <button className="btn-outline app-nav-signout" onClick={logout}>
-                {t('auth.signOut')}
-              </button>
             </div>
             <button
               className="settings-gear"
@@ -309,18 +369,9 @@ export function AppShell({ children }: AppShellProps) {
         </nav>
       )}
 
-      {isGamePage && (
-        <button
-          className="settings-gear settings-gear-game"
-          onClick={() => setSettingsOpen(true)}
-          aria-label={t('settings.heading')}
-          title={t('settings.heading')}
-        >
-          ⚙
-        </button>
-      )}
-
-      {children}
+      <SettingsOpenContext.Provider value={() => setSettingsOpen(true)}>
+        {children}
+      </SettingsOpenContext.Provider>
 
       <SettingsPanel
         open={settingsOpen || showAbout}

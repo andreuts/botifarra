@@ -2,13 +2,17 @@ import { Prisma } from '@prisma/client';
 import type { PrismaClient } from '@prisma/client';
 import type { RoomGameState } from '../rooms/game-logic.js';
 import type { Seat } from '@botifarra/core';
+import type { GameAvatarId } from '@botifarra/shared';
 
 // ---------------------------------------------------------------------------
 // Snapshot serialization — Map<Seat, SeatInfo> is not JSON-serialisable
 // ---------------------------------------------------------------------------
 
 export interface SerializableRoomSnapshot {
-  seats: Array<[number, { userId: string; username: string; sessionId: string; connected: boolean }]>;
+  seats: Array<[
+    number,
+    { userId: string; username: string; sessionId: string; connected: boolean; avatarId?: GameAvatarId | null },
+  ]>;
   game: unknown;
   round: unknown;
   phase: 'lobby' | 'playing' | 'finished';
@@ -58,7 +62,10 @@ export function serializeSnapshot(
 
 export function deserializeSnapshot(raw: SerializableRoomSnapshot): RoomGameState {
   return {
-    seats: new Map(raw.seats as Array<[Seat, { userId: string; username: string; sessionId: string; connected: boolean }]>),
+    seats: new Map(raw.seats as Array<[
+      Seat,
+      { userId: string; username: string; sessionId: string; connected: boolean; avatarId?: GameAvatarId | null },
+    ]>),
     game: raw.game as RoomGameState['game'],
     round: raw.round as RoomGameState['round'],
     phase: raw.phase,

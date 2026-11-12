@@ -17,6 +17,8 @@ import {
   applyRoundScore,
 } from '@botifarra/core';
 import type { ClientCommand, ServerEvent } from '@botifarra/shared';
+import { isGameAvatarId } from '@botifarra/shared';
+import type { GameAvatarId } from '@botifarra/shared';
 
 // ---------------------------------------------------------------------------
 // Seat assignment state
@@ -27,6 +29,7 @@ interface SeatInfo {
   username: string;
   sessionId: string; // Colyseus client sessionId
   connected: boolean;
+  avatarId?: GameAvatarId | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -91,6 +94,19 @@ export function assignSpecificSeat(
     seats: new Map(state.seats).set(seat, { userId, username, sessionId, connected: true }),
   };
   return { state: next, seat };
+}
+
+export function setSeatAvatar(
+  state: RoomGameState,
+  seat: Seat,
+  avatarId: GameAvatarId | null,
+): RoomGameState {
+  const seatInfo = state.seats.get(seat);
+  if (!seatInfo) return state;
+
+  const seats = new Map(state.seats);
+  seats.set(seat, { ...seatInfo, avatarId });
+  return { ...state, seats };
 }
 
 export function isRoomFull(state: RoomGameState): boolean {
@@ -272,8 +288,10 @@ function buildPlayerState(
   };
 
   const playerNames: Record<Seat, string> = { 0: '?', 1: '?', 2: '?', 3: '?' };
+  const playerAvatarIds: Record<Seat, GameAvatarId | null> = { 0: null, 1: null, 2: null, 3: null };
   for (const [seat, info] of roomState.seats) {
     playerNames[seat] = info.username;
+    playerAvatarIds[seat] = isGameAvatarId(info.avatarId) ? info.avatarId : null;
   }
 
   return {
@@ -285,6 +303,7 @@ function buildPlayerState(
     hand: round.hands[forSeat],
     mySeat: forSeat,
     playerNames,
+    playerAvatarIds,
     handSizes,
     currentTrick: round.currentTrick,
     completedTricks: round.completedTricks,

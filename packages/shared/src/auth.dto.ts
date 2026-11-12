@@ -1,3 +1,8 @@
+import type { GameAvatarId } from './avatars.js';
+
+export const USERNAME_MIN_LENGTH = 3;
+export const USERNAME_MAX_LENGTH = 20;
+
 // ---------------------------------------------------------------------------
 // Auth DTOs
 // ---------------------------------------------------------------------------
@@ -34,11 +39,20 @@ export interface UpdateUserPreferencesResponse {
   handSortDirection: HandSortDirection;
 }
 
+export interface UpdateUserAvatarRequest {
+  avatarId: GameAvatarId | null;
+}
+
+export interface UpdateUserAvatarResponse {
+  avatarId: GameAvatarId | null;
+}
+
 export interface MeResponse {
   userId: string;
   username: string;
   createdAt: string;
   handSortDirection: HandSortDirection;
+  avatarId: GameAvatarId | null;
   townId: string | null;
   townLabel: string | null;
 }

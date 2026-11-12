@@ -7,7 +7,7 @@ import { getContraDecidingTeam } from '../gamePhase.js';
 import { useAuthStore } from '../store/authStore.js';
 import { CardComponent } from './CardComponent.js';
 
-const COMPACT_HAND_QUERY = '(max-width: 480px), (orientation: landscape) and (max-height: 620px)';
+const COMPACT_HAND_QUERY = '(max-width: 480px), (orientation: landscape) and (max-height: 620px), (hover: none), (any-pointer: coarse)';
 
 function useIsMobile() {
   return useSyncExternalStore(
@@ -53,11 +53,30 @@ export function HandComponent({ gameState, onPlayCard, commandErrorVersion = 0 }
   const [rejectedCard, setRejectedCard] = useState<{ key: string; version: number } | null>(null);
   const [dealKey, setDealKey] = useState(0);
   const [pendingPlay, setPendingPlay] = useState(false);
+  const [handWidth, setHandWidth] = useState(0);
   const rejectionVersion = useRef(0);
   const rejectionTimeout = useRef<number | null>(null);
   const prevHandLen = useRef(gameState.hand.length);
   const prevCommandErrorVersion = useRef(commandErrorVersion);
   const liveRef = useRef<HTMLDivElement>(null);
+  const handCardsRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const element = handCardsRef.current;
+    if (!element) return;
+
+    const measure = () => setHandWidth(Math.max(0, element.clientWidth - 8));
+    measure();
+
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', measure);
+      return () => window.removeEventListener('resize', measure);
+    }
+
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(
     () => () => {
@@ -132,15 +151,19 @@ export function HandComponent({ gameState, onPlayCard, commandErrorVersion = 0 }
     }
   }
 
-  // Fan parameters — cards fan out when there are many
+  // Keep the full faces readable and calculate only as much overlap as the
+  // current board width needs as the viewport rotates or changes size.
   const count = gameState.hand.length;
-  const maxFan = 10; // max overlap kicks in
-  const overlapRatio = count > maxFan
-    ? typeof window !== 'undefined' && window.innerWidth < 760 ? 0.6 : 0.42
+  const availableWidth = handWidth || (typeof window !== 'undefined' ? window.innerWidth - 32 : 360);
+  const gap = isMobile ? 0 : 5;
+  const smallCardFitWidth = 50 + Math.max(0, count - 1) * 25;
+  const cardW = isMobile && availableWidth < smallCardFitWidth ? 42 : isMobile ? 50 : 60;
+  const maxOverlap = isMobile ? (cardW === 42 ? 0.62 : 0.5) : 0.42;
+  const naturalWidth = count * cardW + Math.max(0, count - 1) * gap;
+  const neededOverlap = count > 1 && naturalWidth > availableWidth
+    ? (naturalWidth - availableWidth) / ((count - 1) * cardW)
     : 0;
-  // Mobile: use small (50px wide) to fit 12 cards; desktop: compact (60px)
-  const cardW = isMobile ? 50 : 60;
-  const gap = overlapRatio > 0 ? 0 : isMobile ? 3 : 6;
+  const overlapRatio = Math.min(maxOverlap, neededOverlap);
 
   const statusText = rejectedCard
     ? t('hand.invalidMove')
@@ -186,20 +209,23 @@ export function HandComponent({ gameState, onPlayCard, commandErrorVersion = 0 }
       <div
         role="group"
         aria-label={t('hand.yourHand')}
+        ref={handCardsRef}
         style={{
           display: 'flex',
           gap,
-          flexWrap: count <= maxFan ? 'nowrap' : 'wrap',
+          flexWrap: 'nowrap',
           alignItems: 'flex-end',
-          justifyContent: 'center',
+          justifyContent: overlapRatio > 0 ? 'flex-start' : 'center',
           padding: '4px 4px 8px',
         }}
       >
         {sortHand(gameState.hand, handSortDirection).map((card, i) => {
           const key = `${card.suit}-${card.rank}`;
           const isSel = selected?.suit === card.suit && selected?.rank === card.rank;
-          // Subtle fan rotation (-2° to +2°)
-          const rotation = count > 3 ? (i / (count - 1) - 0.5) * 4 : 0;
+          const normalizedOffset = count > 1 ? (i / (count - 1)) * 2 - 1 : 0;
+          const fanStrength = Math.min(1, Math.max(0, (count - 1) / 5));
+          const rotation = normalizedOffset * 9 * fanStrength;
+          const fanLift = Math.round(24 * (1 - normalizedOffset ** 2) * fanStrength);
           return (
             <CardComponent
               key={key}
@@ -208,12 +234,13 @@ export function HandComponent({ gameState, onPlayCard, commandErrorVersion = 0 }
               disabled={!isMyTurn || !legalSet.has(key)}
               onClick={() => handleCardClick(card)}
               selected={isSel}
+              tiny={isMobile && cardW === 42}
+              small={isMobile && cardW === 50}
               compact={!isMobile}
-              small={isMobile}
               animate={true}
               dealDelay={i * 55}
               rotation={rotation}
-              magnifyOnHover
+              fanLift={fanLift}
               rejectionAnimationVersion={rejectedCard?.key === key ? rejectedCard.version : 0}
             />
           );

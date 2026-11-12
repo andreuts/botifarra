@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import * as argon2 from 'argon2';
-import { isKnownTownId } from '@botifarra/shared';
+import { isKnownTownId, USERNAME_MAX_LENGTH, USERNAME_MIN_LENGTH } from '@botifarra/shared';
 import type {
   RegisterRequest,
   RegisterResponse,
@@ -13,8 +13,12 @@ export const authRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
   app.post<{ Body: RegisterRequest }>('/register', async (request, reply) => {
     const { username, password, townId } = request.body;
 
-    if (!username || username.length < 3) {
-      return reply.status(400).send({ error: 'Username must be at least 3 characters' });
+    if (
+      typeof username !== 'string' ||
+      username.length < USERNAME_MIN_LENGTH ||
+      username.length > USERNAME_MAX_LENGTH
+    ) {
+      return reply.status(400).send({ error: 'Username must be between 3 and 20 characters' });
     }
     if (!password || password.length < 6) {
       return reply.status(400).send({ error: 'Password must be at least 6 characters' });

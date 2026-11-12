@@ -191,6 +191,7 @@ const ZONE_Y: [number, number] = [0.24, 0.8];
 
 function CardFace({ card, w, h, small }: { card: Card; w: number; h: number; small: boolean }) {
   const color = SUIT_COLOR[card.suit];
+
   const pipZoneW = w * (ZONE_X[1] - ZONE_X[0]);
   const pipZoneH = h * (ZONE_Y[1] - ZONE_Y[0]);
   const pipZoneLeft = w * ZONE_X[0];
@@ -306,12 +307,16 @@ interface CardProps {
   playAnimate?: boolean;
   /** Custom CSS rotation for fan layout */
   rotation?: number;
+  /** Vertical lift used to shape a hand into an arch. */
+  fanLift?: number;
   /** Horizontal overlap from the previous card in a hand fan. */
   overlapBefore?: number;
   /** Show a larger hover preview (used for hand and current-trick cards only). */
   magnifyOnHover?: boolean;
   /** Render this card at the preview size. */
   magnified?: boolean;
+  /** Scale used for cards displayed in the center of the table. */
+  sizeScale?: number;
   /** Increment to play the rejected-move animation. */
   rejectionAnimationVersion?: number;
 }
@@ -330,17 +335,21 @@ export function CardComponent({
   playAnimate = false,
   rotation = 0,
   overlapBefore = 0,
+  fanLift = 0,
   magnifyOnHover = false,
   magnified = false,
+  sizeScale = 1,
   rejectionAnimationVersion = 0,
 }: CardProps) {
   const [imgFailed, setImgFailed] = useState(false);
   const [rejected, setRejected] = useState(false);
   const [hoverPosition, setHoverPosition] = useState<{ left: number; top: number } | null>(null);
+  const [isHovered, setIsHovered] = useState(false);
   const w = magnified ? 130 : tiny ? 42 : small ? 50 : compact ? 60 : 74;
   const h = magnified ? 195 : tiny ? 62 : small ? 74 : compact ? 90 : 110;
   const cornerFs = tiny ? '0.52rem' : small ? '0.6rem' : compact ? '0.7rem' : '0.82rem';
   const cornerPipSize = tiny ? 7 : small ? 9 : compact ? 10 : 12;
+  const isFanHandCard = !!(compact || small || tiny);
   const color = SUIT_COLOR[card.suit];
 
   useEffect(() => {
@@ -361,7 +370,7 @@ export function CardComponent({
   const borderColor = selected ? '#C8860A' : disabled ? 'rgba(200,185,165,0.4)' : '#C8BDA0';
 
   const shadow = selected
-    ? compact
+    ? isFanHandCard
       ? '0 0 0 3px #C8860A, 0 12px 30px rgba(200,134,10,0.5)'
       : '0 0 0 2px #C8860A, 0 8px 22px rgba(0,0,0,0.55)'
     : '2px 4px 10px rgba(0,0,0,0.45)';
@@ -376,7 +385,6 @@ export function CardComponent({
   const ariaLabel = faceDown
     ? 'Face-down card'
     : `${RANK_NAME[card.rank] ?? card.rank} de ${SUIT_LABEL[card.suit]}`;
-
   return (
     <div
       className={`card-face${rejected ? ' card-face--rejected' : ''}`}
@@ -394,7 +402,7 @@ export function CardComponent({
       }}
       style={{
         position: 'relative',
-        zIndex: hoverPosition ? 2 : undefined,
+        zIndex: isHovered || hoverPosition || selected ? 100 : fanLift > 0 ? 50 + fanLift : undefined,
         width: w,
         height: h,
         marginLeft: overlapBefore > 0 ? -overlapBefore : undefined,
@@ -404,13 +412,14 @@ export function CardComponent({
         border: `2px solid ${borderColor}`,
         borderRadius: small || tiny ? 5 : 7,
         cursor: interactable ? 'pointer' : 'default',
-        opacity: disabled ? 0.38 : 1,
+        opacity: disabled ? 0.68 : 1,
         boxShadow: shadow,
         transition: 'transform 0.15s cubic-bezier(.34,1.56,.64,1), box-shadow 0.15s, opacity 0.15s',
-        transform: compact && selected
-          ? `rotate(${rotation}deg) translateY(-20px) scale(1.5)`
-          : `rotate(${rotation}deg) translateY(${selected ? -14 : 0}px)`,
+        transform: isFanHandCard && selected
+          ? `rotate(${rotation}deg) translateY(-${fanLift + 22}px) scale(1.22) scale(${sizeScale})`
+          : `rotate(${rotation}deg) translateY(${selected ? -14 : -fanLift}px) scale(${sizeScale})`,
         userSelect: 'none',
+        touchAction: 'manipulation',
         flexShrink: 0,
         overflow: 'visible',
         ...animStyle,
@@ -425,6 +434,7 @@ export function CardComponent({
         (e.currentTarget as HTMLElement).style.boxShadow = shadow;
       }}
       onMouseEnter={(e) => {
+        setIsHovered(true);
         if (magnifyOnHover && typeof window !== 'undefined') {
           const rect = e.currentTarget.getBoundingClientRect();
           const previewWidth = 130;
@@ -442,16 +452,17 @@ export function CardComponent({
           setHoverPosition({ left, top });
         }
         if (!interactable || disabled) return;
-        (e.currentTarget as HTMLElement).style.transform = compact && selected
-          ? `rotate(${rotation}deg) translateY(-22px) scale(1.5)`
-          : `rotate(${rotation}deg) translateY(${selected ? -14 : -7}px)`;
+        (e.currentTarget as HTMLElement).style.transform = isFanHandCard && selected
+          ? `rotate(${rotation}deg) translateY(-${fanLift + 24}px) scale(1.24)`
+          : `rotate(${rotation}deg) translateY(${selected ? -14 : -(fanLift + 7)}px)`;
       }}
       onMouseLeave={(e) => {
+        setIsHovered(false);
         if (magnifyOnHover) setHoverPosition(null);
         if (!interactable || disabled) return;
-        (e.currentTarget as HTMLElement).style.transform = compact && selected
-          ? `rotate(${rotation}deg) translateY(-20px) scale(1.5)`
-          : `rotate(${rotation}deg) translateY(${selected ? -14 : 0}px)`;
+        (e.currentTarget as HTMLElement).style.transform = isFanHandCard && selected
+          ? `rotate(${rotation}deg) translateY(-${fanLift + 22}px) scale(1.22)`
+          : `rotate(${rotation}deg) translateY(${selected ? -14 : -fanLift}px)`;
       }}
     >
       {faceDown ? (
@@ -568,22 +579,32 @@ export function CardComponent({
 // Empty slot
 // ---------------------------------------------------------------------------
 
-export function EmptyCardSlot({ label, small, tiny }: { label?: string; small?: boolean; tiny?: boolean }) {
-  const w = tiny ? 42 : small ? 50 : 74;
-  const h = tiny ? 62 : small ? 74 : 110;
+export function EmptyCardSlot({
+  label,
+  small,
+  tiny,
+  sizeScale = 1,
+}: {
+  label?: string;
+  small?: boolean;
+  tiny?: boolean;
+  sizeScale?: number;
+}) {
+  const w = (tiny ? 42 : small ? 50 : 74) * sizeScale;
+  const h = (tiny ? 62 : small ? 74 : 110) * sizeScale;
   return (
     <div
       aria-label={label ?? 'Empty card slot'}
       style={{
         width: w,
         height: h,
-        border: '2px dashed rgba(201,168,76,0.2)',
-        borderRadius: small || tiny ? 5 : 7,
+        border: `${2 * sizeScale}px dashed rgba(201,168,76,0.2)`,
+        borderRadius: (small || tiny ? 5 : 7) * sizeScale,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         color: 'rgba(201,168,76,0.2)',
-        fontSize: '0.7rem',
+        fontSize: `${0.7 * sizeScale}rem`,
         flexShrink: 0,
         background: 'rgba(0,0,0,0.15)',
       }}

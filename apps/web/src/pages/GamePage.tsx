@@ -1,17 +1,17 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Link, useParams, useNavigate, useSearchParams, useLocation } from 'react-router';
+import { useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../store/authStore.js';
 import { useGameStore } from '../store/gameStore.js';
 import { useGameRoom } from '../hooks/useGameRoom.js';
 import { useInterpolatedTimers } from '../hooks/useInterpolatedTimers.js';
-import { HandComponent } from '../components/HandComponent.js';
 import { TrickArea } from '../components/TrickArea.js';
 import { Scoreboard } from '../components/Scoreboard.js';
 import { GameStatusPanel } from '../components/GameStatusPanel.js';
 import { DeclareTrumpPanel } from '../components/DeclareTrumpPanel.js';
 import { getContraDecidingTeam } from '../gamePhase.js';
 import { ConfirmDialog } from '../components/ConfirmDialog.js';
+import { SettingsOpenContext } from '../components/SettingsOpenContext.js';
 import { api } from '../api/client.js';
 import type { ActiveGameMode } from '../store/gameStore.js';
 import type { CompletedTrick, Seat } from '@botifarra/core';
@@ -22,6 +22,7 @@ import {
 import type { SeatReservationData } from '../hooks/useMatchmakingQueue.js';
 
 export function GamePage() {
+  const openSettings = useContext(SettingsOpenContext);
   const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
   const [leavingWaitingRoom, setLeavingWaitingRoom] = useState(false);
   const [endingGame, setEndingGame] = useState(false);
@@ -337,6 +338,16 @@ export function GamePage() {
 
     return (
       <div className="page game-screen game-loading">
+        {openSettings && (
+          <button
+            className="settings-gear settings-gear-loading"
+            onClick={openSettings}
+            aria-label={t('settings.heading')}
+            title={t('settings.heading')}
+          >
+            ⚙
+          </button>
+        )}
         <section className="game-loading-panel" role="status" aria-live="polite">
           <div className="game-loading-header">
             <div className="game-loading-indicator" aria-hidden="true" />
@@ -405,6 +416,10 @@ export function GamePage() {
 
   const isDeclaringPhase = gameState.trump === null;
   const isContraPhase = getContraDecidingTeam(gameState) !== null;
+  const gameModeTone = isPracticeMode ? 'practice' : gameState.ranked ? 'ranked' : 'normal';
+  const gameModeLabel = isPracticeMode
+    ? null
+    : t(gameState.ranked ? 'game.ranked' : 'game.normal');
 
   return (
     <div className={`game-room${toasts.length > 0 ? ' has-toast' : ''}`}>
@@ -452,38 +467,33 @@ export function GamePage() {
         </div>
       )}
 
-      {/* Top bar */}
-      <header className="game-room-topbar">
-        <button
-          className="btn-outline"
-          onClick={requestReturnToLobby}
-        >
-          {t('game.backToLobby')}
-        </button>
-        <div className="game-room-status">
-          {isPracticeMode && (
-            <span className="game-mode-badge game-mode-badge--practice">
-              {t(mode === 'practice-duo' ? 'game.practiceWithPartner' : 'game.practice')}
-            </span>
-          )}
-          {mode === 'botifarra' && gameState && (
-            <span className={`game-mode-badge${gameState.ranked ? ' game-mode-badge--ranked' : ''}`}>
-              {gameState.ranked ? t('game.ranked') : t('game.normal')}
-            </span>
-          )}
-          <span className={`game-connection${connected ? ' is-online' : ' is-offline'}`}>
-            <span className="game-connection-dot" aria-hidden="true" />
-            {connected ? t('game.online') : t('game.offline')}
-          </span>
-          <Link to="/rules" target="_blank" rel="noreferrer" className="game-rules-link">
-            {t('nav.rules')}
-          </Link>
-        </div>
-      </header>
-
       <div className="game-board-shell">
+        <header className="game-room-topbar">
+          <button
+            type="button"
+            className="game-room-back"
+            onClick={requestReturnToLobby}
+            aria-label={t('game.backToLobby')}
+            title={t('game.backToLobby')}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M19 12H5M12 19l-7-7 7-7" />
+            </svg>
+          </button>
+        </header>
+        {openSettings && (
+          <button
+            className="settings-gear settings-gear-game"
+            onClick={openSettings}
+            aria-label={t('settings.heading')}
+            title={t('settings.heading')}
+          >
+            ⚙
+          </button>
+        )}
+
         <Scoreboard gameState={gameState} />
-        <GameStatusPanel gameState={gameState} />
+        <GameStatusPanel gameState={gameState} modeLabel={gameModeLabel} modeTone={gameModeTone} />
 
         {/* Keep the table mounted in one stable stage through bidding and card play. */}
         <div className="game-play-stage">
@@ -491,6 +501,8 @@ export function GamePage() {
             <TrickArea
               gameState={gameState}
               mySeat={mySeat}
+              onPlayCard={(card) => sendPlayCard(card)}
+              commandErrorVersion={commandErrorVersion}
               timers={interpolatedTimers?.timers}
               trickReveal={activeTrickReveal}
               trickRevealAnimating={isTrickRevealAnimating}
@@ -516,13 +528,6 @@ export function GamePage() {
           )}
         </div>
 
-        <div className="game-hand-panel">
-          <HandComponent
-            gameState={gameState}
-            onPlayCard={(card) => sendPlayCard(card)}
-            commandErrorVersion={commandErrorVersion}
-          />
-        </div>
       </div>
       {leaveConfirmDialog}
     </div>

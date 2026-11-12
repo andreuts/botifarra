@@ -1,8 +1,9 @@
 import { Room, Client } from 'colyseus';
 import { Schema, type, MapSchema } from '@colyseus/schema';
 
-import type { ClientCommand, ReactionEmoji, PremadeMessageKey } from '@botifarra/shared';
+import type { ClientCommand, GameAvatarId, ReactionEmoji, PremadeMessageKey } from '@botifarra/shared';
 import type { ObserverGameStateDTO } from '@botifarra/shared';
+import { getRandomGameAvatarId, isGameAvatarId } from '@botifarra/shared';
 import {
   createRoomState,
   assignSeat,
@@ -11,6 +12,7 @@ import {
   seatForSession,
   findSeatForUser,
   reassignSessionToSeat,
+  setSeatAvatar,
   startRound,
   handleDeclareTrump,
   handlePlayCard,
@@ -232,6 +234,9 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
         // Re-inject bot seats that were present in the snapshot
         for (const [seat, info] of this.gameState.seats) {
           if (info.userId.startsWith('bot-')) {
+            if (!isGameAvatarId(info.avatarId)) {
+              this.gameState = setSeatAvatar(this.gameState, seat, getRandomGameAvatarId());
+            }
             this.botSeeds.add(info.sessionId);
             const player = new PlayerSchema();
             player.userId = info.userId;
@@ -333,6 +338,20 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
         this.gameState = result.state;
         seat = result.seat;
       }
+
+      let avatarId = this.gameState.seats.get(seat)?.avatarId ?? null;
+      if (_prisma) {
+        try {
+          const profile = await _prisma.user.findUnique({
+            where: { id: userId },
+            select: { avatarId: true },
+          });
+          if (profile) avatarId = isGameAvatarId(profile.avatarId) ? profile.avatarId : null;
+        } catch {
+          // Keep the snapshot value if the profile lookup is temporarily unavailable.
+        }
+      }
+      this.gameState = setSeatAvatar(this.gameState, seat, avatarId);
 
       // Update Colyseus schema
       const player = new PlayerSchema();
@@ -499,7 +518,7 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
   protected injectBotSeat(sessionId: string, username: string) {
     try {
       const { state, seat } = assignSeat(this.gameState, sessionId, sessionId, username);
-      this.gameState = state;
+      this.gameState = setSeatAvatar(state, seat, getRandomGameAvatarId());
       const player = new PlayerSchema();
       player.userId = sessionId;
       player.username = username;
@@ -761,6 +780,14 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
     return names as Record<0 | 1 | 2 | 3, string>;
   }
 
+  private getPlayerAvatarIds(): Record<0 | 1 | 2 | 3, GameAvatarId | null> {
+    const avatarIds: Record<number, GameAvatarId | null> = { 0: null, 1: null, 2: null, 3: null };
+    for (const [seat, info] of this.gameState.seats) {
+      avatarIds[seat] = isGameAvatarId(info.avatarId) ? info.avatarId : null;
+    }
+    return avatarIds as Record<0 | 1 | 2 | 3, GameAvatarId | null>;
+  }
+
   protected sendGameStateTo(client: Client, seat?: 0 | 1 | 2 | 3) {
     const round = this.gameState.round;
     if (!round) return;
@@ -777,6 +804,7 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
       hand: round.hands[playerSeat],
       mySeat: playerSeat,
       playerNames: this.getPlayerNames(),
+      playerAvatarIds: this.getPlayerAvatarIds(),
       handSizes: {
         0: round.hands[0].length,
         1: round.hands[1].length,
@@ -927,6 +955,7 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
       declarantSeat: round.declarantSeat,
       trump: round.trump,
       playerNames: this.getPlayerNames(),
+      playerAvatarIds: this.getPlayerAvatarIds(),
       handSizes: {
         0: round.hands[0].length,
         1: round.hands[1].length,

@@ -24,6 +24,7 @@ model User {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
   handSortDirection String   @default("left-to-right")
+  avatarId          String?
 
   stats        UserStats?
   matchPlayers MatchPlayer[]

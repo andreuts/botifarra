@@ -3,6 +3,8 @@ import type { PlayerGameStateDTO } from '@botifarra/shared';
 
 interface GameStatusPanelProps {
   gameState: PlayerGameStateDTO;
+  modeLabel: string | null;
+  modeTone: 'practice' | 'ranked' | 'normal';
 }
 
 const TRUMP_SUIT_INFO = {
@@ -18,7 +20,7 @@ const CONTRA_KEYS = {
   3: 'game_terms.santVicenc',
 } as const;
 
-export function GameStatusPanel({ gameState }: GameStatusPanelProps) {
+export function GameStatusPanel({ gameState, modeLabel, modeTone }: GameStatusPanelProps) {
   const { t } = useTranslation();
   const trump = gameState.trump;
   const trumpInfo = trump && trump !== 'botifarra' ? TRUMP_SUIT_INFO[trump] : null;
@@ -40,6 +42,11 @@ export function GameStatusPanel({ gameState }: GameStatusPanelProps) {
 
   return (
     <section className="game-status-strip" role="region" aria-label={t('trick.trump')}>
+      {modeLabel && (
+        <span className={`game-mode-badge game-mode-badge--${modeTone} game-mode-indicator`}>
+          {modeLabel}
+        </span>
+      )}
       <div className="game-status-item game-status-item--trump">
         <img
           className="game-status-card"

@@ -15,7 +15,7 @@
     "townHint": "Type at least two letters, then select a place from the list.",
     "townNoResults": "No places found.",
     "townSelectionRequired": "Select a place from the list.",
-    "usernameHint": "At least 3 characters.",
+    "usernameHint": "3–20 characters.",
     "passwordHint": "At least 6 characters.",
     "username": "Username",
     "password": "Password",
@@ -53,6 +53,23 @@
     "leftToRight": "Left to right",
     "rightToLeft": "Right to left",
     "saveError": "Could not save the hand order."
+  },
+  "avatars": {
+    "choose": "Choose your avatar",
+    "default": "Use default",
+    "saveError": "Could not save your avatar.",
+    "porro": "Porró",
+    "vermut": "Vermouth",
+    "cafe": "Coffee",
+    "sifo": "Soda siphon",
+    "olives": "Olives",
+    "braves": "Patatas bravas",
+    "caliquenyo": "Caliquenyo",
+    "pa-amb-tomaquet": "Tomato bread",
+    "anxoves": "Anchovies",
+    "canya": "Small beer",
+    "baralla": "Playing cards",
+    "cacauets": "Peanuts"
   },
   "bugReport": {
     "trigger": "Report a bug",

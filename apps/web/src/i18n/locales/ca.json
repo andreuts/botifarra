@@ -15,7 +15,7 @@
     "townHint": "Escriu almenys dues lletres i selecciona una població de la llista.",
     "townNoResults": "No s’han trobat poblacions.",
     "townSelectionRequired": "Selecciona una població de la llista.",
-    "usernameHint": "Com a mínim 3 caràcters.",
+    "usernameHint": "Entre 3 i 20 caràcters.",
     "passwordHint": "Com a mínim 6 caràcters.",
     "username": "Usuari",
     "password": "Contrasenya",
@@ -53,6 +53,23 @@
     "leftToRight": "D’esquerra a dreta",
     "rightToLeft": "De dreta a esquerra",
     "saveError": "No s’ha pogut desar l’ordre de les cartes."
+  },
+  "avatars": {
+    "choose": "Tria el teu avatar",
+    "default": "Fes servir el predeterminat",
+    "saveError": "No s’ha pogut desar l’avatar.",
+    "porro": "Porró",
+    "vermut": "Vermut",
+    "cafe": "Cafè",
+    "sifo": "Sifó",
+    "olives": "Olives",
+    "braves": "Patates braves",
+    "caliquenyo": "Caliquenyo",
+    "pa-amb-tomaquet": "Pa amb tomàquet",
+    "anxoves": "Anxoves",
+    "canya": "Canya",
+    "baralla": "Baralla de cartes",
+    "cacauets": "Cacauets"
   },
   "bugReport": {
     "trigger": "Informa d’un error",
