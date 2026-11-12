@@ -167,7 +167,7 @@ export function TrickArea({
   const [selectedLastTrickTeam, setSelectedLastTrickTeam] = useState<0 | 1 | null>(null);
   const myTeam = (mySeat % 2) as 0 | 1;
   const cardWrapperRefs = useRef<Partial<Record<Seat, HTMLDivElement | null>>>({});
-  const teamPileRefs = useRef<Partial<Record<0 | 1, HTMLButtonElement | null>>>({});
+  const avatarRefs = useRef<Partial<Record<Seat, HTMLButtonElement | null>>>({});
   const [trickOffsets, setTrickOffsets] = useState<Partial<Record<Seat, { x: number; y: number }>>>({});
   const animatedTrick = finalTrickAnimating && finalTrickReveal
     ? finalTrickReveal
@@ -176,9 +176,6 @@ export function TrickArea({
       : null;
   const visibleTrick = finalTrickReveal?.cards ?? trickReveal?.cards ?? currentTrick;
 
-  // Trick counts per team
-  const team0Tricks = completedTricks.filter((tr) => tr.winner % 2 === 0).length;
-  const team1Tricks = completedTricks.filter((tr) => tr.winner % 2 === 1).length;
   const selectedLastTrick = selectedLastTrickTeam === null
     ? null
     : completedTricks.filter((tr) => tr.winner % 2 === selectedLastTrickTeam).at(-1) ?? null;
@@ -189,13 +186,12 @@ export function TrickArea({
       return;
     }
 
-    const winningTeam = (animatedTrick.winner % 2) as 0 | 1;
-    const pile = teamPileRefs.current[winningTeam];
-    if (!pile) return;
+    const winnerAvatar = avatarRefs.current[animatedTrick.winner];
+    if (!winnerAvatar) return;
 
-    const pileBounds = pile.getBoundingClientRect();
-    const targetX = pileBounds.left + pileBounds.width / 2;
-    const targetY = pileBounds.top + pileBounds.height / 2;
+    const avatarBounds = winnerAvatar.getBoundingClientRect();
+    const targetX = avatarBounds.left + avatarBounds.width / 2;
+    const targetY = avatarBounds.top + avatarBounds.height / 2;
     const offsets: Partial<Record<Seat, { x: number; y: number }>> = {};
 
     for (const trickCard of animatedTrick.cards) {
@@ -308,6 +304,8 @@ export function TrickArea({
     const isActive = contraTeam !== null ? contraTeam === seat % 2 : activeSeat === seat;
     const isDeclarant = declarantSeat !== undefined && seat === declarantSeat;
     const teamClass = seat % 2 === 0 ? 'team-0' : 'team-1';
+    const seatTeam = (seat % 2) as 0 | 1;
+    const historyAction = t(seatTeam === myTeam ? 'wonCards.showLastWon' : 'wonCards.showLastLost');
     const seatDescription = card
       ? name
       : isActive && contraTeam !== null
@@ -329,11 +327,20 @@ export function TrickArea({
               gameState={gameState}
               onPlayCard={onPlayCard}
               commandErrorVersion={commandErrorVersion}
+              compactLandscape={compactLandscape}
             />
           </div>
         ) : renderOpponentHand(seat, position)}
         <div className="seat-identity">
-          <span className={`seat-badge ${teamClass}${isActive ? ' active' : ''}`}>
+          <button
+            ref={(element) => { avatarRefs.current[seat] = element; }}
+            type="button"
+            className={`seat-badge seat-history-trigger ${teamClass}${isActive ? ' active' : ''}`}
+            onClick={() => setSelectedLastTrickTeam(seatTeam)}
+            aria-label={`${historyAction}: ${name}`}
+            aria-expanded={selectedLastTrickTeam === seatTeam}
+            title={historyAction}
+          >
             <img
               className="seat-avatar"
               src={avatarImageSrc(gameState.playerAvatarIds?.[seat] ?? null)}
@@ -354,7 +361,7 @@ export function TrickArea({
                 </svg>
               </span>
             )}
-          </span>
+          </button>
           <span className="seat-name">{name}</span>
         </div>
       </div>
@@ -426,7 +433,8 @@ export function TrickArea({
               key={selectedLastTrickTeam}
               className="won-trick-board-panel"
               role="region"
-              aria-label={t('wonCards.lastTrick')}
+              id="won-trick-history"
+              aria-label={t(selectedLastTrickTeam === myTeam ? 'wonCards.lastWon' : 'wonCards.lastLost')}
             >
               <div className="won-trick-board-heading">
                 <div className="won-trick-board-title">
@@ -462,68 +470,7 @@ export function TrickArea({
           )}
         </div>
 
-        {/* Won-trick stacks — one per team, always visible during play */}
-        <div className="won-trick-piles" style={{ display: 'flex', gap: '1.5rem', justifyContent: 'center', marginTop: 2 }}>
-          {([0, 1] as const).map((team) => {
-            const count = team === 0 ? team0Tricks : team1Tricks;
-            const color = team === 0 ? 'var(--color-team0)' : 'var(--color-team1)';
-            const isMyTeam = myTeam === team;
-            const label = isMyTeam ? t('wonCards.lastWon') : t('wonCards.lastLost');
-            const names = teamName(team);
-            const isOpen = selectedLastTrickTeam === team;
-            return (
-              <button
-                ref={(element) => { teamPileRefs.current[team] = element; }}
-                key={team}
-                className={`won-trick-toggle${isOpen ? ' is-open' : ''}`}
-                onClick={() => setSelectedLastTrickTeam(isOpen ? null : team)}
-                disabled={count === 0}
-                title={`${label}: ${names}`}
-                aria-pressed={isOpen}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  background: 'none',
-                  border: `1px solid ${color}44`,
-                  borderRadius: 'var(--radius)',
-                  padding: '4px 10px',
-                  cursor: count === 0 ? 'default' : 'pointer',
-                  opacity: count === 0 ? 0.35 : 1,
-                  transition: 'opacity 0.2s, border-color 0.2s',
-                }}
-              >
-                {/* Mini face-down card stack */}
-                <div style={{ position: 'relative', width: 22, height: 32, flexShrink: 0 }}>
-                  {[2, 1, 0].map((offset) => (
-                    <div
-                      key={offset}
-                      style={{
-                        position: 'absolute',
-                        top: offset * 2,
-                        left: offset * 2,
-                        width: 16,
-                        height: 24,
-                        borderRadius: 2,
-                        background: `linear-gradient(135deg, ${color}44 0%, ${color}22 100%)`,
-                        border: `1px solid ${color}66`,
-                        boxShadow: '1px 1px 3px rgba(0,0,0,0.4)',
-                      }}
-                    />
-                  ))}
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 0 }}>
-                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color, lineHeight: 1 }}>
-                    {count}
-                  </span>
-                  <span style={{ fontSize: '0.55rem', color: 'var(--color-muted)', lineHeight: 1.2 }}>
-                    {label}
-                  </span>
-                </div>
-              </button>
-            );
-          })}
-        </div>
+
       </div>
     </>
   );

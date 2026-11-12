@@ -41,14 +41,21 @@ interface HandProps {
   gameState: PlayerGameStateDTO;
   onPlayCard: (card: Card) => void;
   commandErrorVersion?: number;
+  compactLandscape?: boolean;
 }
 
-export function HandComponent({ gameState, onPlayCard, commandErrorVersion = 0 }: HandProps) {
+export function HandComponent({
+  gameState,
+  onPlayCard,
+  commandErrorVersion = 0,
+  compactLandscape = false,
+}: HandProps) {
   const { t } = useTranslation();
   const handSortDirection = useAuthStore(
     (state) => state.user?.handSortDirection ?? 'left-to-right',
   );
   const isMobile = useIsMobile();
+  const compactCards = isMobile || compactLandscape;
   const [selected, setSelected] = useState<Card | null>(null);
   const [rejectedCard, setRejectedCard] = useState<{ key: string; version: number } | null>(null);
   const [dealKey, setDealKey] = useState(0);
@@ -155,10 +162,16 @@ export function HandComponent({ gameState, onPlayCard, commandErrorVersion = 0 }
   // current board width needs as the viewport rotates or changes size.
   const count = gameState.hand.length;
   const availableWidth = handWidth || (typeof window !== 'undefined' ? window.innerWidth - 32 : 360);
-  const gap = isMobile ? 0 : 5;
+  const gap = compactCards ? 0 : 5;
   const smallCardFitWidth = 50 + Math.max(0, count - 1) * 25;
-  const cardW = isMobile && availableWidth < smallCardFitWidth ? 42 : isMobile ? 50 : 60;
-  const maxOverlap = isMobile ? (cardW === 42 ? 0.62 : 0.5) : 0.42;
+  const cardW = compactLandscape
+    ? 42
+    : compactCards && availableWidth < smallCardFitWidth
+      ? 42
+      : compactCards
+        ? 50
+        : 60;
+  const maxOverlap = compactCards ? (cardW === 42 ? 0.62 : 0.5) : 0.42;
   const naturalWidth = count * cardW + Math.max(0, count - 1) * gap;
   const neededOverlap = count > 1 && naturalWidth > availableWidth
     ? (naturalWidth - availableWidth) / ((count - 1) * cardW)
@@ -225,7 +238,7 @@ export function HandComponent({ gameState, onPlayCard, commandErrorVersion = 0 }
           const normalizedOffset = count > 1 ? (i / (count - 1)) * 2 - 1 : 0;
           const fanStrength = Math.min(1, Math.max(0, (count - 1) / 5));
           const rotation = normalizedOffset * 9 * fanStrength;
-          const fanLift = Math.round(24 * (1 - normalizedOffset ** 2) * fanStrength);
+          const fanLift = Math.round((compactLandscape ? 7 : 24) * (1 - normalizedOffset ** 2) * fanStrength);
           return (
             <CardComponent
               key={key}
@@ -234,9 +247,9 @@ export function HandComponent({ gameState, onPlayCard, commandErrorVersion = 0 }
               disabled={!isMyTurn || !legalSet.has(key)}
               onClick={() => handleCardClick(card)}
               selected={isSel}
-              tiny={isMobile && cardW === 42}
-              small={isMobile && cardW === 50}
-              compact={!isMobile}
+              tiny={compactCards && cardW === 42}
+              small={compactCards && cardW === 50}
+              compact={!compactCards}
               animate={true}
               dealDelay={i * 55}
               rotation={rotation}

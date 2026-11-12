@@ -268,7 +268,9 @@
     "lastTrick": "Última mà guanyada",
     "lastWon": "Última mà guanyada",
     "lastLost": "Última mà perduda",
-    "noTricks": "Encara no s'ha guanyat cap mà",
+    "showLastWon": "Mostra l'última mà guanyada",
+    "showLastLost": "Mostra l'última mà perduda",
+    "noTricks": "Encara no hi ha cap mà per mostrar",
     "closeAria": "Tanca",
     "clickToClose": "Fes clic a qualsevol lloc per tancar",
     "wonBy": "Guanyada per {{name}}"

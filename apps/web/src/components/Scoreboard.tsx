@@ -7,6 +7,21 @@ interface ScoreboardProps {
 
 const MATCH_TARGET_SCORE = 101;
 
+const TRUMP_CARD_IMAGES = {
+  oros: '/cards/01-oros.png',
+  copes: '/cards/01-copas.png',
+  espases: '/cards/01-espadas.png',
+  bastos: '/cards/01-bastos.png',
+  botifarra: '/cards/botifarra.png',
+} as const;
+
+const TRUMP_SUIT_KEYS = {
+  oros: 'O',
+  copes: 'C',
+  espases: 'E',
+  bastos: 'B',
+} as const;
+
 function TeamIcon() {
   return (
     <svg className="game-score-team-icon" viewBox="0 0 28 28" aria-hidden="true">
@@ -34,6 +49,12 @@ function RoundLaurel({ reversed = false }: { reversed?: boolean }) {
 export function Scoreboard({ gameState }: ScoreboardProps) {
   const { t } = useTranslation();
   const myTeam = gameState.mySeat % 2;
+  const trump = gameState.trump;
+  const trumpLabel = trump === null
+    ? t('trick.noTrumpYet')
+    : trump === 'botifarra'
+      ? t('game_terms.botifarra')
+      : t(`suits.${TRUMP_SUIT_KEYS[trump]}`);
 
   function renderTeam(team: 0 | 1) {
     const isMyTeam = myTeam === team;
@@ -67,6 +88,19 @@ export function Scoreboard({ gameState }: ScoreboardProps) {
             <strong className="game-round-number">{gameState.roundNumber}</strong>
           </div>
           <RoundLaurel reversed />
+          <span
+            className="game-score-trump-indicator"
+            role="img"
+            aria-label={`${t('trick.trump')}: ${trumpLabel}`}
+            title={`${t('trick.trump')}: ${trumpLabel}`}
+          >
+            <img
+              src={trump === null ? '/cards/reverso.png' : TRUMP_CARD_IMAGES[trump]}
+              alt=""
+              draggable={false}
+            />
+            {trump !== null && <span>{trumpLabel}</span>}
+          </span>
         </div>
         <span className="game-score-objective">
           {t('scoreboard.objective', { score: MATCH_TARGET_SCORE })}

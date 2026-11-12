@@ -199,6 +199,9 @@ importers:
       vitest:
         specifier: ^3.2.4
         version: 3.2.4(@types/node@22.19.18)(jiti@2.7.0)(jsdom@29.1.1)(terser@5.47.1)(tsx@4.21.0)
+      workbox-window:
+        specifier: ^7.4.1
+        version: 7.4.1
 
   packages/botifarra-core:
     devDependencies:

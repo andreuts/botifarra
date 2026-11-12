@@ -268,7 +268,9 @@
     "lastTrick": "Last trick won",
     "lastWon": "Last won",
     "lastLost": "Last lost",
-    "noTricks": "No tricks won yet",
+    "showLastWon": "Show last trick won",
+    "showLastLost": "Show last trick lost",
+    "noTricks": "No completed trick to show yet",
     "closeAria": "Close",
     "clickToClose": "Click anywhere to close",
     "wonBy": "Won by {{name}}"

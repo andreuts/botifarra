@@ -179,6 +179,28 @@ export async function buildApp(opts: AppOptions = {}) {
     );
 
     if (existsSync(webDistDir)) {
+      // Revalidate stable app-shell and service-worker URLs after each deployment.
+      // Vite's content-hashed bundles can be cached for a year safely.
+      app.addHook('onSend', (request, reply, payload, done) => {
+        const pathname = request.url.split('?')[0] ?? '';
+        const isApi = pathname === '/api' || pathname.startsWith('/api/');
+        const isRealtime = pathname === '/colyseus' || pathname.startsWith('/colyseus/');
+        const isUpload = pathname === '/uploads' || pathname.startsWith('/uploads/');
+
+        if (request.method !== 'GET' || isApi || isRealtime || isUpload) {
+          done(null, payload);
+          return;
+        }
+
+        reply.header(
+          'Cache-Control',
+          pathname.startsWith('/assets/')
+            ? 'public, max-age=31536000, immutable'
+            : 'no-cache, must-revalidate',
+        );
+        done(null, payload);
+      });
+
       await app.register(fastifyStatic, {
         root: webDistDir,
         prefix: '/',

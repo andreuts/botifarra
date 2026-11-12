@@ -414,7 +414,7 @@ export function CardComponent({
         cursor: interactable ? 'pointer' : 'default',
         opacity: disabled ? 0.68 : 1,
         boxShadow: shadow,
-        transition: 'transform 0.15s cubic-bezier(.34,1.56,.64,1), box-shadow 0.15s, opacity 0.15s',
+        transition: 'width 0.24s ease, height 0.24s ease, transform 0.24s cubic-bezier(.34,1.56,.64,1), box-shadow 0.15s, opacity 0.15s',
         transform: isFanHandCard && selected
           ? `rotate(${rotation}deg) translateY(-${fanLift + 22}px) scale(1.22) scale(${sizeScale})`
           : `rotate(${rotation}deg) translateY(${selected ? -14 : -fanLift}px) scale(${sizeScale})`,

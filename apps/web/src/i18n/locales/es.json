@@ -251,7 +251,9 @@
     "lastTrick": "Última baza ganada",
     "lastWon": "Última baza ganada",
     "lastLost": "Última baza perdida",
-    "noTricks": "Todavía no se ha ganado ninguna baza",
+    "showLastWon": "Mostrar la última baza ganada",
+    "showLastLost": "Mostrar la última baza perdida",
+    "noTricks": "Todavía no hay ninguna baza para mostrar",
     "closeAria": "Cerrar",
     "clickToClose": "Haz clic en cualquier lugar para cerrar",
     "wonBy": "Ganada por {{name}}"
