@@ -5,6 +5,7 @@ import type {
   Seat,
   TrumpDeclaration,
 } from '@botifarra/core';
+import type { ReactionMood } from './commands.js';
 import type { PlayerGameStateDTO } from './match.dto.js';
 
 /**
@@ -83,7 +84,7 @@ export interface ReactionEvent {
   type: 'reaction';
   fromUsername: string;
   fromSeat: Seat;
-  emoji: string;
+  reaction: ReactionMood;
   timestamp: number;
 }
 

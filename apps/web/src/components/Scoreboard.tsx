@@ -68,6 +68,19 @@ export function Scoreboard({ gameState }: ScoreboardProps) {
         <TeamIcon />
         <div className="game-score-team-copy">
           <strong className="game-score-team-label">{label}</strong>
+          {isMyTeam && trump !== null && (
+            <span
+              className="game-score-trump-card"
+              role="img"
+              aria-label={t('trick.trump') + ': ' + trumpLabel}
+            >
+              <img
+                src={TRUMP_CARD_IMAGES[trump]}
+                alt=""
+                draggable={false}
+              />
+            </span>
+          )}
         </div>
         <div className="game-score-numeric">
           <strong className="game-score-value">{gameState.scores[team]}</strong>
@@ -88,19 +101,6 @@ export function Scoreboard({ gameState }: ScoreboardProps) {
             <strong className="game-round-number">{gameState.roundNumber}</strong>
           </div>
           <RoundLaurel reversed />
-          <span
-            className="game-score-trump-indicator"
-            role="img"
-            aria-label={`${t('trick.trump')}: ${trumpLabel}`}
-            title={`${t('trick.trump')}: ${trumpLabel}`}
-          >
-            <img
-              src={trump === null ? '/cards/reverso.png' : TRUMP_CARD_IMAGES[trump]}
-              alt=""
-              draggable={false}
-            />
-            {trump !== null && <span>{trumpLabel}</span>}
-          </span>
         </div>
         <span className="game-score-objective">
           {t('scoreboard.objective', { score: MATCH_TARGET_SCORE })}

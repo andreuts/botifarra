@@ -1,10 +1,13 @@
 import { useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Card, CompletedTrick, Seat } from '@botifarra/core';
-import type { PlayerGameStateDTO } from '@botifarra/shared';
+import type { PlayerGameStateDTO, ReactionMood } from '@botifarra/shared';
 import { TRICK_ANIMATION_DURATION_MS } from '@botifarra/shared';
 import { CardComponent, EmptyCardSlot } from './CardComponent.js';
 import { HandComponent } from './HandComponent.js';
+import { ReactionPicker } from './ReactionPicker.js';
+import type { ActiveGameReaction } from '../hooks/useGameRoom.js';
+import { reactionAssetClass, reactionAssetPath } from '../utils/reactionAssets.js';
 import { getContraDecidingTeam } from '../gamePhase.js';
 import { avatarImageSrc } from '../utils/avatar.js';
 import {
@@ -18,6 +21,7 @@ import {
 interface TrickAreaProps {
   gameState: PlayerGameStateDTO;
   mySeat: Seat;
+  playerConnectivity?: Partial<Record<Seat, boolean>>;
   onPlayCard: (card: Card) => void;
   commandErrorVersion?: number;
   /** Live timer state from the store — overrides gameState.timers for real-time updates */
@@ -30,6 +34,8 @@ interface TrickAreaProps {
   finalTrickReveal?: CompletedTrick | null;
   /** Animate the revealed final trick into the winning team's pile. */
   finalTrickAnimating?: boolean;
+  onReaction?: (reaction: ReactionMood) => void;
+  activeReactions?: Partial<Record<Seat, ActiveGameReaction>>;
 }
 
 const COMPACT_TABLE_QUERY = '(orientation: landscape) and (max-height: 760px)';
@@ -138,6 +144,7 @@ function TimerBar({
 export function TrickArea({
   gameState,
   mySeat,
+  playerConnectivity = {},
   onPlayCard,
   commandErrorVersion = 0,
   timers: liveTimers,
@@ -145,6 +152,8 @@ export function TrickArea({
   trickRevealAnimating = false,
   finalTrickReveal = null,
   finalTrickAnimating = false,
+  onReaction,
+  activeReactions = {},
 }: TrickAreaProps) {
   const { t } = useTranslation();
   const compactLandscape = useCompactLandscape();
@@ -166,9 +175,16 @@ export function TrickArea({
 
   const [selectedLastTrickTeam, setSelectedLastTrickTeam] = useState<0 | 1 | null>(null);
   const myTeam = (mySeat % 2) as 0 | 1;
+  const trickGridRef = useRef<HTMLDivElement | null>(null);
   const cardWrapperRefs = useRef<Partial<Record<Seat, HTMLDivElement | null>>>({});
   const avatarRefs = useRef<Partial<Record<Seat, HTMLButtonElement | null>>>({});
   const [trickOffsets, setTrickOffsets] = useState<Partial<Record<Seat, { x: number; y: number }>>>({});
+  const [reactionPositions, setReactionPositions] = useState<Partial<Record<Seat, {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  }>>>({});
   const animatedTrick = finalTrickAnimating && finalTrickReveal
     ? finalTrickReveal
     : trickRevealAnimating && trickReveal
@@ -207,6 +223,33 @@ export function TrickArea({
     const frame = window.requestAnimationFrame(() => setTrickOffsets(offsets));
     return () => window.cancelAnimationFrame(frame);
   }, [animatedTrick]);
+
+  useLayoutEffect(() => {
+    const updatePositions = () => {
+      const grid = trickGridRef.current;
+      if (!grid) return;
+      const gridBounds = grid.getBoundingClientRect();
+      const positions: typeof reactionPositions = {};
+
+      for (const seat of [0, 1, 2, 3] as const) {
+        if (seat !== mySeat && !activeReactions[seat]) continue;
+        const avatar = avatarRefs.current[seat];
+        if (!avatar) continue;
+        const bounds = avatar.getBoundingClientRect();
+        positions[seat] = {
+          x: bounds.left + bounds.width / 2 - gridBounds.left,
+          y: bounds.top + bounds.height / 2 - gridBounds.top,
+          width: bounds.width,
+          height: bounds.height,
+        };
+      }
+      setReactionPositions(positions);
+    };
+
+    updatePositions();
+    window.addEventListener('resize', updatePositions);
+    return () => window.removeEventListener('resize', updatePositions);
+  }, [activeReactions, mySeat, compactLandscape, compactPortrait]);
 
   function teamName(team: 0 | 1) {
     const partnerSeat = (team + 2) as Seat;
@@ -305,6 +348,8 @@ export function TrickArea({
     const isDeclarant = declarantSeat !== undefined && seat === declarantSeat;
     const teamClass = seat % 2 === 0 ? 'team-0' : 'team-1';
     const seatTeam = (seat % 2) as 0 | 1;
+    const isOnline = playerConnectivity[seat] ?? true;
+    const statusLabel = t(isOnline ? 'game.online' : 'game.offline');
     const historyAction = t(seatTeam === myTeam ? 'wonCards.showLastWon' : 'wonCards.showLastLost');
     const seatDescription = card
       ? name
@@ -337,15 +382,19 @@ export function TrickArea({
             type="button"
             className={`seat-badge seat-history-trigger ${teamClass}${isActive ? ' active' : ''}`}
             onClick={() => setSelectedLastTrickTeam(seatTeam)}
-            aria-label={`${historyAction}: ${name}`}
+            aria-label={historyAction + ': ' + name + ' (' + statusLabel + ')'}
             aria-expanded={selectedLastTrickTeam === seatTeam}
-            title={historyAction}
+            title={historyAction + ': ' + statusLabel}
           >
             <img
               className="seat-avatar"
               src={avatarImageSrc(gameState.playerAvatarIds?.[seat] ?? null)}
               alt=""
               draggable={false}
+            />
+            <span
+              className={'seat-online-indicator ' + (isOnline ? 'is-online' : 'is-offline')}
+              aria-hidden="true"
             />
             {isDeclarant && (
               <span
@@ -417,7 +466,7 @@ export function TrickArea({
           className="trick-area"
           style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'center', width: '100%' }}
         >
-        <div className="trick-grid" role="region" aria-label={t('trick.currentTrick')}>
+        <div ref={trickGridRef} className="trick-grid" role="region" aria-label={t('trick.currentTrick')}>
           {renderSlot(partner, 'top')}
           {renderSlot(leftOpp, 'left')}
           {renderSlot(rightOpp, 'right')}
@@ -427,6 +476,62 @@ export function TrickArea({
             {renderPlayedCard(leftOpp, 'left')}
             {renderPlayedCard(rightOpp, 'right')}
             {renderPlayedCard(mySeat, 'bottom')}
+          </div>
+          <div className="game-reaction-layer" aria-live="polite">
+            {onReaction && reactionPositions[mySeat] && (
+              <div
+                className="reaction-control-anchor"
+                style={{
+                  left: reactionPositions[mySeat]!.x + reactionPositions[mySeat]!.width / 2 + 5,
+                  top: reactionPositions[mySeat]!.y,
+                }}
+              >
+                <ReactionPicker onReaction={onReaction} />
+              </div>
+            )}
+            {([0, 1, 2, 3] as const).map((seat) => {
+              const reaction = activeReactions[seat];
+              const position = reactionPositions[seat];
+              if (!reaction || !position) return null;
+              const isTopSeat = seat === partner;
+              const isLeftSeat = seat === leftOpp;
+              const isRightSeat = seat === rightOpp;
+              const placement = isTopSeat
+                ? 'below'
+                : isLeftSeat
+                  ? 'right'
+                  : isRightSeat
+                    ? 'left'
+                    : 'above';
+
+              return (
+                <div
+                  key={reaction.id}
+                  className={`game-reaction-bubble game-reaction-bubble--${placement}`}
+                  style={{
+                    left: isLeftSeat
+                      ? position.x + position.width / 2 + 6
+                      : isRightSeat
+                        ? position.x - position.width / 2 - 6
+                        : position.x,
+                    top: isTopSeat
+                      ? position.y + position.height / 2 + 6
+                      : isLeftSeat || isRightSeat
+                        ? position.y
+                        : position.y - position.height / 2 - 6,
+                  }}
+                  role="status"
+                  aria-label={`${reaction.fromUsername}: ${t(`reactions.${reaction.reaction}`)}`}
+                >
+                  <img
+                    className={reactionAssetClass(reaction.reaction)}
+                    src={reactionAssetPath(reaction.reaction)}
+                    alt=""
+                    draggable={false}
+                  />
+                </div>
+              );
+            })}
           </div>
           {selectedLastTrickTeam !== null && (
             <div

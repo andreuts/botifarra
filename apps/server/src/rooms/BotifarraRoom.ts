@@ -1,7 +1,7 @@
 import { Room, Client } from 'colyseus';
 import { Schema, type, MapSchema } from '@colyseus/schema';
 
-import type { ClientCommand, GameAvatarId, ReactionEmoji, PremadeMessageKey } from '@botifarra/shared';
+import type { ClientCommand, GameAvatarId, ReactionMood, PremadeMessageKey } from '@botifarra/shared';
 import type { ObserverGameStateDTO } from '@botifarra/shared';
 import { getRandomGameAvatarId, isGameAvatarId } from '@botifarra/shared';
 import {
@@ -128,12 +128,16 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
   private static readonly CHAT_RATE_MAX = 5;
 
   // -- Reaction rate limiting --
-  private static readonly REACTION_RATE_WINDOW_MS = 60_000; // 1 minute
-  private static readonly REACTION_RATE_MAX = 5; // 5 reactions per minute
+  private static readonly REACTION_RATE_WINDOW_MS = 10_000;
+  private static readonly REACTION_RATE_MAX = 5;
+  private static readonly REACTION_COOLDOWN_MS = 2_000;
   private reactionRateLimit = new Map<string, number[]>();
+  private static readonly PREMADE_RATE_WINDOW_MS = 60_000;
+  private static readonly PREMADE_RATE_MAX = 5;
+  private premadeRateLimit = new Map<string, number[]>();
 
-  private static readonly VALID_EMOJIS: Set<ReactionEmoji> = new Set([
-    'happy', 'sad', 'cry', 'applause', 'celebrate', 'money', 'cigar', 'wine', 'beer',
+  private static readonly VALID_REACTIONS: Set<ReactionMood> = new Set([
+    'angry', 'cheers', 'laugh', 'love', 'happy', 'pokerface',
   ]);
   private static readonly VALID_PREMADES: Set<PremadeMessageKey> = new Set([
     'bona_sort', 'ben_jugat', 'quina_sort', 'au_va', 'botifarra',
@@ -1336,7 +1340,11 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
     const now = Date.now();
     const timestamps = this.reactionRateLimit.get(client.sessionId) ?? [];
     const recent = timestamps.filter((t) => now - t < BotifarraRoom.REACTION_RATE_WINDOW_MS);
-    if (recent.length >= BotifarraRoom.REACTION_RATE_MAX) {
+    const lastSentAt = recent.at(-1);
+    if (
+      recent.length >= BotifarraRoom.REACTION_RATE_MAX ||
+      (lastSentAt !== undefined && now - lastSentAt < BotifarraRoom.REACTION_COOLDOWN_MS)
+    ) {
       client.send('error', { code: 'REACTION_RATE_LIMITED', message: 'Too many reactions, slow down' });
       return false;
     }
@@ -1345,10 +1353,23 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
     return true;
   }
 
+  private checkPremadeRateLimit(client: Client): boolean {
+    const now = Date.now();
+    const timestamps = this.premadeRateLimit.get(client.sessionId) ?? [];
+    const recent = timestamps.filter((timestamp) => now - timestamp < BotifarraRoom.PREMADE_RATE_WINDOW_MS);
+    if (recent.length >= BotifarraRoom.PREMADE_RATE_MAX) {
+      client.send('error', { code: 'REACTION_RATE_LIMITED', message: 'Too many messages, slow down' });
+      return false;
+    }
+    recent.push(now);
+    this.premadeRateLimit.set(client.sessionId, recent);
+    return true;
+  }
+
   private handleReaction(client: Client, payload: unknown) {
-    const { emoji } = payload as { emoji?: string };
-    if (!emoji || !BotifarraRoom.VALID_EMOJIS.has(emoji as ReactionEmoji)) {
-      client.send('error', { code: 'INVALID_REACTION', message: 'Invalid emoji key' });
+    const reaction = (payload as { reaction?: unknown } | null)?.reaction;
+    if (typeof reaction !== 'string' || !BotifarraRoom.VALID_REACTIONS.has(reaction as ReactionMood)) {
+      client.send('error', { code: 'INVALID_REACTION', message: 'Invalid reaction key' });
       return;
     }
     const playerSchema = this.state.players.get(client.sessionId);
@@ -1360,7 +1381,7 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
       type: 'reaction' as const,
       fromUsername: playerSchema.username,
       fromSeat: playerSchema.seat as 0 | 1 | 2 | 3,
-      emoji,
+      reaction: reaction as ReactionMood,
       timestamp: Date.now(),
     };
 
@@ -1376,7 +1397,7 @@ export class BotifarraRoom extends Room<BotifarraRoomState, BotifarraRoomOptions
     const playerSchema = this.state.players.get(client.sessionId);
     if (!playerSchema) return;
 
-    if (!this.checkReactionRateLimit(client)) return;
+    if (!this.checkPremadeRateLimit(client)) return;
 
     const event = {
       type: 'premade_message' as const,

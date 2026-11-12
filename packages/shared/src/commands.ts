@@ -63,8 +63,8 @@ export interface SurrenderRespondCommand {
   accept: boolean;
 }
 
-/** Available emoji reaction keys */
-export type ReactionEmoji = 'happy' | 'sad' | 'cry' | 'applause' | 'celebrate' | 'money' | 'cigar' | 'wine' | 'beer';
+/** Available in-game reaction moods. */
+export type ReactionMood = 'angry' | 'cheers' | 'laugh' | 'love' | 'happy' | 'pokerface';
 
 /** Available premade message keys */
 export type PremadeMessageKey =
@@ -81,7 +81,7 @@ export type PremadeMessageKey =
 
 export interface SendReactionCommand {
   type: 'send_reaction';
-  emoji: ReactionEmoji;
+  reaction: ReactionMood;
 }
 
 export interface SendPremadeCommand {

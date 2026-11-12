@@ -681,22 +681,16 @@
     }
   },
   "reactions": {
-    "open": "Reaccions",
-    "emojis": "Emojis",
-    "phrases": "Frases",
+    "open": "Enviar una reacci\u00f3",
+    "cooldown": "Espera {{seconds}} s",
+    "angry": "Enuig",
+    "cheers": "Salut!",
+    "laugh": "Rialles",
+    "love": "Afecte",
+    "happy": "Alegria",
+    "pokerface": "Impassible",
     "mute": "Silenciar {{name}}",
-    "unmute": "Activar {{name}}",
-    "emoji": {
-      "happy": "Content",
-      "sad": "Trist",
-      "cry": "Plorar",
-      "applause": "Aplaudiment",
-      "celebrate": "Celebrar",
-      "money": "Diners",
-      "cigar": "Cigar",
-      "wine": "Vi",
-      "beer": "Cervesa"
-    }
+    "unmute": "Activar {{name}}"
   },
   "premade": {
     "bona_sort": "Bona sort!",

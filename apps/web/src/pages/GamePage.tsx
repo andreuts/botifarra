@@ -13,6 +13,7 @@ import { getContraDecidingTeam } from '../gamePhase.js';
 import { ConfirmDialog } from '../components/ConfirmDialog.js';
 import { SettingsOpenContext } from '../components/SettingsOpenContext.js';
 import { api } from '../api/client.js';
+import { unlockReactionSounds } from '../utils/reactionSounds.js';
 import type { ActiveGameMode } from '../store/gameStore.js';
 import type { CompletedTrick, Seat } from '@botifarra/core';
 import {
@@ -45,9 +46,7 @@ export function GamePage() {
     connected,
     error,
     gameResult,
-    toasts,
     timerSnapshot,
-    dismissToast,
     reset,
     setError,
     setActiveGame,
@@ -62,6 +61,20 @@ export function GamePage() {
   const [finalTrickAnimating, setFinalTrickAnimating] = useState(false);
   const [trickReveal, setTrickReveal] = useState<CompletedTrick | null>(null);
   const previousTrickRef = useRef<{ roundNumber: number; count: number } | null>(null);
+
+  useEffect(() => {
+    const unlock = () => {
+      unlockReactionSounds();
+      window.removeEventListener('pointerdown', unlock);
+      window.removeEventListener('keydown', unlock);
+    };
+    window.addEventListener('pointerdown', unlock, { once: true, passive: true });
+    window.addEventListener('keydown', unlock, { once: true });
+    return () => {
+      window.removeEventListener('pointerdown', unlock);
+      window.removeEventListener('keydown', unlock);
+    };
+  }, []);
 
   useLayoutEffect(() => {
     if (!gameState) {
@@ -154,8 +167,10 @@ export function GamePage() {
     sendPassDeclaration,
     sendPassContra,
     sendCallContra,
+    sendReaction,
     commandErrorVersion,
     roomPlayers,
+    activeReactions,
     leaveRoom,
   } = useGameRoom(matchId, isPracticeMode ? 'practice' : 'botifarra', seatReservation);
 
@@ -274,13 +289,6 @@ export function GamePage() {
       setActiveGame(null);
     }
   }, [gameResult, setActiveGame]);
-
-  // Auto-dismiss toasts
-  useEffect(() => {
-    if (toasts.length === 0) return;
-    const t = setTimeout(dismissToast, 3000);
-    return () => clearTimeout(t);
-  }, [toasts, dismissToast]);
 
   // ---------------------------------------------------------------------------
   // Error state
@@ -413,6 +421,10 @@ export function GamePage() {
   const mySeat: Seat = gameState.mySeat;
   const myTeam = mySeat % 2 === 0 ? 0 : 1;
   const names = gameState.playerNames;
+  const playerConnectivity = roomPlayers.reduce<Partial<Record<Seat, boolean>>>((statuses, player) => {
+    if (player.seat >= 0 && player.seat <= 3) statuses[player.seat as Seat] = player.connected;
+    return statuses;
+  }, {});
 
   const isDeclaringPhase = gameState.trump === null;
   const isContraPhase = getContraDecidingTeam(gameState) !== null;
@@ -422,14 +434,7 @@ export function GamePage() {
     : t(gameState.ranked ? 'game.ranked' : 'game.normal');
 
   return (
-    <div className={`game-room${toasts.length > 0 ? ' has-toast' : ''}`}>
-      {/* Toast */}
-      {toasts.length > 0 && (
-        <div className="toast" onClick={dismissToast}>
-          {toasts[0]}
-        </div>
-      )}
-
+    <div className="game-room">
       {/* Game Over overlay */}
       {gameResult && (
         <div
@@ -501,7 +506,10 @@ export function GamePage() {
             <TrickArea
               gameState={gameState}
               mySeat={mySeat}
+              playerConnectivity={playerConnectivity}
               onPlayCard={(card) => sendPlayCard(card)}
+              onReaction={sendReaction}
+              activeReactions={activeReactions}
               commandErrorVersion={commandErrorVersion}
               timers={interpolatedTimers?.timers}
               trickReveal={activeTrickReveal}

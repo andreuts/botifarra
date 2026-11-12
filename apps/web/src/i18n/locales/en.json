@@ -681,22 +681,16 @@
     }
   },
   "reactions": {
-    "open": "Reactions",
-    "emojis": "Emojis",
-    "phrases": "Phrases",
+    "open": "Send a reaction",
+    "cooldown": "Wait {{seconds}}s",
+    "angry": "Angry",
+    "cheers": "Cheers",
+    "laugh": "Laugh",
+    "love": "Love",
+    "happy": "Happy",
+    "pokerface": "Poker face",
     "mute": "Mute {{name}}",
-    "unmute": "Unmute {{name}}",
-    "emoji": {
-      "happy": "Happy",
-      "sad": "Sad",
-      "cry": "Cry",
-      "applause": "Applause",
-      "celebrate": "Celebrate",
-      "money": "Money",
-      "cigar": "Cigar",
-      "wine": "Wine",
-      "beer": "Beer"
-    }
+    "unmute": "Unmute {{name}}"
   },
   "premade": {
     "bona_sort": "Good luck!",
